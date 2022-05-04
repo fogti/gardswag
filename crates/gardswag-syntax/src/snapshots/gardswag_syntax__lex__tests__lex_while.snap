@@ -1,0 +1,123 @@
+---
+source: crates/gardswag-syntax/src/lex.rs
+assertion_line: 177
+expression: "Lexer::new(\"while std.leq a b {\\na = std.plus a b;\\n}\\n\").collect::<Vec<_>>()"
+---
+[
+    Ok(
+        Token {
+            kind: Keyword(
+                While,
+            ),
+            offset: 0,
+        },
+    ),
+    Ok(
+        Token {
+            kind: Keyword(
+                Std,
+            ),
+            offset: 6,
+        },
+    ),
+    Ok(
+        Token {
+            kind: Dot,
+            offset: 9,
+        },
+    ),
+    Ok(
+        Token {
+            kind: String(
+                "leq",
+            ),
+            offset: 10,
+        },
+    ),
+    Ok(
+        Token {
+            kind: String(
+                "a",
+            ),
+            offset: 14,
+        },
+    ),
+    Ok(
+        Token {
+            kind: String(
+                "b",
+            ),
+            offset: 16,
+        },
+    ),
+    Ok(
+        Token {
+            kind: LcBracket,
+            offset: 18,
+        },
+    ),
+    Ok(
+        Token {
+            kind: String(
+                "a",
+            ),
+            offset: 20,
+        },
+    ),
+    Ok(
+        Token {
+            kind: EqSym,
+            offset: 22,
+        },
+    ),
+    Ok(
+        Token {
+            kind: Keyword(
+                Std,
+            ),
+            offset: 24,
+        },
+    ),
+    Ok(
+        Token {
+            kind: Dot,
+            offset: 27,
+        },
+    ),
+    Ok(
+        Token {
+            kind: String(
+                "plus",
+            ),
+            offset: 28,
+        },
+    ),
+    Ok(
+        Token {
+            kind: String(
+                "a",
+            ),
+            offset: 33,
+        },
+    ),
+    Ok(
+        Token {
+            kind: String(
+                "b",
+            ),
+            offset: 35,
+        },
+    ),
+    Ok(
+        Token {
+            kind: SemiColon,
+            offset: 36,
+        },
+    ),
+    Ok(
+        Token {
+            kind: RcBracket,
+            offset: 38,
+        },
+    ),
+]

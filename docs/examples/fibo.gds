@@ -1,0 +1,9 @@
+let a = 1;
+let b = 1;
+
+while std.leq a b {
+  a = a + b;
+  std.stdio.write(f"{a}\n");
+  b = a + b;
+  std.stdio.write(f"{b}\n");
+}
