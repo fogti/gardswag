@@ -1,123 +1,123 @@
 ---
 source: crates/gardswag-syntax/src/lex.rs
-assertion_line: 177
+assertion_line: 235
 expression: "Lexer::new(\"while std.leq a b {\\na = std.plus a b;\\n}\\n\").collect::<Vec<_>>()"
 ---
 [
     Ok(
-        Token {
-            kind: Keyword(
+        Offsetted {
+            offset: 0,
+            inner: Keyword(
                 While,
             ),
-            offset: 0,
         },
     ),
     Ok(
-        Token {
-            kind: Keyword(
-                Std,
-            ),
+        Offsetted {
             offset: 6,
+            inner: Identifier(
+                "std",
+            ),
         },
     ),
     Ok(
-        Token {
-            kind: Dot,
+        Offsetted {
             offset: 9,
+            inner: Dot,
         },
     ),
     Ok(
-        Token {
-            kind: String(
+        Offsetted {
+            offset: 10,
+            inner: Identifier(
                 "leq",
             ),
-            offset: 10,
         },
     ),
     Ok(
-        Token {
-            kind: String(
+        Offsetted {
+            offset: 14,
+            inner: Identifier(
                 "a",
             ),
-            offset: 14,
         },
     ),
     Ok(
-        Token {
-            kind: String(
+        Offsetted {
+            offset: 16,
+            inner: Identifier(
                 "b",
             ),
-            offset: 16,
         },
     ),
     Ok(
-        Token {
-            kind: LcBracket,
+        Offsetted {
             offset: 18,
+            inner: LcBracket,
         },
     ),
     Ok(
-        Token {
-            kind: String(
+        Offsetted {
+            offset: 20,
+            inner: Identifier(
                 "a",
             ),
-            offset: 20,
         },
     ),
     Ok(
-        Token {
-            kind: EqSym,
+        Offsetted {
             offset: 22,
+            inner: EqSym,
         },
     ),
     Ok(
-        Token {
-            kind: Keyword(
-                Std,
-            ),
+        Offsetted {
             offset: 24,
+            inner: Identifier(
+                "std",
+            ),
         },
     ),
     Ok(
-        Token {
-            kind: Dot,
+        Offsetted {
             offset: 27,
+            inner: Dot,
         },
     ),
     Ok(
-        Token {
-            kind: String(
+        Offsetted {
+            offset: 28,
+            inner: Identifier(
                 "plus",
             ),
-            offset: 28,
         },
     ),
     Ok(
-        Token {
-            kind: String(
+        Offsetted {
+            offset: 33,
+            inner: Identifier(
                 "a",
             ),
-            offset: 33,
         },
     ),
     Ok(
-        Token {
-            kind: String(
+        Offsetted {
+            offset: 35,
+            inner: Identifier(
                 "b",
             ),
-            offset: 35,
         },
     ),
     Ok(
-        Token {
-            kind: SemiColon,
+        Offsetted {
             offset: 36,
+            inner: SemiColon,
         },
     ),
     Ok(
-        Token {
-            kind: RcBracket,
+        Offsetted {
             offset: 38,
+            inner: RcBracket,
         },
     ),
 ]

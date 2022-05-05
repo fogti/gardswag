@@ -1,15 +1,12 @@
+use crate::Offsetted;
+
 #[derive(Clone, Debug)]
-pub struct Lexer<'a> {
+pub(crate) struct Lexer<'a> {
     inp: &'a str,
-    offset: usize,
+    pub(crate) offset: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[error("offset {offset}: {kind}")]
-pub struct Error {
-    pub offset: usize,
-    pub kind: ErrorKind,
-}
+pub type Error = Offsetted<ErrorKind>;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum ErrorKind {
@@ -18,19 +15,22 @@ pub enum ErrorKind {
 
     #[error("unable to parse integer: {0}")]
     ParseInt(#[from] core::num::ParseIntError),
+
+    #[error("unbalanced string at suboffset {0} with nesting {1:?}")]
+    UnbalancedString(usize, Vec<Nest>),
+
+    #[error("unexpected EOF")]
+    UnexpectedEof,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub offset: usize,
-}
+pub type Token = Offsetted<TokenKind>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TokenKind {
     Keyword(Keyword),
-    String(String),
+    Identifier(String),
     Int(i32),
+    FormatString(String),
 
     EqSym,
     Dot,
@@ -38,6 +38,9 @@ pub enum TokenKind {
 
     LcBracket,
     RcBracket,
+
+    LParen,
+    RParen,
 }
 
 macro_rules! keywords {
@@ -74,27 +77,33 @@ macro_rules! keywords {
 }
 
 keywords! {
+    Else => "else",
+    If => "if",
     Let => "let",
     While => "while",
-    Std => "std",
 }
 
-fn count_bytes<F>(inp: &str, f: F) -> usize
+fn count_bytes<F>(inp: &str, mut f: F) -> usize
 where
-    F: Fn(&char) -> bool,
+    F: FnMut(usize, char) -> bool,
 {
-    inp.chars().take_while(f).map(char::len_utf8).sum()
+    inp.char_indices()
+        .take_while(move |&(n, i)| f(n, i))
+        .map(|(_, i)| i.len_utf8())
+        .sum()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Nest {
+    CurlyBrackets,
+    Parentheses,
+    Quotes,
 }
 
 impl<'a> Lexer<'a> {
     #[inline]
-    pub fn new(inp: &'a str) -> Self {
+    pub(crate) fn new(inp: &'a str) -> Self {
         Self { inp, offset: 0 }
-    }
-
-    #[inline(always)]
-    pub fn offset(&self) -> usize {
-        self.offset
     }
 
     fn consume(&mut self, l: usize) -> &'a str {
@@ -106,7 +115,7 @@ impl<'a> Lexer<'a> {
 
     fn consume_select<F>(&mut self, f: F) -> &'a str
     where
-        F: Fn(&char) -> bool,
+        F: FnMut(usize, char) -> bool,
     {
         self.consume(count_bytes(self.inp, f))
     }
@@ -119,36 +128,88 @@ impl Iterator for Lexer<'_> {
         use unicode_normalization::UnicodeNormalization as _;
         use unicode_xid::UnicodeXID as _;
 
-        self.consume_select(|i| i.is_whitespace());
+        self.consume_select(|_, i| i.is_whitespace());
         let offset = self.offset;
 
-        let kind = match self.inp.chars().next()? {
+        let inner = match self.inp.chars().next()? {
             '0'..='9' => {
-                let s = self.consume_select(|i| i.is_ascii_digit());
+                let s = self.consume_select(|_, i| i.is_ascii_digit());
                 assert!(!s.is_empty());
                 s.parse().map(TokenKind::Int).map_err(|e| e.into())
             }
 
+            '"' => {
+                // string. all our strings are format strings,
+                // thus we need to honor backets.
+                let mut lvls = Vec::new();
+                let mut escaped = false;
+                let mut e = None;
+                let s = self.consume_select(|suboffs, i| {
+                    if e.is_some() || lvls.is_empty() {
+                        return false;
+                    }
+                    if escaped {
+                        return true;
+                    }
+                    match (i, lvls.last()) {
+                        ('"', Some(Nest::Quotes)) => {
+                            lvls.pop();
+                        }
+                        ('"', _) => lvls.push(Nest::Quotes),
+                        ('{', _) => lvls.push(Nest::CurlyBrackets),
+                        ('}', Some(Nest::CurlyBrackets)) => {
+                            lvls.pop();
+                        }
+                        ('}', _) => {
+                            e = Some(suboffs);
+                        }
+                        ('(', _) => lvls.push(Nest::Parentheses),
+                        (')', Some(Nest::Parentheses)) => {
+                            lvls.pop();
+                        }
+                        (')', _) => {
+                            e = Some(suboffs);
+                        }
+                        ('\\', _) => {
+                            escaped = true;
+                        }
+                        (_, _) => {}
+                    }
+                    true
+                });
+
+                if escaped || !lvls.is_empty() {
+                    Err(ErrorKind::UnexpectedEof)
+                } else if let Some(suboffs) = e {
+                    Err(ErrorKind::UnbalancedString(suboffs, lvls))
+                } else {
+                    Ok(TokenKind::FormatString(s.to_string()))
+                }
+            }
+
             c if c.is_xid_start() => {
                 // identifier
-                let s = self.consume_select(|i| i.is_xid_continue());
+                let s = self.consume_select(|_, i| i.is_xid_continue());
                 assert!(!s.is_empty());
                 // check if it is a keyword
                 Ok(if let Ok(kw) = s.parse::<Keyword>() {
                     TokenKind::Keyword(kw)
                 } else {
-                    TokenKind::String(s.nfc().to_string())
+                    TokenKind::Identifier(s.nfc().to_string())
                 })
             }
 
             c => {
                 self.consume(c.len_utf8());
+                use TokenKind as Tk;
                 match c {
-                    '=' => Ok(TokenKind::EqSym),
-                    '.' => Ok(TokenKind::Dot),
-                    ';' => Ok(TokenKind::SemiColon),
-                    '{' => Ok(TokenKind::LcBracket),
-                    '}' => Ok(TokenKind::RcBracket),
+                    '=' => Ok(Tk::EqSym),
+                    '.' => Ok(Tk::Dot),
+                    ';' => Ok(Tk::SemiColon),
+                    '{' => Ok(Tk::LcBracket),
+                    '}' => Ok(Tk::RcBracket),
+                    '(' => Ok(Tk::LParen),
+                    ')' => Ok(Tk::LParen),
                     _ => Err(ErrorKind::UnhandledChar(c)),
                 }
             }
@@ -156,10 +217,7 @@ impl Iterator for Lexer<'_> {
 
         // combine {kind, offset}
         assert_ne!(offset, self.offset);
-        Some(match kind {
-            Ok(kind) => Ok(Token { kind, offset }),
-            Err(kind) => Err(Error { kind, offset }),
-        })
+        Some(Offsetted { offset, inner }.into())
     }
 }
 
