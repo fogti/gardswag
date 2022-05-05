@@ -56,7 +56,7 @@ impl<Var: VarBase> Substitutable for Ty<Var> {
                 (Some(a), _) => Some(a),
                 (_, Some(r)) => Some(r),
                 (None, None) => None,
-            }
+            },
         }
     }
 
@@ -145,7 +145,10 @@ fn bind<Var: VarBase>(
         }
     }
     if t.fv().contains(v) {
-        return Err(UnifyError::Infinite { v: v.clone(), t: t.clone() });
+        return Err(UnifyError::Infinite {
+            v: v.clone(),
+            t: t.clone(),
+        });
     }
     use std::collections::hash_map::Entry;
     match ctx.entry(v.clone()) {
@@ -191,15 +194,13 @@ pub fn unify<Var: VarBase>(
     }
 }
 
-impl<Var: VarBase + From<usize>> Scheme<Var> {
-    pub fn instantiate(&self, mut offset: usize) -> Ty<Var> {
+impl<Var: VarBase> Scheme<Var> {
+    pub fn instantiate<I: Iterator<Item = Var>>(&self, fresh_vars: &mut I) -> Ty<Var> {
         let forall2 = self
             .forall
             .iter()
             .map(|i| {
-                let newi = offset;
-                offset += 1;
-                (i.clone(), Ty::Var(newi.into()))
+                (i.clone(), Ty::Var(fresh_vars.next().unwrap()))
             })
             .collect();
         let mut t2 = self.t.clone();
@@ -209,9 +210,9 @@ impl<Var: VarBase + From<usize>> Scheme<Var> {
 }
 
 impl<Var: VarBase> Ty<Var> {
-    pub fn generalize<S: Substitutable(self, env: &S) -> Scheme<Var> {
+    pub fn generalize<S: Substitutable<Var = Var>>(self, env: &S) -> Scheme<Var> {
         Scheme {
-            forall: self.fv().difference(env.fv()).cloned().collect(),
+            forall: self.fv().difference(&env.fv()).cloned().collect(),
             t: self,
         }
     }

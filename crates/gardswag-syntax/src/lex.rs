@@ -16,14 +16,23 @@ pub enum ErrorKind {
     #[error("unhandled character '{0}'")]
     UnhandledChar(char),
 
+    #[error("unexpected EOF")]
+    UnexpectedEof,
+
     #[error("unable to parse integer: {0}")]
     ParseInt(#[from] core::num::ParseIntError),
 
     #[error("unbalanced string at offset {0}")]
     UnbalancedString(usize),
 
-    #[error("unexpected EOF")]
-    UnexpectedEof,
+    #[error("no lambda argument given")]
+    NoLambdaArg,
+
+    #[error("invalid character in lamdba argument")]
+    InvalidLambdaChar(char),
+
+    #[error("keyword as lambda argument")]
+    KeywordLambda,
 }
 
 pub type Token = Offsetted<TokenKind>;
@@ -32,6 +41,7 @@ pub type Token = Offsetted<TokenKind>;
 pub enum TokenKind {
     Keyword(Keyword),
     Identifier(String),
+    Lambda(String),
     Integer(i32),
     StringStart,
     StringEnd,
@@ -229,6 +239,23 @@ impl Iterator for Lexer<'_> {
                 let s = self.consume_select(|_, i| i.is_ascii_digit());
                 assert!(!s.is_empty());
                 s.parse().map(TokenKind::Integer).map_err(|e| e.into())
+            }
+
+            c @ '\\' | c @ 'λ' => {
+                self.consume(c.len_utf8());
+                // identifier
+                let s = self.consume_select(|_, i| i.is_xid_continue());
+                if let Some(fi) = s.chars().next() {
+                    if !fi.is_xid_start() {
+                        Err(ErrorKind::InvalidLambdaChar(fi))
+                    } else if s.parse::<Keyword>().is_ok() {
+                        Err(ErrorKind::KeywordLambda)
+                    } else {
+                        Ok(TokenKind::Lambda(s.nfc().to_string()))
+                    }
+                } else {
+                    Err(ErrorKind::NoLambdaArg)
+                }
             }
 
             c if c.is_xid_start() => {

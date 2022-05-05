@@ -73,6 +73,10 @@ pub enum ExprKind {
         or_else: Block,
     },
 
+    Lambda {
+        arg: Identifier,
+        body: Box<Expr>,
+    },
     Call {
         prim: Box<Expr>,
         args: Vec<Expr>,
@@ -107,6 +111,7 @@ impl ExprKind {
                     || then.is_var_accessed(v)
                     || or_else.is_var_accessed(v)
             }
+            Self::Lambda { arg, body } => arg.inner != v && body.inner.is_var_accessed(v),
             Self::Call { prim, args } => {
                 prim.inner.is_var_accessed(v) || args.iter().any(|i| i.inner.is_var_accessed(v))
             }
@@ -123,7 +128,7 @@ impl ExprKind {
     pub fn replace_var(&mut self, v: &str, rpm: &ExprKind) -> bool {
         match self {
             Self::Let { lhs, rhs, rest } => {
-                (if &lhs.inner == v {
+                (if lhs.inner == v {
                     // variable shadowed
                     true
                 } else {
@@ -147,6 +152,17 @@ impl ExprKind {
                 cond.inner.replace_var(v, rpm)
                     && then.replace_var(v, rpm)
                     && or_else.replace_var(v, rpm)
+            }
+
+            Self::Lambda { arg, body } => {
+                if arg.inner == v {
+                    // variable shadowed
+                    true
+                } else {
+                    // make sure that no variables inside our replacement
+                    // get shadowed
+                    !rpm.is_var_accessed(&arg.inner) && body.inner.replace_var(v, rpm)
+                }
             }
 
             Self::Call { prim, args } => {
@@ -298,13 +314,6 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
     }));
     let inner = match inner {
         Tk::Keyword(Kw::Let) => {
-            let lhs = xtry!(expect_token_noeof(offset, lxr, |t| match t {
-                Token {
-                    offset,
-                    inner: Tk::Identifier(inner),
-                } => Ok(Identifier { offset, inner }),
-                _ => Err(t),
-            }));
             let is_rec = if let Some(Ok(Token {
                 inner: Tk::Keyword(Kw::Rec),
                 ..
@@ -315,8 +324,15 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             } else {
                 false
             };
+            let lhs = xtry!(expect_token_noeof(offset, lxr, |t| match t {
+                Token {
+                    offset,
+                    inner: Tk::Identifier(inner),
+                } => Ok(Identifier { offset, inner }),
+                _ => Err(t),
+            }));
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::EqSym));
-            let rhs = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+            let mut rhs = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
             let blk_offset = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
             let rest = if lxr.peek().is_none() {
                 Block::default()
@@ -324,14 +340,21 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 xtry!(parse_block(blk_offset, lxr))
             };
             if is_rec {
-                unimplemented!();
-                /*
+                // desugar `let rec` to the standard library function `fix`
                 let offset = rhs.offset;
+                let mkidt = |inner: &str| Identifier {
+                    offset,
+                    inner: inner.to_string(),
+                };
                 let mkexpr = |inner: ExprKind| Expr { offset, inner };
-                rhs = mkexpr(ExprKind::);
-                rhs = Expr {
-                }
-                */
+                let std_fix = mkexpr(ExprKind::Dot {
+                    prim: Box::new(mkexpr(ExprKind::Identifier(mkidt("std")))),
+                    key: mkidt("fix"),
+                });
+                rhs = mkexpr(ExprKind::Call {
+                    prim: Box::new(std_fix),
+                    args: vec![rhs],
+                });
             }
             Ok(ExprKind::Let {
                 lhs,
@@ -340,9 +363,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             })
         }
         Tk::Keyword(Kw::If) => {
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::LParen));
-            let cond = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
+            let cond = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
             let then = xtry!(parse_block(offset, lxr));
             let or_else = if let Some(Ok(Offsetted {
                 inner: Tk::SemiColon,
@@ -358,6 +379,16 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 cond: Box::new(cond),
                 then,
                 or_else,
+            })
+        }
+        Tk::Lambda(lam) => {
+            let expr = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
+            Ok(ExprKind::Lambda {
+                arg: Offsetted {
+                    offset,
+                    inner: if lam == "_" { String::new() } else { lam },
+                },
+                body: Box::new(expr),
             })
         }
         Tk::Identifier(id) => {
@@ -401,11 +432,13 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                     offset: s_offset,
                     inner: Tk::PureString(s),
                 })) = lxr.next_if(|i| {
-                    if let Ok(Token { inner, .. }) = i {
-                        matches!(inner, Tk::PureString(_))
-                    } else {
-                        false
-                    }
+                    matches!(
+                        i,
+                        Ok(Token {
+                            inner: Tk::PureString(_),
+                            ..
+                        })
+                    )
                 }) {
                     parts.push(Offsetted {
                         offset: s_offset,
