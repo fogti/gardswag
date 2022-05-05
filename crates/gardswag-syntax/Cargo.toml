@@ -9,7 +9,6 @@ license = "Apache-2.0"
 thiserror = "1.0"
 unicode-normalization = "0.1"
 unicode-xid = "0.2"
-gardswag-typesys.path = "../gardswag-typesys"
 
 [dependencies.serde]
 version = "1.0"

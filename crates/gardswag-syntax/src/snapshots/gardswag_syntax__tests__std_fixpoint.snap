@@ -1,0 +1,30 @@
+---
+source: crates/gardswag-syntax/src/lib.rs
+assertion_line: 645
+expression: "parse(r#\"\n                std.fix f\n            \"#).unwrap()"
+---
+stmts: []
+term:
+  offset: 20
+  inner:
+    Call:
+      prim:
+        offset: 20
+        inner:
+          Dot:
+            prim:
+              offset: 17
+              inner:
+                Identifier:
+                  offset: 17
+                  inner: std
+            key:
+              offset: 21
+              inner: fix
+      args:
+        - offset: 25
+          inner:
+            Identifier:
+              offset: 25
+              inner: f
+

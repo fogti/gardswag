@@ -1,43 +1,22 @@
 ---
 source: crates/gardswag-syntax/src/lex.rs
-assertion_line: 230
+assertion_line: 288
 expression: "Lexer::new(\"let a = 1;\").collect::<Vec<_>>()"
 ---
 [
     Ok(
-        Offsetted {
-            offset: 0,
-            inner: Keyword(
-                Let,
-            ),
-        },
+        @0: Keyword(Let),
     ),
     Ok(
-        Offsetted {
-            offset: 4,
-            inner: Identifier(
-                "a",
-            ),
-        },
+        @4: Identifier("a"),
     ),
     Ok(
-        Offsetted {
-            offset: 6,
-            inner: EqSym,
-        },
+        @6: EqSym,
     ),
     Ok(
-        Offsetted {
-            offset: 8,
-            inner: Integer(
-                1,
-            ),
-        },
+        @8: Integer(1),
     ),
     Ok(
-        Offsetted {
-            offset: 9,
-            inner: SemiColon,
-        },
+        @9: SemiColon,
     ),
 ]

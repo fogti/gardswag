@@ -6,3 +6,5 @@ license = "Apache-2.0"
 
 [dependencies]
 gardswag-syntax.path = "../gardswag-syntax"
+gardswag-typesys.path = "../gardswag-typesys"
+thiserror = "1.0"

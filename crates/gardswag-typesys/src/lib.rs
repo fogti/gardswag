@@ -35,6 +35,8 @@ impl<T: Clone + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::ha
 pub trait Substitutable {
     type Var: VarBase;
 
+    fn highest_used(&self) -> Option<Self::Var>;
+
     // generate list of all free variables
     fn fv(&self) -> BTreeSet<Self::Var>;
 
@@ -44,6 +46,19 @@ pub trait Substitutable {
 
 impl<Var: VarBase> Substitutable for Ty<Var> {
     type Var = Var;
+
+    fn highest_used(&self) -> Option<Var> {
+        match self {
+            Ty::Literal(_) => None,
+            Ty::Var(tv) => Some(tv.clone()),
+            Ty::Arrow(arg, ret) => match (arg.highest_used(), ret.highest_used()) {
+                (Some(a), Some(r)) if a <= r => Some(r),
+                (Some(a), _) => Some(a),
+                (_, Some(r)) => Some(r),
+                (None, None) => None,
+            }
+        }
+    }
 
     fn fv(&self) -> BTreeSet<Var> {
         match self {
@@ -72,6 +87,11 @@ impl<Var: VarBase> Substitutable for Ty<Var> {
 impl<Var: VarBase> Substitutable for Scheme<Var> {
     type Var = Var;
 
+    fn highest_used(&self) -> Option<Var> {
+        let tmp: BTreeSet<_> = self.forall.union(&self.t.fv()).cloned().collect();
+        tmp.iter().rev().next().cloned()
+    }
+
     fn fv(&self) -> BTreeSet<Var> {
         let fvt = self.t.fv();
         fvt.difference(&self.forall).cloned().collect()
@@ -87,10 +107,30 @@ impl<Var: VarBase> Substitutable for Scheme<Var> {
     }
 }
 
-#[derive(Debug)]
+impl<V: Substitutable> Substitutable for HashMap<String, V> {
+    type Var = V::Var;
+
+    fn highest_used(&self) -> Option<V::Var> {
+        let tmp: BTreeSet<_> = self.values().flat_map(|i| i.highest_used()).collect();
+        tmp.iter().rev().next().cloned()
+    }
+
+    fn fv(&self) -> BTreeSet<V::Var> {
+        self.values().flat_map(|i| i.fv()).collect()
+    }
+
+    fn apply(&mut self, ctx: &HashMap<V::Var, Ty<V::Var>>) {
+        self.values_mut().for_each(|i| i.apply(ctx));
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum UnifyError<Var> {
+    #[error("infinite type in {v:?} = {t:?}")]
     Infinite { v: Var, t: Ty<Var> },
+    #[error("subtitution of {v:?} = {t1:?} overridden with {t2:?}")]
     Override { v: Var, t1: Ty<Var>, t2: Ty<Var> },
+    #[error("unification of {t1:?} = {t2:?} failed")]
     Mismatch { t1: Ty<Var>, t2: Ty<Var> },
 }
 
@@ -165,6 +205,15 @@ impl<Var: VarBase + From<usize>> Scheme<Var> {
         let mut t2 = self.t.clone();
         t2.apply(&forall2);
         t2
+    }
+}
+
+impl<Var: VarBase> Ty<Var> {
+    pub fn generalize<S: Substitutable(self, env: &S) -> Scheme<Var> {
+        Scheme {
+            forall: self.fv().difference(env.fv()).cloned().collect(),
+            t: self,
+        }
     }
 }
 

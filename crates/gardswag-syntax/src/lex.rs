@@ -82,10 +82,9 @@ macro_rules! keywords {
 }
 
 keywords! {
-    Break => "break",
     If => "if",
     Let => "let",
-    Loop => "loop",
+    Rec => "rec",
 }
 
 fn count_bytes<F>(inp: &str, mut f: F) -> usize
@@ -287,12 +286,5 @@ mod tests {
     #[test]
     fn lex_let() {
         insta::assert_debug_snapshot!(Lexer::new("let a = 1;").collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn lex_loop() {
-        insta::assert_debug_snapshot!(
-            Lexer::new("loop {\na = std.plus a b;\n}\n").collect::<Vec<_>>()
-        );
     }
 }

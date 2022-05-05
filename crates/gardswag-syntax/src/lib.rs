@@ -24,7 +24,7 @@ pub enum ErrorKind {
     #[error("(parser) unexpected end of expression")]
     UnexpectedEoe,
 
-    #[error("unexpected token @{}: {:?}", .0.offset, .0.inner)]
+    #[error("unexpected token {0:?}")]
     UnexpectedToken(lex::Token),
 }
 
@@ -35,6 +35,22 @@ pub type Expr = Offsetted<ExprKind>;
 pub struct Block {
     pub stmts: Vec<Expr>,
     pub term: Option<Box<Expr>>,
+}
+
+impl Block {
+    pub fn is_var_accessed(&self, v: &str) -> bool {
+        self.stmts
+            .iter()
+            .chain(self.term.as_ref().into_iter().map(|a| &**a))
+            .any(|i| i.inner.is_var_accessed(v))
+    }
+
+    pub fn replace_var(&mut self, v: &str, rpm: &ExprKind) -> bool {
+        self.stmts
+            .iter_mut()
+            .chain(self.term.as_mut().into_iter().map(|a| &mut **a))
+            .all(|i| i.inner.replace_var(v, rpm))
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -50,14 +66,12 @@ pub enum ExprKind {
         rhs: Box<Expr>,
     },
     Block(Block),
-    Loop(Block),
 
     If {
         cond: Box<Expr>,
         then: Block,
         or_else: Block,
     },
-    Break(Option<Box<Expr>>),
 
     Call {
         prim: Box<Expr>,
@@ -68,11 +82,92 @@ pub enum ExprKind {
         key: Identifier,
     },
 
+    FormatString(Vec<Expr>),
+
     Identifier(Identifier),
     Integer(i32),
     PureString(String),
-    FormatString(Vec<Expr>),
-    Std,
+}
+
+impl ExprKind {
+    /// checks if a variable is used anywhere in a expression
+    pub fn is_var_accessed(&self, v: &str) -> bool {
+        match self {
+            Self::Let { lhs, rhs, rest } => {
+                rhs.inner.is_var_accessed(v) || (lhs.inner != v && rest.is_var_accessed(v))
+            }
+            Self::Assign { lhs, rhs } => lhs.inner == v || rhs.inner.is_var_accessed(v),
+            Self::Block(blk) => blk.is_var_accessed(v),
+            Self::If {
+                cond,
+                then,
+                or_else,
+            } => {
+                cond.inner.is_var_accessed(v)
+                    || then.is_var_accessed(v)
+                    || or_else.is_var_accessed(v)
+            }
+            Self::Call { prim, args } => {
+                prim.inner.is_var_accessed(v) || args.iter().any(|i| i.inner.is_var_accessed(v))
+            }
+            Self::Dot { prim, .. } => prim.inner.is_var_accessed(v),
+            Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
+            Self::Identifier(id) => id.inner == v,
+            Self::Integer(_) | Self::PureString(_) => false,
+        }
+    }
+
+    /// tries to replace all occurences of a variable
+    /// with another expression, fails if the variable
+    /// is used in an assignment or `rpm`-interna are captured.
+    pub fn replace_var(&mut self, v: &str, rpm: &ExprKind) -> bool {
+        match self {
+            Self::Let { lhs, rhs, rest } => {
+                (if &lhs.inner == v {
+                    // variable shadowed
+                    true
+                } else {
+                    // make sure that no variables inside our replacement
+                    // get shadowed
+                    !rpm.is_var_accessed(&lhs.inner) && rest.replace_var(v, rpm)
+                } && rhs.inner.replace_var(v, rpm))
+            }
+
+            // catch illegal replacement
+            Self::Assign { lhs, .. } if lhs.inner == v => false,
+            Self::Assign { rhs, .. } => rhs.inner.replace_var(v, rpm),
+
+            Self::Block(blk) => blk.replace_var(v, rpm),
+
+            Self::If {
+                cond,
+                then,
+                or_else,
+            } => {
+                cond.inner.replace_var(v, rpm)
+                    && then.replace_var(v, rpm)
+                    && or_else.replace_var(v, rpm)
+            }
+
+            Self::Call { prim, args } => {
+                prim.inner.replace_var(v, rpm)
+                    && args.iter_mut().all(|i| i.inner.replace_var(v, rpm))
+            }
+
+            Self::Dot { prim, .. } => prim.inner.replace_var(v, rpm),
+
+            Self::FormatString(exs) => exs.iter_mut().all(|i| i.inner.replace_var(v, rpm)),
+
+            Self::Identifier(id) => {
+                if id.inner == v {
+                    *self = rpm.clone();
+                }
+                true
+            }
+
+            Self::Integer(_) | Self::PureString(_) => true,
+        }
+    }
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -210,6 +305,16 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 } => Ok(Identifier { offset, inner }),
                 _ => Err(t),
             }));
+            let is_rec = if let Some(Ok(Token {
+                inner: Tk::Keyword(Kw::Rec),
+                ..
+            })) = lxr.peek()
+            {
+                let _ = lxr.next();
+                true
+            } else {
+                false
+            };
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::EqSym));
             let rhs = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
             let blk_offset = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
@@ -218,23 +323,22 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             } else {
                 xtry!(parse_block(blk_offset, lxr))
             };
+            if is_rec {
+                unimplemented!();
+                /*
+                let offset = rhs.offset;
+                let mkexpr = |inner: ExprKind| Expr { offset, inner };
+                rhs = mkexpr(ExprKind::);
+                rhs = Expr {
+                }
+                */
+            }
             Ok(ExprKind::Let {
                 lhs,
                 rhs: Box::new(rhs),
                 rest,
             })
         }
-        Tk::Keyword(Kw::Loop) => {
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::LcBracket));
-            let block = xtry!(parse_block(offset, lxr));
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
-            Ok(ExprKind::Loop(block))
-        }
-        Tk::Keyword(Kw::Break) => Ok(ExprKind::Break(match parse_expr(lxr) {
-            PNone => None,
-            POk(x) => Some(Box::new(x)),
-            PErr(e) => return PErr(e),
-        })),
         Tk::Keyword(Kw::If) => {
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::LParen));
             let cond = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
@@ -503,42 +607,20 @@ mod tests {
         insta::assert_yaml_snapshot!(parse(r#"std.stdio.write("Hello world!\n");"#).unwrap());
     }
 
-    // like the fibo example. but without string literals
-    #[test]
-    fn fibo_simpler() {
-        insta::assert_yaml_snapshot!(parse(
-            r#"
-                let a = 1;
-                let b = 1;
-                loop {
-                    if (std.leq b a) {
-                        break;
-                    } {};
-                    a = std.plus a b;
-                    std.stdio.write(a);
-                    b = std.plus a b;
-                    std.stdio.write(b);
-                }
-            "#
-        )
-        .unwrap());
-    }
-
     #[test]
     fn fibo() {
         insta::assert_yaml_snapshot!(parse(
             r#"
                 let a = 1;
                 let b = 1;
-                loop {
-                    if (std.leq b a) {
-                        break;
-                    } {};
-                    a = std.plus a b;
-                    std.stdio.write("{a}\n");
-                    b = std.plus a b;
-                    std.stdio.write("{b}\n");
-                }
+                let rec fib = \x \y \n {
+                  (* seq: [..., x, y] ++ [z] *)
+                  let z = std.plus x y;
+                  if (std.leq n 0)
+                    { z }
+                    { fib y z (std.minus n 1) }
+                };
+                std.stdio.write "{fib 1 1 6}\m";
             "#
         )
         .unwrap());
@@ -553,6 +635,16 @@ mod tests {
                   std.stdio.write("{a}\n");
                   a
                 }"
+            "#
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn std_fixpoint() {
+        insta::assert_yaml_snapshot!(parse(
+            r#"
+                std.fix f
             "#
         )
         .unwrap());

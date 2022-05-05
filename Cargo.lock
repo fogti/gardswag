@@ -80,13 +80,14 @@ name = "gardswag"
 version = "0.1.0"
 dependencies = [
  "gardswag-syntax",
+ "gardswag-typesys",
+ "thiserror",
 ]
 
 [[package]]
 name = "gardswag-syntax"
 version = "0.1.0"
 dependencies = [
- "gardswag-typesys",
  "insta",
  "proptest",
  "serde",

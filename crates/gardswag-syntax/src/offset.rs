@@ -1,4 +1,6 @@
-#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+use core::fmt;
+
+#[derive(Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Offsetted<T> {
     pub offset: usize,
     pub inner: T,
@@ -11,9 +13,15 @@ impl<T: std::error::Error + 'static> std::error::Error for Offsetted<T> {
     }
 }
 
-impl<T: core::fmt::Display> core::fmt::Display for Offsetted<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: fmt::Display> fmt::Display for Offsetted<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "@{}: {}", self.offset, self.inner)
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Offsetted<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "@{}: {:?}", self.offset, self.inner)
     }
 }
 
