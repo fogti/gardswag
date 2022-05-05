@@ -1,5 +1,6 @@
 [package]
 name = "gardswag-syntax"
+description = "syntax tree and parser for gardswag"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -8,6 +9,7 @@ license = "Apache-2.0"
 thiserror = "1.0"
 unicode-normalization = "0.1"
 unicode-xid = "0.2"
+gardswag-typesys.path = "../gardswag-typesys"
 
 [dependencies.serde]
 version = "1.0"
