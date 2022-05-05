@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct Lexer<'a> {
     inp: &'a str,
     pub(crate) offset: usize,
+    lvl: Vec<bool>,
+    buffer: Option<Result<Token, Error>>,
 }
 
 pub type Error = Offsetted<ErrorKind>;
@@ -17,8 +19,8 @@ pub enum ErrorKind {
     #[error("unable to parse integer: {0}")]
     ParseInt(#[from] core::num::ParseIntError),
 
-    #[error("unbalanced string at suboffset {0} with nesting {1:?}")]
-    UnbalancedString(usize, Vec<Nest>),
+    #[error("unbalanced string at offset {0}")]
+    UnbalancedString(usize),
 
     #[error("unexpected EOF")]
     UnexpectedEof,
@@ -31,7 +33,9 @@ pub enum TokenKind {
     Keyword(Keyword),
     Identifier(String),
     Integer(i32),
-    FormatString(String),
+    StringStart,
+    StringEnd,
+    PureString(String),
 
     EqSym,
     Dot,
@@ -94,17 +98,15 @@ where
         .sum()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub enum Nest {
-    CurlyBrackets,
-    Parentheses,
-    Quotes,
-}
-
 impl<'a> Lexer<'a> {
     #[inline]
     pub(crate) fn new(inp: &'a str) -> Self {
-        Self { inp, offset: 0 }
+        Self {
+            inp,
+            offset: 0,
+            lvl: vec![],
+            buffer: None,
+        }
     }
 
     fn consume(&mut self, l: usize) -> &'a str {
@@ -120,6 +122,14 @@ impl<'a> Lexer<'a> {
     {
         self.consume(count_bytes(self.inp, f))
     }
+
+    /// checks if the lexer is inside a format string
+    fn is_in_fmtstr(&self) -> bool {
+        match self.lvl.last() {
+            Some(&x) => x,
+            None => false,
+        }
+    }
 }
 
 impl Iterator for Lexer<'_> {
@@ -129,63 +139,97 @@ impl Iterator for Lexer<'_> {
         use unicode_normalization::UnicodeNormalization as _;
         use unicode_xid::UnicodeXID as _;
 
+        if let Some(x) = self.buffer.take() {
+            return Some(x);
+        }
+
+        let mut offset = self.offset;
+
+        if self.is_in_fmtstr() {
+            // inside a format string, more output gets strictly forwarded
+            struct Unescape<It>(It);
+
+            impl<It: Iterator<Item = char>> Iterator for Unescape<It> {
+                type Item = char;
+
+                fn next(&mut self) -> Option<char> {
+                    Some(match self.0.next()? {
+                        '\\' => match self.0.next().unwrap() {
+                            'n' => '\n',
+                            't' => '\t',
+                            x => x,
+                        },
+                        x => x,
+                    })
+                }
+
+                fn size_hint(&self) -> (usize, Option<usize>) {
+                    let (mini, maxi) = self.0.size_hint();
+                    (mini / 2, maxi)
+                }
+            }
+
+            let mut escaped = false;
+            let s = self.consume_select(|_, i| {
+                if escaped {
+                    escaped = false;
+                    return true;
+                }
+                if i == '\\' {
+                    escaped = true;
+                }
+                !matches!(i, '{' | '}' | '"')
+            });
+
+            if let Some(x) = self.inp.chars().next() {
+                match x {
+                    '{' => {}
+                    '}' => {
+                        self.consume(x.len_utf8());
+                        self.buffer = Some(Err(Offsetted {
+                            offset,
+                            inner: ErrorKind::UnbalancedString(self.offset),
+                        }));
+                    }
+                    '"' => {
+                        self.consume(x.len_utf8());
+                        self.lvl.pop();
+                        self.buffer = Some(Ok(Offsetted {
+                            offset: self.offset,
+                            inner: TokenKind::StringEnd,
+                        }));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+
+            let inner = if escaped {
+                Some(Err(ErrorKind::UnexpectedEof))
+            } else if !s.is_empty() {
+                Some(Ok(TokenKind::PureString(
+                    Unescape(s.chars()).nfc().collect(),
+                )))
+            } else if let Some(x) = self.buffer.take() {
+                return Some(x);
+            } else {
+                None
+            };
+
+            if let Some(inner) = inner {
+                // combine {kind, offset}
+                assert_ne!(offset, self.offset);
+                return Some(Offsetted { offset, inner }.into());
+            }
+        }
+
         self.consume_select(|_, i| i.is_whitespace());
-        let offset = self.offset;
+        offset = self.offset;
 
         let inner = match self.inp.chars().next()? {
             '0'..='9' => {
                 let s = self.consume_select(|_, i| i.is_ascii_digit());
                 assert!(!s.is_empty());
                 s.parse().map(TokenKind::Integer).map_err(|e| e.into())
-            }
-
-            '"' => {
-                // string. all our strings are format strings,
-                // thus we need to honor backets.
-                let mut lvls = Vec::new();
-                let mut escaped = false;
-                let mut e = None;
-                let s = self.consume_select(|suboffs, i| {
-                    if e.is_some() || lvls.is_empty() {
-                        return false;
-                    }
-                    if escaped {
-                        return true;
-                    }
-                    match (i, lvls.last()) {
-                        ('"', Some(Nest::Quotes)) => {
-                            lvls.pop();
-                        }
-                        ('"', _) => lvls.push(Nest::Quotes),
-                        ('{', _) => lvls.push(Nest::CurlyBrackets),
-                        ('}', Some(Nest::CurlyBrackets)) => {
-                            lvls.pop();
-                        }
-                        ('}', _) => {
-                            e = Some(suboffs);
-                        }
-                        ('(', _) => lvls.push(Nest::Parentheses),
-                        (')', Some(Nest::Parentheses)) => {
-                            lvls.pop();
-                        }
-                        (')', _) => {
-                            e = Some(suboffs);
-                        }
-                        ('\\', _) => {
-                            escaped = true;
-                        }
-                        (_, _) => {}
-                    }
-                    true
-                });
-
-                if escaped || !lvls.is_empty() {
-                    Err(ErrorKind::UnexpectedEof)
-                } else if let Some(suboffs) = e {
-                    Err(ErrorKind::UnbalancedString(suboffs, lvls))
-                } else {
-                    Ok(TokenKind::FormatString(s.to_string()))
-                }
             }
 
             c if c.is_xid_start() => {
@@ -204,11 +248,25 @@ impl Iterator for Lexer<'_> {
                 self.consume(c.len_utf8());
                 use TokenKind as Tk;
                 match c {
+                    '"' => {
+                        // string. all our strings are format strings,
+                        // thus we need to honor brackets.
+                        self.lvl.push(true);
+                        Ok(TokenKind::StringStart)
+                    }
                     '=' => Ok(Tk::EqSym),
                     '.' => Ok(Tk::Dot),
                     ';' => Ok(Tk::SemiColon),
-                    '{' => Ok(Tk::LcBracket),
-                    '}' => Ok(Tk::RcBracket),
+                    '{' => {
+                        self.lvl.push(false);
+                        Ok(Tk::LcBracket)
+                    }
+                    '}' => {
+                        if let Some(x) = self.lvl.pop() {
+                            assert!(!x);
+                        }
+                        Ok(Tk::RcBracket)
+                    }
                     '(' => Ok(Tk::LParen),
                     ')' => Ok(Tk::RParen),
                     _ => Err(ErrorKind::UnhandledChar(c)),

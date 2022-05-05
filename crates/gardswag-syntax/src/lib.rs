@@ -71,6 +71,7 @@ pub enum ExprKind {
     Identifier(Identifier),
     Integer(i32),
     PureString(String),
+    FormatString(Vec<Expr>),
     Std,
 }
 
@@ -192,7 +193,10 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
     use lex::{Keyword as Kw, Token, TokenKind as Tk};
     let Token { mut offset, inner } = xtry!(lxr.next_if(|i| {
         if let Ok(Token { inner, .. }) = i {
-            !matches!(inner, Tk::RcBracket | Tk::RParen | Tk::SemiColon)
+            !matches!(
+                inner,
+                Tk::RcBracket | Tk::RParen | Tk::SemiColon | Tk::StringEnd
+            )
         } else {
             true
         }
@@ -284,6 +288,35 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
             offset = new_offset;
             Ok(inner)
+        }
+        Tk::StringStart => {
+            // handle format strings
+            let mut parts = Vec::new();
+            loop {
+                if let Some(Ok(Token {
+                    offset: s_offset,
+                    inner: Tk::PureString(s),
+                })) = lxr.next_if(|i| {
+                    if let Ok(Token { inner, .. }) = i {
+                        matches!(inner, Tk::PureString(_))
+                    } else {
+                        false
+                    }
+                }) {
+                    parts.push(Offsetted {
+                        offset: s_offset,
+                        inner: ExprKind::PureString(s),
+                    });
+                    continue;
+                }
+                match parse_expr_greedy(lxr) {
+                    PNone => break,
+                    PErr(e) => return PErr(e),
+                    POk(x) => parts.push(x),
+                }
+            }
+            let _ = xtry!(expect_token_exact(offset, lxr, Tk::StringEnd));
+            Ok(ExprKind::FormatString(parts))
         }
         _ => {
             return PErr(Offsetted {
@@ -422,12 +455,14 @@ fn parse_block(super_offset: usize, lxr: &mut PeekLexer<'_>) -> Result<Block, Er
                 b.term = Some(Box::new(expr));
             }
             Some(x) => {
-                b.stmts.push(expr);
                 match x.as_ref().map_err(|e| e.clone())?.inner {
                     Tk::SemiColon => {
+                        b.stmts.push(expr);
                         let _ = lxr.next();
                     }
                     Tk::RcBracket => {
+                        // got terminator
+                        b.term = Some(Box::new(expr));
                         if expect_close_brack {
                             let _ = lxr.next();
                         }
@@ -458,6 +493,11 @@ pub fn parse(inp: &str) -> Result<Block, Error> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn block_term() {
+        insta::assert_yaml_snapshot!(parse("{ a }").unwrap());
+    }
+
     // like the fibo example. but without string literals
     #[test]
     fn fibo_simpler() {
@@ -473,6 +513,26 @@ mod tests {
                     std.stdio.write(a);
                     b = std.plus a b;
                     std.stdio.write(b);
+                }
+            "#
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn fibo() {
+        insta::assert_yaml_snapshot!(parse(
+            r#"
+                let a = 1;
+                let b = 1;
+                loop {
+                    if (std.leq b a) {
+                        break;
+                    } {};
+                    a = std.plus a b;
+                    std.stdio.write("{a}\n");
+                    b = std.plus a b;
+                    std.stdio.write("{b}\n");
                 }
             "#
         )
