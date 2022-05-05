@@ -353,7 +353,10 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 });
                 rhs = mkexpr(ExprKind::Call {
                     prim: Box::new(std_fix),
-                    args: vec![rhs],
+                    args: vec![mkexpr(ExprKind::Lambda {
+                        arg: lhs.clone(),
+                        body: Box::new(rhs),
+                    })],
                 });
             }
             Ok(ExprKind::Let {

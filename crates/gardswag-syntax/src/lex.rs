@@ -5,8 +5,15 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct Lexer<'a> {
     inp: &'a str,
     pub(crate) offset: usize,
-    lvl: Vec<bool>,
+    lvl: Vec<LvlKind>,
     buffer: Option<Result<Token, Error>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum LvlKind {
+    Quotes,
+    Comment,
+    CurlyBrks,
 }
 
 pub type Error = Offsetted<ErrorKind>;
@@ -24,6 +31,9 @@ pub enum ErrorKind {
 
     #[error("unbalanced string at offset {0}")]
     UnbalancedString(usize),
+
+    #[error("unbalanced nesting modifier")]
+    UnbalancedNesting,
 
     #[error("no lambda argument given")]
     NoLambdaArg,
@@ -99,11 +109,11 @@ keywords! {
 
 fn count_bytes<F>(inp: &str, mut f: F) -> usize
 where
-    F: FnMut(usize, char) -> bool,
+    F: FnMut(char) -> bool,
 {
-    inp.char_indices()
-        .take_while(move |&(n, i)| f(n, i))
-        .map(|(_, i)| i.len_utf8())
+    inp.chars()
+        .take_while(move |&i| f(i))
+        .map(|i| i.len_utf8())
         .sum()
 }
 
@@ -127,7 +137,7 @@ impl<'a> Lexer<'a> {
 
     fn consume_select<F>(&mut self, f: F) -> &'a str
     where
-        F: FnMut(usize, char) -> bool,
+        F: FnMut(char) -> bool,
     {
         self.consume(count_bytes(self.inp, f))
     }
@@ -135,7 +145,7 @@ impl<'a> Lexer<'a> {
     /// checks if the lexer is inside a format string
     fn is_in_fmtstr(&self) -> bool {
         match self.lvl.last() {
-            Some(&x) => x,
+            Some(&x) => x == LvlKind::Quotes,
             None => false,
         }
     }
@@ -154,150 +164,186 @@ impl Iterator for Lexer<'_> {
 
         let mut offset = self.offset;
 
-        if self.is_in_fmtstr() {
-            // inside a format string, more output gets strictly forwarded
-            struct Unescape<It>(It);
+        let inner = loop {
+            if self.is_in_fmtstr() {
+                // inside a format string, more output gets strictly forwarded
+                struct Unescape<It>(It);
 
-            impl<It: Iterator<Item = char>> Iterator for Unescape<It> {
-                type Item = char;
+                impl<It: Iterator<Item = char>> Iterator for Unescape<It> {
+                    type Item = char;
 
-                fn next(&mut self) -> Option<char> {
-                    Some(match self.0.next()? {
-                        '\\' => match self.0.next().unwrap() {
-                            'n' => '\n',
-                            't' => '\t',
+                    fn next(&mut self) -> Option<char> {
+                        Some(match self.0.next()? {
+                            '\\' => match self.0.next().unwrap() {
+                                'n' => '\n',
+                                't' => '\t',
+                                x => x,
+                            },
                             x => x,
-                        },
-                        x => x,
+                        })
+                    }
+
+                    fn size_hint(&self) -> (usize, Option<usize>) {
+                        let (mini, maxi) = self.0.size_hint();
+                        (mini / 2, maxi)
+                    }
+                }
+
+                let mut escaped = false;
+                let s = self.consume_select(|i| {
+                    if escaped {
+                        escaped = false;
+                        return true;
+                    }
+                    if i == '\\' {
+                        escaped = true;
+                    }
+                    !matches!(i, '{' | '}' | '"')
+                });
+
+                if let Some(x) = self.inp.chars().next() {
+                    match x {
+                        '{' => {}
+                        '}' => {
+                            self.consume(x.len_utf8());
+                            self.buffer = Some(Err(Offsetted {
+                                offset,
+                                inner: ErrorKind::UnbalancedString(self.offset),
+                            }));
+                        }
+                        '"' => {
+                            self.consume(x.len_utf8());
+                            self.lvl.pop();
+                            self.buffer = Some(Ok(Offsetted {
+                                offset: self.offset,
+                                inner: TokenKind::StringEnd,
+                            }));
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+
+                let inner = if escaped {
+                    Some(Err(ErrorKind::UnexpectedEof))
+                } else if !s.is_empty() {
+                    Some(Ok(TokenKind::PureString(
+                        Unescape(s.chars()).nfc().collect(),
+                    )))
+                } else if let Some(x) = self.buffer.take() {
+                    return Some(x);
+                } else {
+                    None
+                };
+
+                if let Some(inner) = inner {
+                    break inner;
+                }
+            }
+
+            self.consume_select(|i| i.is_whitespace());
+            offset = self.offset;
+
+            let in_comment = self.lvl.last() == Some(&LvlKind::Comment);
+
+            break match self.inp.chars().next()? {
+                c if in_comment => {
+                    self.consume(1);
+                    match c {
+                        '(' => {
+                            if self.inp.starts_with('*') {
+                                self.lvl.push(LvlKind::Comment);
+                            }
+                        }
+                        '*' => {
+                            if self.inp.starts_with(')') {
+                                self.consume(1);
+                                self.lvl.pop();
+                            }
+                        }
+                        _ => {
+                            self.consume_select(|i| !matches!(i, '(' /* ) */ | '*'));
+                        }
+                    }
+                    continue;
+                }
+
+                '0'..='9' => {
+                    let s = self.consume_select(|i| i.is_ascii_digit());
+                    assert!(!s.is_empty());
+                    s.parse().map(TokenKind::Integer).map_err(|e| e.into())
+                }
+
+                c @ '\\' | c @ 'λ' => {
+                    self.consume(c.len_utf8());
+                    // identifier
+                    let s = self.consume_select(|i| i.is_xid_continue());
+                    if let Some(fi) = s.chars().next() {
+                        if !fi.is_xid_start() {
+                            Err(ErrorKind::InvalidLambdaChar(fi))
+                        } else if s.parse::<Keyword>().is_ok() {
+                            Err(ErrorKind::KeywordLambda)
+                        } else {
+                            Ok(TokenKind::Lambda(s.nfc().to_string()))
+                        }
+                    } else {
+                        Err(ErrorKind::NoLambdaArg)
+                    }
+                }
+
+                c if c.is_xid_start() => {
+                    // identifier
+                    let s = self.consume_select(|i| i.is_xid_continue());
+                    assert!(!s.is_empty());
+                    // check if it is a keyword
+                    Ok(if let Ok(kw) = s.parse::<Keyword>() {
+                        TokenKind::Keyword(kw)
+                    } else {
+                        TokenKind::Identifier(s.nfc().to_string())
                     })
                 }
 
-                fn size_hint(&self) -> (usize, Option<usize>) {
-                    let (mini, maxi) = self.0.size_hint();
-                    (mini / 2, maxi)
-                }
-            }
-
-            let mut escaped = false;
-            let s = self.consume_select(|_, i| {
-                if escaped {
-                    escaped = false;
-                    return true;
-                }
-                if i == '\\' {
-                    escaped = true;
-                }
-                !matches!(i, '{' | '}' | '"')
-            });
-
-            if let Some(x) = self.inp.chars().next() {
-                match x {
-                    '{' => {}
-                    '}' => {
-                        self.consume(x.len_utf8());
-                        self.buffer = Some(Err(Offsetted {
-                            offset,
-                            inner: ErrorKind::UnbalancedString(self.offset),
-                        }));
-                    }
-                    '"' => {
-                        self.consume(x.len_utf8());
-                        self.lvl.pop();
-                        self.buffer = Some(Ok(Offsetted {
-                            offset: self.offset,
-                            inner: TokenKind::StringEnd,
-                        }));
-                    }
-                    _ => unreachable!(),
-                }
-            }
-
-            let inner = if escaped {
-                Some(Err(ErrorKind::UnexpectedEof))
-            } else if !s.is_empty() {
-                Some(Ok(TokenKind::PureString(
-                    Unescape(s.chars()).nfc().collect(),
-                )))
-            } else if let Some(x) = self.buffer.take() {
-                return Some(x);
-            } else {
-                None
-            };
-
-            if let Some(inner) = inner {
-                // combine {kind, offset}
-                assert_ne!(offset, self.offset);
-                return Some(Offsetted { offset, inner }.into());
-            }
-        }
-
-        self.consume_select(|_, i| i.is_whitespace());
-        offset = self.offset;
-
-        let inner = match self.inp.chars().next()? {
-            '0'..='9' => {
-                let s = self.consume_select(|_, i| i.is_ascii_digit());
-                assert!(!s.is_empty());
-                s.parse().map(TokenKind::Integer).map_err(|e| e.into())
-            }
-
-            c @ '\\' | c @ 'λ' => {
-                self.consume(c.len_utf8());
-                // identifier
-                let s = self.consume_select(|_, i| i.is_xid_continue());
-                if let Some(fi) = s.chars().next() {
-                    if !fi.is_xid_start() {
-                        Err(ErrorKind::InvalidLambdaChar(fi))
-                    } else if s.parse::<Keyword>().is_ok() {
-                        Err(ErrorKind::KeywordLambda)
-                    } else {
-                        Ok(TokenKind::Lambda(s.nfc().to_string()))
-                    }
-                } else {
-                    Err(ErrorKind::NoLambdaArg)
-                }
-            }
-
-            c if c.is_xid_start() => {
-                // identifier
-                let s = self.consume_select(|_, i| i.is_xid_continue());
-                assert!(!s.is_empty());
-                // check if it is a keyword
-                Ok(if let Ok(kw) = s.parse::<Keyword>() {
-                    TokenKind::Keyword(kw)
-                } else {
-                    TokenKind::Identifier(s.nfc().to_string())
-                })
-            }
-
-            c => {
-                self.consume(c.len_utf8());
-                use TokenKind as Tk;
-                match c {
-                    '"' => {
-                        // string. all our strings are format strings,
-                        // thus we need to honor brackets.
-                        self.lvl.push(true);
-                        Ok(TokenKind::StringStart)
-                    }
-                    '=' => Ok(Tk::EqSym),
-                    '.' => Ok(Tk::Dot),
-                    ';' => Ok(Tk::SemiColon),
-                    '{' => {
-                        self.lvl.push(false);
-                        Ok(Tk::LcBracket)
-                    }
-                    '}' => {
-                        if let Some(x) = self.lvl.pop() {
-                            assert!(!x);
+                c => {
+                    self.consume(c.len_utf8());
+                    use TokenKind as Tk;
+                    match c {
+                        '"' => {
+                            // string. all our strings are format strings,
+                            // thus we need to honor brackets.
+                            self.lvl.push(LvlKind::Quotes);
+                            Ok(TokenKind::StringStart)
                         }
-                        Ok(Tk::RcBracket)
+                        '=' => Ok(Tk::EqSym),
+                        '.' => Ok(Tk::Dot),
+                        ';' => Ok(Tk::SemiColon),
+                        '{' => {
+                            self.lvl.push(LvlKind::CurlyBrks);
+                            Ok(Tk::LcBracket)
+                        }
+                        '}' => {
+                            if let Some(x) = self.lvl.pop() {
+                                if x != LvlKind::CurlyBrks {
+                                    Err(ErrorKind::UnbalancedNesting)
+                                } else {
+                                    Ok(Tk::RcBracket)
+                                }
+                            } else {
+                                Ok(Tk::RcBracket)
+                            }
+                        }
+                        '(' => {
+                            if self.inp.starts_with('*') {
+                                // comment
+                                self.lvl.push(LvlKind::Comment);
+                                continue;
+                            } else {
+                                Ok(Tk::LParen)
+                            }
+                        }
+                        ')' => Ok(Tk::RParen),
+                        _ => Err(ErrorKind::UnhandledChar(c)),
                     }
-                    '(' => Ok(Tk::LParen),
-                    ')' => Ok(Tk::RParen),
-                    _ => Err(ErrorKind::UnhandledChar(c)),
                 }
-            }
+            };
         };
 
         // combine {kind, offset}
