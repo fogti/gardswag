@@ -4,20 +4,26 @@ use std::collections::{BTreeSet, HashMap};
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TyLit {
     Unit,
+    Bool,
     Int,
     String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Ty<Var> {
     Literal(TyLit),
 
     Var(Var),
 
     Arrow(Box<Ty<Var>>, Box<Ty<Var>>),
+
+    Record {
+        m: HashMap<String, Ty<Var>>,
+        partial: bool,
+    },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Scheme<Var> {
     pub forall: BTreeSet<Var>,
     pub t: Ty<Var>,
@@ -35,8 +41,6 @@ impl<T: Clone + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::ha
 pub trait Substitutable {
     type Var: VarBase;
 
-    fn highest_used(&self) -> Option<Self::Var>;
-
     // generate list of all free variables
     fn fv(&self) -> BTreeSet<Self::Var>;
 
@@ -47,50 +51,36 @@ pub trait Substitutable {
 impl<Var: VarBase> Substitutable for Ty<Var> {
     type Var = Var;
 
-    fn highest_used(&self) -> Option<Var> {
-        match self {
-            Ty::Literal(_) => None,
-            Ty::Var(tv) => Some(tv.clone()),
-            Ty::Arrow(arg, ret) => match (arg.highest_used(), ret.highest_used()) {
-                (Some(a), Some(r)) if a <= r => Some(r),
-                (Some(a), _) => Some(a),
-                (_, Some(r)) => Some(r),
-                (None, None) => None,
-            },
-        }
-    }
-
     fn fv(&self) -> BTreeSet<Var> {
         match self {
             Ty::Literal(_) => Default::default(),
             Ty::Var(tv) => core::iter::once(tv.clone()).collect(),
             Ty::Arrow(arg, ret) => arg.fv().union(&ret.fv()).cloned().collect(),
+            Ty::Record { m, .. } => m.values().flat_map(|i| i.fv()).collect(),
         }
     }
 
     fn apply(&mut self, ctx: &HashMap<Var, Ty<Var>>) {
         match self {
+            Ty::Literal(_) => {}
             Ty::Var(tv) => {
                 if let Some(x) = ctx.get(tv) {
                     *self = x.clone();
                 }
             }
-            Ty::Arrow(ref mut arg, ref mut ret) => {
+            Ty::Arrow(arg, ret) => {
                 arg.apply(ctx);
                 ret.apply(ctx);
             }
-            _ => {}
+            Ty::Record { m, .. } => {
+                m.values_mut().for_each(|i| i.apply(ctx));
+            }
         }
     }
 }
 
 impl<Var: VarBase> Substitutable for Scheme<Var> {
     type Var = Var;
-
-    fn highest_used(&self) -> Option<Var> {
-        let tmp: BTreeSet<_> = self.forall.union(&self.t.fv()).cloned().collect();
-        tmp.iter().rev().next().cloned()
-    }
 
     fn fv(&self) -> BTreeSet<Var> {
         let fvt = self.t.fv();
@@ -109,11 +99,6 @@ impl<Var: VarBase> Substitutable for Scheme<Var> {
 
 impl<V: Substitutable> Substitutable for HashMap<String, V> {
     type Var = V::Var;
-
-    fn highest_used(&self) -> Option<V::Var> {
-        let tmp: BTreeSet<_> = self.values().flat_map(|i| i.highest_used()).collect();
-        tmp.iter().rev().next().cloned()
-    }
 
     fn fv(&self) -> BTreeSet<V::Var> {
         self.values().flat_map(|i| i.fv()).collect()
@@ -184,6 +169,43 @@ pub fn unify<Var: VarBase>(
             unify(ctx, &rx1, &rx2)?;
             Ok(())
         }
+        (
+            Ty::Record {
+                m: rc1,
+                partial: false,
+            },
+            Ty::Record {
+                m: rc2,
+                partial: false,
+            },
+        ) if rc1.len() == rc2.len() => {
+            for (k, v1) in rc1 {
+                let v2 = rc2.get(k).ok_or_else(|| UnifyError::Mismatch {
+                    t1: a.clone(),
+                    t2: b.clone(),
+                })?;
+                unify(ctx, v1, v2)?;
+            }
+            Ok(())
+        }
+        (
+            Ty::Record {
+                m: rc1,
+                partial: rc1p,
+            },
+            Ty::Record {
+                m: rc2,
+                partial: rc2p,
+            },
+        ) if *rc1p || *rc2p => {
+            // partial record, only unify intersection
+            for (k, v1) in rc1 {
+                if let Some(v2) = rc2.get(k) {
+                    unify(ctx, v1, v2)?;
+                }
+            }
+            Ok(())
+        }
         (Ty::Var(a), t) => bind(ctx, a, t),
         (t, Ty::Var(a)) => bind(ctx, a, t),
         (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
@@ -199,9 +221,7 @@ impl<Var: VarBase> Scheme<Var> {
         let forall2 = self
             .forall
             .iter()
-            .map(|i| {
-                (i.clone(), Ty::Var(fresh_vars.next().unwrap()))
-            })
+            .map(|i| (i.clone(), Ty::Var(fresh_vars.next().unwrap())))
             .collect();
         let mut t2 = self.t.clone();
         t2.apply(&forall2);
