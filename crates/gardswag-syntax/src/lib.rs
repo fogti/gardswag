@@ -543,4 +543,18 @@ mod tests {
         )
         .unwrap());
     }
+
+    #[test]
+    fn complex_fstr() {
+        insta::assert_yaml_snapshot!(parse(
+            r#"
+                "{
+                  let a = 1;
+                  std.stdio.write("{a}\n");
+                  a
+                }"
+            "#
+        )
+        .unwrap());
+    }
 }
