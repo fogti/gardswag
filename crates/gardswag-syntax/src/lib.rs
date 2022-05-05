@@ -498,6 +498,11 @@ mod tests {
         insta::assert_yaml_snapshot!(parse("{ a }").unwrap());
     }
 
+    #[test]
+    fn hello_world() {
+        insta::assert_yaml_snapshot!(parse(r#"std.stdio.write("Hello world!\n");"#).unwrap());
+    }
+
     // like the fibo example. but without string literals
     #[test]
     fn fibo_simpler() {

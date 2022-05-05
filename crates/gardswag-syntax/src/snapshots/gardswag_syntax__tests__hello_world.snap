@@ -1,0 +1,38 @@
+---
+source: crates/gardswag-syntax/src/lib.rs
+assertion_line: 503
+expression: "parse(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
+---
+stmts:
+  - offset: 9
+    inner:
+      Call:
+        prim:
+          offset: 9
+          inner:
+            Dot:
+              prim:
+                offset: 3
+                inner:
+                  Dot:
+                    prim:
+                      offset: 0
+                      inner:
+                        Identifier:
+                          offset: 0
+                          inner: std
+                    key:
+                      offset: 4
+                      inner: stdio
+              key:
+                offset: 10
+                inner: write
+        args:
+          - offset: 16
+            inner:
+              FormatString:
+                - offset: 17
+                  inner:
+                    PureString: "Hello world!\n"
+term: ~
+
