@@ -1,4 +1,5 @@
 use crate::Offsetted;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Lexer<'a> {
@@ -25,11 +26,11 @@ pub enum ErrorKind {
 
 pub type Token = Offsetted<TokenKind>;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum TokenKind {
     Keyword(Keyword),
     Identifier(String),
-    Int(i32),
+    Integer(i32),
     FormatString(String),
 
     EqSym,
@@ -45,7 +46,7 @@ pub enum TokenKind {
 
 macro_rules! keywords {
     ($($r:ident => $s:literal),* $(,)?) => {
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
         pub enum Keyword {
             $($r),*,
         }
@@ -77,10 +78,10 @@ macro_rules! keywords {
 }
 
 keywords! {
-    Else => "else",
+    Break => "break",
     If => "if",
     Let => "let",
-    While => "while",
+    Loop => "loop",
 }
 
 fn count_bytes<F>(inp: &str, mut f: F) -> usize
@@ -93,7 +94,7 @@ where
         .sum()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Nest {
     CurlyBrackets,
     Parentheses,
@@ -135,7 +136,7 @@ impl Iterator for Lexer<'_> {
             '0'..='9' => {
                 let s = self.consume_select(|_, i| i.is_ascii_digit());
                 assert!(!s.is_empty());
-                s.parse().map(TokenKind::Int).map_err(|e| e.into())
+                s.parse().map(TokenKind::Integer).map_err(|e| e.into())
             }
 
             '"' => {
@@ -209,7 +210,7 @@ impl Iterator for Lexer<'_> {
                     '{' => Ok(Tk::LcBracket),
                     '}' => Ok(Tk::RcBracket),
                     '(' => Ok(Tk::LParen),
-                    ')' => Ok(Tk::LParen),
+                    ')' => Ok(Tk::RParen),
                     _ => Err(ErrorKind::UnhandledChar(c)),
                 }
             }
@@ -231,9 +232,9 @@ mod tests {
     }
 
     #[test]
-    fn lex_while() {
+    fn lex_loop() {
         insta::assert_debug_snapshot!(
-            Lexer::new("while std.leq a b {\na = std.plus a b;\n}\n").collect::<Vec<_>>()
+            Lexer::new("loop {\na = std.plus a b;\n}\n").collect::<Vec<_>>()
         );
     }
 }

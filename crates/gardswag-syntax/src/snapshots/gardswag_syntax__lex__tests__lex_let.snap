@@ -29,7 +29,7 @@ expression: "Lexer::new(\"let a = 1;\").collect::<Vec<_>>()"
     Ok(
         Offsetted {
             offset: 8,
-            inner: Int(
+            inner: Integer(
                 1,
             ),
         },

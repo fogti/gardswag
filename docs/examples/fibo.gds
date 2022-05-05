@@ -1,7 +1,10 @@
 let a = 1;
 let b = 1;
 
-while std.leq a b {
+loop {
+  if (std.leq b a) {
+    break;
+  } else {};
   a = std.plus a b;
   std.stdio.write("{a}\n");
   b = std.plus a b;

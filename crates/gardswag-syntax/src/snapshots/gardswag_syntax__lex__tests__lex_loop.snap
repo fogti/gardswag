@@ -1,42 +1,26 @@
 ---
 source: crates/gardswag-syntax/src/lex.rs
 assertion_line: 235
-expression: "Lexer::new(\"while std.leq a b {\\na = std.plus a b;\\n}\\n\").collect::<Vec<_>>()"
+expression: "Lexer::new(\"loop {\\na = std.plus a b;\\n}\\n\").collect::<Vec<_>>()"
 ---
 [
     Ok(
         Offsetted {
             offset: 0,
             inner: Keyword(
-                While,
+                Loop,
             ),
         },
     ),
     Ok(
         Offsetted {
-            offset: 6,
-            inner: Identifier(
-                "std",
-            ),
+            offset: 5,
+            inner: LcBracket,
         },
     ),
     Ok(
         Offsetted {
-            offset: 9,
-            inner: Dot,
-        },
-    ),
-    Ok(
-        Offsetted {
-            offset: 10,
-            inner: Identifier(
-                "leq",
-            ),
-        },
-    ),
-    Ok(
-        Offsetted {
-            offset: 14,
+            offset: 7,
             inner: Identifier(
                 "a",
             ),
@@ -44,16 +28,30 @@ expression: "Lexer::new(\"while std.leq a b {\\na = std.plus a b;\\n}\\n\").coll
     ),
     Ok(
         Offsetted {
-            offset: 16,
+            offset: 9,
+            inner: EqSym,
+        },
+    ),
+    Ok(
+        Offsetted {
+            offset: 11,
             inner: Identifier(
-                "b",
+                "std",
             ),
         },
     ),
     Ok(
         Offsetted {
-            offset: 18,
-            inner: LcBracket,
+            offset: 14,
+            inner: Dot,
+        },
+    ),
+    Ok(
+        Offsetted {
+            offset: 15,
+            inner: Identifier(
+                "plus",
+            ),
         },
     ),
     Ok(
@@ -67,42 +65,6 @@ expression: "Lexer::new(\"while std.leq a b {\\na = std.plus a b;\\n}\\n\").coll
     Ok(
         Offsetted {
             offset: 22,
-            inner: EqSym,
-        },
-    ),
-    Ok(
-        Offsetted {
-            offset: 24,
-            inner: Identifier(
-                "std",
-            ),
-        },
-    ),
-    Ok(
-        Offsetted {
-            offset: 27,
-            inner: Dot,
-        },
-    ),
-    Ok(
-        Offsetted {
-            offset: 28,
-            inner: Identifier(
-                "plus",
-            ),
-        },
-    ),
-    Ok(
-        Offsetted {
-            offset: 33,
-            inner: Identifier(
-                "a",
-            ),
-        },
-    ),
-    Ok(
-        Offsetted {
-            offset: 35,
             inner: Identifier(
                 "b",
             ),
@@ -110,13 +72,13 @@ expression: "Lexer::new(\"while std.leq a b {\\na = std.plus a b;\\n}\\n\").coll
     ),
     Ok(
         Offsetted {
-            offset: 36,
+            offset: 23,
             inner: SemiColon,
         },
     ),
     Ok(
         Offsetted {
-            offset: 38,
+            offset: 25,
             inner: RcBracket,
         },
     ),
