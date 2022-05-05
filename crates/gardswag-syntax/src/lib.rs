@@ -557,4 +557,11 @@ mod tests {
         )
         .unwrap());
     }
+
+    proptest::proptest! {
+        #[test]
+        fn doesnt_crash(s in "\\PC*") {
+            let _ = parse(&s);
+        }
+    }
 }

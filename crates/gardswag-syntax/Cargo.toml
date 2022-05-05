@@ -15,3 +15,4 @@ features = ["derive"]
 
 [dev-dependencies]
 insta = "1.14"
+proptest = "1.0"
