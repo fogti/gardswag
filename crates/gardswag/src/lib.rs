@@ -168,7 +168,7 @@ impl Env {
                     tysy::unify(
                         &mut x_prim.subst,
                         &x_prim.t,
-                        &tysy::Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
+                        &tysy::Ty::Arrow(Box::new(t_arg), Box::new(tv)),
                     )?;
                 }
                 Ok(x_prim)
