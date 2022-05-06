@@ -59,6 +59,7 @@ pub enum TokenKind {
 
     EqSym,
     Dot,
+    DubColon,
     SemiColon,
 
     LcBracket,
@@ -314,6 +315,7 @@ impl Iterator for Lexer<'_> {
                         }
                         '=' => Ok(Tk::EqSym),
                         '.' => Ok(Tk::Dot),
+                        ':' => Ok(Tk::DubColon),
                         ';' => Ok(Tk::SemiColon),
                         '{' => {
                             self.lvl.push(LvlKind::CurlyBrks);

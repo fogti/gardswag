@@ -9,6 +9,7 @@
 #![deny(unused_variables)]
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 pub mod lex;
 mod offset;
@@ -26,6 +27,9 @@ pub enum ErrorKind {
 
     #[error("unexpected token {0:?}")]
     UnexpectedToken(lex::Token),
+
+    #[error("duplicate key {0:?}")]
+    DuplicateKey(String),
 }
 
 pub type Identifier = Offsetted<String>;
@@ -89,6 +93,7 @@ pub enum ExprKind {
     Fix(Box<Expr>),
 
     FormatString(Vec<Expr>),
+    Record(HashMap<String, Expr>),
 
     Identifier(Identifier),
     Integer(i32),
@@ -120,6 +125,7 @@ impl ExprKind {
             Self::Dot { prim, .. } => prim.inner.is_var_accessed(v),
             Self::Fix(body) => body.inner.is_var_accessed(v),
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
+            Self::Record(rcd) => rcd.values().any(|i| i.inner.is_var_accessed(v)),
             Self::Identifier(id) => id.inner == v,
             Self::Integer(_) | Self::PureString(_) => false,
         }
@@ -178,6 +184,8 @@ impl ExprKind {
             Self::Fix(body) => body.inner.replace_var(v, rpm),
 
             Self::FormatString(exs) => exs.iter_mut().all(|i| i.inner.replace_var(v, rpm)),
+
+            Self::Record(rcd) => rcd.values_mut().all(|i| i.inner.replace_var(v, rpm)),
 
             Self::Identifier(id) => {
                 if id.inner == v {
@@ -451,6 +459,41 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             }
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::StringEnd));
             Ok(ExprKind::FormatString(parts))
+        }
+        Tk::Dot => {
+            // record: ` .{ key1: value1; key2: value2; } `
+            let mut rcd = HashMap::new();
+            let _ = xtry!(expect_token_exact(offset, lxr, Tk::LcBracket));
+            while let Some(Ok(Token {
+                offset,
+                inner: Tk::Identifier(id),
+            })) = lxr.next_if(|i| {
+                matches!(
+                    i,
+                    Ok(Token {
+                        inner: Tk::Identifier(_),
+                        ..
+                    })
+                )
+            }) {
+                let _ = xtry!(expect_token_exact(offset, lxr, Tk::DubColon));
+                let expr = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
+                let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
+                use std::collections::hash_map::Entry;
+                match rcd.entry(id) {
+                    Entry::Vacant(v) => {
+                        v.insert(expr);
+                    }
+                    Entry::Occupied(occ) => {
+                        return PErr(Offsetted {
+                            offset,
+                            inner: ErrorKind::DuplicateKey(occ.key().to_string()),
+                        });
+                    }
+                }
+            }
+            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
+            Ok(ExprKind::Record(rcd))
         }
         _ => {
             return PErr(Offsetted {

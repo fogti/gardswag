@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+mod infer;
+
 #[derive(clap::Parser)]
 #[clap(version)]
 struct Args {
@@ -8,7 +10,7 @@ struct Args {
     file: PathBuf,
 }
 
-fn mk_env_std() -> gardswag_typesys::Scheme<gardswag::TyVar> {
+fn mk_env_std() -> gardswag_typesys::Scheme<infer::TyVar> {
     use gardswag_typesys::{Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
@@ -72,9 +74,9 @@ fn main() {
 
     let parsed = gardswag_syntax::parse(&dat).expect("unable to parse file");
 
-    let env = gardswag::Env {
+    let env = infer::Env {
         vars: [("std".to_string(), mk_env_std())].into_iter().collect(),
-        tracker: std::rc::Rc::new(std::cell::RefCell::new(gardswag::Tracker {
+        tracker: std::rc::Rc::new(std::cell::RefCell::new(infer::Tracker {
             fresh_tyvars: 100..,
             subst: Default::default(),
         })),
@@ -83,7 +85,13 @@ fn main() {
     match env.infer_block(&parsed) {
         Ok(t) => {
             println!("type check ok");
-            for (k, v) in env.tracker.borrow().subst.iter().collect::<std::collections::BTreeMap<_, _>>() {
+            for (k, v) in env
+                .tracker
+                .borrow()
+                .subst
+                .iter()
+                .collect::<std::collections::BTreeMap<_, _>>()
+            {
                 println!("\t${}:\t{}", k, v);
             }
             println!("=> {}", t);

@@ -61,8 +61,15 @@ pub trait VarBase:
     Clone + core::fmt::Debug + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash
 {
 }
-impl<T: Clone + core::fmt::Debug + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash> VarBase
-    for T
+impl<
+        T: Clone
+            + core::fmt::Debug
+            + cmp::PartialEq
+            + cmp::Eq
+            + cmp::PartialOrd
+            + cmp::Ord
+            + core::hash::Hash,
+    > VarBase for T
 {
 }
 

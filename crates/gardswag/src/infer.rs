@@ -127,7 +127,11 @@ impl Env {
                 let mut x_then = self.infer_block(then)?;
                 let x_else = self.infer_block(or_else)?;
                 let mut tracker = self.tracker.borrow_mut();
-                tysy::unify(&mut tracker.subst, &x_cond, &tysy::Ty::Literal(tysy::TyLit::Bool))?;
+                tysy::unify(
+                    &mut tracker.subst,
+                    &x_cond,
+                    &tysy::Ty::Literal(tysy::TyLit::Bool),
+                )?;
                 tysy::unify(&mut tracker.subst, &x_then, &x_else)?;
                 x_then.apply(&tracker.subst);
                 Ok(x_then)
@@ -199,10 +203,21 @@ impl Env {
             Ek::FormatString(fsexs) => {
                 let mut env = self.clone();
                 for i in fsexs {
-                    env.apply(&self.tracker.borrow().subst);
+                    env.update();
                     let _ = env.infer(i)?;
                 }
                 Ok(tysy::Ty::Literal(tysy::TyLit::String))
+            }
+
+            Ek::Record(rcd) => {
+                let mut m = HashMap::default();
+                let mut env = self.clone();
+                for (k, v) in rcd {
+                    env.update();
+                    let t = env.infer(v)?;
+                    m.insert(k.clone(), t);
+                }
+                Ok(tysy::Ty::Record { m, partial: false })
             }
 
             Ek::Identifier(id) => {
@@ -212,12 +227,8 @@ impl Env {
                     Err(Error::UndefVar(id.clone()))
                 }
             }
-            Ek::Integer(_) => Ok(
-                tysy::Ty::Literal(tysy::TyLit::Int),
-            ),
-            Ek::PureString(_) => Ok(
-                tysy::Ty::Literal(tysy::TyLit::String),
-            ),
+            Ek::Integer(_) => Ok(tysy::Ty::Literal(tysy::TyLit::Int)),
+            Ek::PureString(_) => Ok(tysy::Ty::Literal(tysy::TyLit::String)),
         }
     }
 
