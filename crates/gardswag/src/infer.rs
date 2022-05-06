@@ -29,9 +29,7 @@ impl Tracker {
         // resolve the subst map as far as possible
         loop {
             let old_subst = self.subst.clone();
-            for v in self.subst.values_mut() {
-                v.apply(&old_subst);
-            }
+            self.apply(&old_subst);
             if old_subst == self.subst {
                 break;
             }
@@ -39,10 +37,42 @@ impl Tracker {
     }
 }
 
+impl tysy::Substitutable for Tracker {
+    type Var = TyVar;
+
+    fn fv(&self) -> BTreeSet<TyVar> {
+        self.subst.values().flat_map(|i| i.fv()).collect()
+    }
+
+    fn apply(&mut self, ctx: &HashMap<TyVar, tysy::Ty<TyVar>>) {
+        self.subst.values_mut().for_each(|i| i.apply(ctx))
+    }
+}
+
 #[derive(Clone)]
 pub struct Env {
     pub vars: HashMap<String, tysy::Scheme<TyVar>>,
     pub tracker: Rc<RefCell<Tracker>>,
+}
+
+impl Env {
+    /// this function should only be called when this is the only env existing
+    pub fn gc(&self) {
+        let mut tracker = self.tracker.borrow_mut();
+        // reduce necessary type vars to minimum
+        tracker.self_resolve();
+
+        // generate list of still-in-use type vars
+        //self.vars.apply(&tracker.subst);
+        let mut xfv = self.vars.fv();
+        xfv.extend(tracker.fv());
+        tracing::debug!("gc: FV={:?}", xfv);
+
+        // remove all unnecessary type vars
+        let orig_tvcnt = tracker.subst.len();
+        tracker.subst.retain(|k, _| xfv.contains(k));
+        tracing::debug!("gc: #tv: {} -> {}", orig_tvcnt, tracker.subst.len());
+    }
 }
 
 impl tysy::Substitutable for Env {

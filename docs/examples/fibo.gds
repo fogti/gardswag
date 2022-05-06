@@ -1,5 +1,3 @@
-let a = 1;
-let b = 1;
 let rec fib = \x \y \n {
   (* seq: [..., x, y] ++ [z] *)
   let z = std.plus x y;

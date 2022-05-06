@@ -84,6 +84,7 @@ fn main() {
 
     match env.infer_block(&parsed) {
         Ok(t) => {
+            env.gc();
             println!("type check ok");
             for (k, v) in env
                 .tracker
