@@ -1,12 +1,10 @@
 let a = 1;
 let b = 1;
-
-loop {
-  if (std.leq b a) {
-    break;
-  } else {};
-  a = std.plus a b;
-  std.stdio.write("{a}\n");
-  b = std.plus a b;
-  std.stdio.write("{b}\n");
-}
+let rec fib = \x \y \n {
+  (* seq: [..., x, y] ++ [z] *)
+  let z = std.plus x y;
+  if (std.leq n 0)
+    { z }
+    { fib y z (std.minus n 1) }
+};
+fib

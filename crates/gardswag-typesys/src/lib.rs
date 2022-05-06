@@ -30,10 +30,10 @@ pub struct Scheme<Var> {
 }
 
 pub trait VarBase:
-    Clone + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash
+    Clone + core::fmt::Debug + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash
 {
 }
-impl<T: Clone + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash> VarBase
+impl<T: Clone + core::fmt::Debug + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash> VarBase
     for T
 {
 }
@@ -141,11 +141,14 @@ fn bind<Var: VarBase>(
             if occ.get() == t {
                 Ok(())
             } else {
-                Err(UnifyError::Override {
+                let present = occ.get().clone();
+                unify(ctx, &present, t)?;
+                /*Err(UnifyError::Override {
                     v: v.clone(),
                     t1: occ.get().clone(),
                     t2: t.clone(),
-                })
+                })*/
+                Ok(())
             }
         }
         Entry::Vacant(y) => {
@@ -160,6 +163,7 @@ pub fn unify<Var: VarBase>(
     a: &Ty<Var>,
     b: &Ty<Var>,
 ) -> Result<(), UnifyError<Var>> {
+    tracing::debug!("unify a={:?}, b={:?} ctx={:?}", a, b, ctx);
     match (a, b) {
         (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
             unify(ctx, l1, l2)?;

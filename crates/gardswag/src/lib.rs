@@ -79,7 +79,7 @@ impl Env {
         Ok(ret)
     }
 
-    pub fn infer(&self, expr: &synt::Expr) -> Result<InferData, Error> {
+    fn infer_inner(&self, expr: &synt::Expr) -> Result<InferData, Error> {
         use synt::ExprKind as Ek;
         match &expr.inner {
             Ek::Let { lhs, rhs, rest } => {
@@ -173,8 +173,9 @@ impl Env {
                     tysy::unify(
                         &mut x_prim.subst,
                         &x_prim.t,
-                        &tysy::Ty::Arrow(Box::new(t_arg), Box::new(tv)),
+                        &tysy::Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
                     )?;
+                    x_prim.t = tv;
                 }
                 Ok(x_prim)
             }
@@ -241,5 +242,12 @@ impl Env {
                 t: tysy::Ty::Literal(tysy::TyLit::String),
             }),
         }
+    }
+
+    pub fn infer(&self, expr: &synt::Expr) -> Result<InferData, Error> {
+        tracing::debug!("infer {:?}", expr);
+        let res = self.infer_inner(expr);
+        tracing::debug!("infer {:?} -> {:?}", expr, res);
+        res
     }
 }
