@@ -72,14 +72,18 @@ fn main() {
 
     let parsed = gardswag_syntax::parse(&dat).expect("unable to parse file");
 
-    let mut env = gardswag::Env::default();
-    *env.fresh_tyvars.borrow_mut() = 100..;
-    env.vars.insert("std".to_string(), mk_env_std());
+    let env = gardswag::Env {
+        vars: [("std".to_string(), mk_env_std())].into_iter().collect(),
+        tracker: std::rc::Rc::new(std::cell::RefCell::new(gardswag::Tracker {
+            fresh_tyvars: 100..,
+            subst: Default::default(),
+        })),
+    };
 
     match env.infer_block(&parsed) {
-        Ok(gardswag::InferData { subst, t }) => {
+        Ok(t) => {
             println!("type check ok");
-            for (k, v) in subst.into_iter().collect::<std::collections::BTreeMap<_, _>>() {
+            for (k, v) in env.tracker.borrow().subst.iter().collect::<std::collections::BTreeMap<_, _>>() {
                 println!("\t${}:\t{}", k, v);
             }
             println!("=> {}", t);

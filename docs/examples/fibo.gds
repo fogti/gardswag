@@ -7,4 +7,4 @@ let rec fib = \x \y \n {
     { z }
     { fib y z (std.minus n 1) }
 };
-fib
+fib 1 1
