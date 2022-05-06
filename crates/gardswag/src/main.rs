@@ -84,7 +84,7 @@ fn main() {
 
     match env.infer_block(&parsed) {
         Ok(t) => {
-            env.gc();
+            env.gc(core::iter::once(t.clone()));
             println!("type check ok");
             for (k, v) in env
                 .tracker

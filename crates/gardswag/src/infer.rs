@@ -57,7 +57,7 @@ pub struct Env {
 
 impl Env {
     /// this function should only be called when this is the only env existing
-    pub fn gc(&self) {
+    pub fn gc<I: Iterator<Item = tysy::Ty<TyVar>>>(&self, extra_tys: I) {
         let mut tracker = self.tracker.borrow_mut();
         // reduce necessary type vars to minimum
         tracker.self_resolve();
@@ -72,6 +72,24 @@ impl Env {
         let orig_tvcnt = tracker.subst.len();
         tracker.subst.retain(|k, _| xfv.contains(k));
         tracing::debug!("gc: #tv: {} -> {}", orig_tvcnt, tracker.subst.len());
+
+        // reset fresh tyvars counter
+        xfv.extend(
+            self.vars
+                .values()
+                .flat_map(|i| &i.forall)
+                .cloned()
+                .chain(extra_tys.flat_map(|i| i.fv())),
+        );
+        let orig_freetvc = core::mem::replace(
+            &mut tracker.fresh_tyvars,
+            xfv.iter().last().map(|&i| i + 1).unwrap_or(0)..,
+        );
+        tracing::debug!(
+            "gc: fresh#tv: {:?} -> {:?}",
+            orig_freetvc,
+            tracker.fresh_tyvars
+        );
     }
 }
 
