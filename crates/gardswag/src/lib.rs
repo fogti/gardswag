@@ -76,6 +76,17 @@ impl Env {
             ret.t = t;
             ret.subst.extend(subst);
         }
+        // resolve the subst map as far as possible
+        loop {
+            let old_subst = ret.subst.clone();
+            for v in ret.subst.values_mut() {
+                v.apply(&old_subst);
+            }
+            if old_subst == ret.subst {
+                break;
+            }
+        }
+        ret.t.apply(&ret.subst);
         Ok(ret)
     }
 

@@ -77,7 +77,13 @@ fn main() {
     env.vars.insert("std".to_string(), mk_env_std());
 
     match env.infer_block(&parsed) {
-        Ok(x) => println!("type check result: {:#?}", x),
+        Ok(gardswag::InferData { subst, t }) => {
+            println!("type check ok");
+            for (k, v) in subst.into_iter().collect::<std::collections::BTreeMap<_, _>>() {
+                println!("\t${}:\t{}", k, v);
+            }
+            println!("=> {}", t);
+        }
         Err(e) => panic!("type checking error: {:?}", e),
     }
 }

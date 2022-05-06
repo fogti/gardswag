@@ -1,4 +1,4 @@
-use std::cmp;
+use core::{cmp, fmt};
 use std::collections::{BTreeSet, HashMap};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -7,6 +7,17 @@ pub enum TyLit {
     Bool,
     Int,
     String,
+}
+
+impl fmt::Display for TyLit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Unit => "()",
+            Self::Bool => "bool",
+            Self::Int => "int",
+            Self::String => "str",
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,6 +32,23 @@ pub enum Ty<Var> {
         m: HashMap<String, Ty<Var>>,
         partial: bool,
     },
+}
+
+impl<Var: fmt::Debug> fmt::Display for Ty<Var> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ty::Literal(lit) => write!(f, "{}", lit),
+            Ty::Var(v) => write!(f, "${:?}", v),
+            Ty::Arrow(a, b) => write!(f, "({}) -> {}", a, b),
+            Ty::Record { m, partial } => {
+                write!(f, "{:?}", m)?;
+                if *partial {
+                    write!(f, "..")?;
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
