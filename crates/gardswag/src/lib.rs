@@ -17,6 +17,7 @@ pub enum Error {
     Unify(#[from] tysy::UnifyError<TyVar>),
 }
 
+#[derive(Debug)]
 pub struct InferData {
     pub subst: HashMap<TyVar, tysy::Ty<TyVar>>,
     pub t: tysy::Ty<TyVar>,
@@ -55,7 +56,11 @@ impl Env {
         }
     }
 
-    fn infer_block(&self, blk: &synt::Block) -> Result<InferData, Error> {
+    fn fresh_tyvar(&self) -> tysy::Ty<TyVar> {
+        tysy::Ty::Var(self.fresh_tyvars.borrow_mut().next().unwrap())
+    }
+
+    pub fn infer_block(&self, blk: &synt::Block) -> Result<InferData, Error> {
         let mut env = self.clone();
         let mut ret = InferData {
             subst: Default::default(),
@@ -134,7 +139,7 @@ impl Env {
 
             Ek::Lambda { arg, body } => {
                 let mut env2 = self.clone();
-                let mut tv = tysy::Ty::Var(self.fresh_tyvars.borrow_mut().next().unwrap());
+                let mut tv = self.fresh_tyvar();
                 if !arg.inner.is_empty() {
                     env2.vars.insert(
                         arg.inner.clone(),
@@ -157,7 +162,7 @@ impl Env {
                 let mut env2 = self.clone();
                 env2.apply(&x_prim.subst);
                 for arg in args {
-                    let tv = tysy::Ty::Var(self.fresh_tyvars.borrow_mut().next().unwrap());
+                    let tv = self.fresh_tyvar();
                     let InferData {
                         subst: subst_arg,
                         t: t_arg,
@@ -175,7 +180,7 @@ impl Env {
             }
 
             Ek::Dot { prim, key } => {
-                let mut tv = tysy::Ty::Var(self.fresh_tyvars.borrow_mut().next().unwrap());
+                let mut tv = self.fresh_tyvar();
                 let mut x = self.infer(prim)?;
                 tysy::unify(
                     &mut x.subst,
@@ -184,6 +189,19 @@ impl Env {
                         m: core::iter::once((key.inner.to_string(), tv.clone())).collect(),
                         partial: true,
                     },
+                )?;
+                tv.apply(&x.subst);
+                x.t = tv;
+                Ok(x)
+            }
+
+            Ek::Fix(body) => {
+                let mut x = self.infer(body)?;
+                let mut tv = self.fresh_tyvar();
+                tysy::unify(
+                    &mut x.subst,
+                    &x.t,
+                    &tysy::Ty::Arrow(Box::new(tv.clone()), Box::new(tv.clone())),
                 )?;
                 tv.apply(&x.subst);
                 x.t = tv;

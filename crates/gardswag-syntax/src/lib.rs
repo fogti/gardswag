@@ -85,6 +85,8 @@ pub enum ExprKind {
         prim: Box<Expr>,
         key: Identifier,
     },
+    // fixpoint operator
+    Fix(Box<Expr>),
 
     FormatString(Vec<Expr>),
 
@@ -116,6 +118,7 @@ impl ExprKind {
                 prim.inner.is_var_accessed(v) || args.iter().any(|i| i.inner.is_var_accessed(v))
             }
             Self::Dot { prim, .. } => prim.inner.is_var_accessed(v),
+            Self::Fix(body) => body.inner.is_var_accessed(v),
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
             Self::Identifier(id) => id.inner == v,
             Self::Integer(_) | Self::PureString(_) => false,
@@ -171,6 +174,8 @@ impl ExprKind {
             }
 
             Self::Dot { prim, .. } => prim.inner.replace_var(v, rpm),
+
+            Self::Fix(body) => body.inner.replace_var(v, rpm),
 
             Self::FormatString(exs) => exs.iter_mut().all(|i| i.inner.replace_var(v, rpm)),
 
@@ -342,22 +347,11 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             if is_rec {
                 // desugar `let rec` to the standard library function `fix`
                 let offset = rhs.offset;
-                let mkidt = |inner: &str| Identifier {
-                    offset,
-                    inner: inner.to_string(),
-                };
                 let mkexpr = |inner: ExprKind| Expr { offset, inner };
-                let std_fix = mkexpr(ExprKind::Dot {
-                    prim: Box::new(mkexpr(ExprKind::Identifier(mkidt("std")))),
-                    key: mkidt("fix"),
-                });
-                rhs = mkexpr(ExprKind::Call {
-                    prim: Box::new(std_fix),
-                    args: vec![mkexpr(ExprKind::Lambda {
-                        arg: lhs.clone(),
-                        body: Box::new(rhs),
-                    })],
-                });
+                rhs = mkexpr(ExprKind::Fix(Box::new(mkexpr(ExprKind::Lambda {
+                    arg: lhs.clone(),
+                    body: Box::new(rhs),
+                }))));
             }
             Ok(ExprKind::Let {
                 lhs,
