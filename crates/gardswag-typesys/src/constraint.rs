@@ -192,6 +192,23 @@ impl Context {
                     for i in tfv {
                         self.ucg_check4inf(a, b, &crate::Ty::Var(i))?;
                     }
+
+                    // check for partial record constraints, to improve inference
+                    if let crate::Ty::Record(rcm) = &t {
+                        for i in &c {
+                            if let TyConstraint::PartialRecord { key, value } = i {
+                                if let Some(got_valty) = rcm.get(key) {
+                                    self.unify(got_valty, value)?;
+                                } else {
+                                    return Err(UnifyError::Constraint {
+                                        c: i.clone(),
+                                        t,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
                     c.push(TyConstraint::OneOf(core::iter::once(t).collect()));
                     Tcg::Constraints(c)
                 } else {
@@ -222,9 +239,6 @@ impl Context {
                                     }
                                 }
                             }
-                            // TODO: improve inference, by adding a specialized unify
-                            // if we know the type is a record even if we don't yet know
-                            // the concrete type
                             TyConstraint::PartialRecord { key, value } => {
                                 if let crate::Ty::Record(rcm) = &t {
                                     if let Some(got_valty) = rcm.get(&key) {
