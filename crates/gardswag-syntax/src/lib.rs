@@ -724,6 +724,8 @@ mod tests {
     }
 
     proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config::with_cases(4096))]
+
         #[test]
         fn doesnt_crash(s in "\\PC*") {
             let _ = parse(&s);
