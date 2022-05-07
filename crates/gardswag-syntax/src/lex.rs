@@ -247,7 +247,7 @@ impl Iterator for Lexer<'_> {
 
             break match self.inp.chars().next()? {
                 c if in_comment => {
-                    self.consume(1);
+                    self.consume(c.len_utf8());
                     match c {
                         '(' => {
                             if self.inp.starts_with('*') {
