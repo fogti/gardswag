@@ -67,6 +67,7 @@ pub struct Context {
     pub m: BTreeMap<TyVar, TyConstraintGroupId>,
 
     pub tycg_cnt: core::ops::RangeFrom<usize>,
+    pub fresh_tyvars: core::ops::RangeFrom<usize>,
 }
 
 impl Default for Context {
@@ -75,6 +76,7 @@ impl Default for Context {
             g: Default::default(),
             m: Default::default(),
             tycg_cnt: 0..,
+            fresh_tyvars: 0..,
         }
     }
 }
@@ -92,6 +94,10 @@ impl Substitutable for Context {
 }
 
 impl Context {
+    pub fn fresh_tyvar(&mut self) -> crate::Ty {
+        crate::Ty::Var(self.fresh_tyvars.next().unwrap())
+    }
+
     pub(crate) fn filter(&self, filt: &BTreeSet<TyVar>) -> Self {
         Context {
             m: self
@@ -102,6 +108,7 @@ impl Context {
                 .collect(),
             g: self.g.clone(),
             tycg_cnt: self.tycg_cnt.clone(),
+            fresh_tyvars: self.fresh_tyvars.clone(),
         }
     }
 
@@ -200,10 +207,7 @@ impl Context {
                                 if let Some(got_valty) = rcm.get(key) {
                                     self.unify(got_valty, value)?;
                                 } else {
-                                    return Err(UnifyError::Constraint {
-                                        c: i.clone(),
-                                        t,
-                                    });
+                                    return Err(UnifyError::Constraint { c: i.clone(), t });
                                 }
                             }
                         }

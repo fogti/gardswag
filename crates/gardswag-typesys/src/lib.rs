@@ -242,16 +242,12 @@ impl constraint::Context {
 }
 
 impl Scheme {
-    pub fn instantiate<I: Iterator<Item = TyVar>>(
-        &self,
-        outerctx: &mut Context,
-        fresh_vars: &mut I,
-    ) -> Ty {
+    pub fn instantiate(&self, outerctx: &mut Context) -> Ty {
         let mut t2 = self.t.clone();
         let mut m = BTreeMap::default();
         let cdfl = Default::default();
         for (k, c) in &self.forall {
-            let new_tid = fresh_vars.next().unwrap();
+            let new_tid = outerctx.fresh_tyvars.next().unwrap();
             if c != &cdfl {
                 outerctx.bind(new_tid, c.clone()).unwrap();
             }
