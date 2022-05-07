@@ -51,12 +51,6 @@ impl<Var: fmt::Debug> fmt::Display for Ty<Var> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Scheme<Var> {
-    pub forall: BTreeSet<Var>,
-    pub t: Ty<Var>,
-}
-
 pub trait VarBase:
     Clone + core::fmt::Debug + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash
 {
@@ -72,6 +66,28 @@ impl<
     > VarBase for T
 {
 }
+
+#[derive(Clone, Debug)]
+pub struct Scheme<Var> {
+    pub forall: BTreeSet<Var>,
+    pub t: Ty<Var>,
+}
+
+impl<Var: VarBase> cmp::PartialEq for Scheme<Var> {
+    fn eq(&self, oth: &Self) -> bool {
+        let slfaie = self.forall.is_empty();
+        if slfaie != oth.forall.is_empty() {
+            false
+        } else if slfaie {
+            self.t == oth.t
+        } else {
+            let mut ctx = Default::default();
+            unify(&mut ctx, &self.t, &oth.t).is_ok()
+        }
+    }
+}
+
+impl<Var: VarBase> cmp::Eq for Scheme<Var> {}
 
 pub trait Substitutable {
     type Var: VarBase;
