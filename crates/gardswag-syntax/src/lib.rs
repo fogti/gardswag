@@ -96,6 +96,7 @@ pub enum ExprKind {
     Record(BTreeMap<String, Expr>),
 
     Identifier(Identifier),
+    Boolean(bool),
     Integer(i32),
     PureString(String),
 }
@@ -127,7 +128,7 @@ impl ExprKind {
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
             Self::Record(rcd) => rcd.values().any(|i| i.inner.is_var_accessed(v)),
             Self::Identifier(id) => id.inner == v,
-            Self::Integer(_) | Self::PureString(_) => false,
+            Self::Boolean(_) | Self::Integer(_) | Self::PureString(_) => false,
         }
     }
 
@@ -194,7 +195,7 @@ impl ExprKind {
                 true
             }
 
-            Self::Integer(_) | Self::PureString(_) => true,
+            Self::Boolean(_) | Self::Integer(_) | Self::PureString(_) => true,
         }
     }
 }
@@ -414,6 +415,8 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 },
             )
         }
+        Tk::Keyword(Kw::False) => Ok(ExprKind::Boolean(false)),
+        Tk::Keyword(Kw::True) => Ok(ExprKind::Boolean(true)),
         Tk::Integer(i) => Ok(ExprKind::Integer(i)),
         Tk::LcBracket => {
             let block = xtry!(parse_block(offset, lxr));

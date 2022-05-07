@@ -102,9 +102,11 @@ macro_rules! keywords {
 }
 
 keywords! {
+    False => "_0",
     If => "if",
     Let => "let",
     Rec => "rec",
+    True => "_1",
 }
 
 fn count_bytes<F>(inp: &str, mut f: F) -> usize

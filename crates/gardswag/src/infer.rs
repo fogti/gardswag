@@ -221,6 +221,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
                 Err(Error::UndefVar(id.clone()))
             }
         }
+        Ek::Boolean(_) => Ok(Ty::Literal(TyLit::Bool)),
         Ek::Integer(_) => Ok(Ty::Literal(TyLit::Int)),
         Ek::PureString(_) => Ok(Ty::Literal(TyLit::String)),
     }
