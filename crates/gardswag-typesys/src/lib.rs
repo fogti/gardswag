@@ -1,7 +1,12 @@
 use core::{cmp, fmt};
-use std::collections::{BTreeSet, HashMap};
+use enum_dispatch::enum_dispatch;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+mod constraint;
+
+pub use constraint::*;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TyLit {
     Unit,
     Bool,
@@ -53,14 +58,9 @@ impl fmt::Display for Ty {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Context {
-    pub m: HashMap<TyVar, Ty>,
-}
-
 #[derive(Clone, Debug, Eq)]
 pub struct Scheme {
-    pub forall: BTreeSet<TyVar>,
+    pub forall: HashMap<TyVar, TyConstraintGroup>,
     pub t: Ty,
 }
 
@@ -78,6 +78,7 @@ impl cmp::PartialEq for Scheme {
     }
 }
 
+#[enum_dispatch]
 pub trait Substitutable {
     // generate list of all free variables
     fn fv(&self) -> BTreeSet<TyVar>;
@@ -101,7 +102,9 @@ impl Substitutable for Ty {
             Ty::Literal(_) => {}
             Ty::Var(tv) => {
                 if let Some(x) = ctx.m.get(tv) {
-                    *self = x.clone();
+                    if let Some(TyConstraintGroup::Ty(t)) = ctx.g.get(x) {
+                        *self = t.clone();
+                    }
                 }
             }
             Ty::Arrow(arg, ret) => {
@@ -115,58 +118,78 @@ impl Substitutable for Ty {
     }
 }
 
-impl Substitutable for Context {
-    fn fv(&self) -> BTreeSet<TyVar> {
-        self.m.values().flat_map(|i| i.fv()).collect()
-    }
-
-    fn apply(&mut self, ctx: &Context) {
-        self.m.values_mut().for_each(|i| i.apply(ctx))
-    }
-}
-
-impl Context {
-    fn filter(&self, filt: &BTreeSet<TyVar>) -> Self {
-        Context {
-            m: self
-                .m
-                .iter()
-                .filter(|(k, _)| !filt.contains(k))
-                .map(|(k, v)| (*k, v.clone()))
-                .collect(),
-        }
-    }
-
-    /// resolve the context using itself as far as possible
-    pub fn self_resolve(&mut self) {
-        loop {
-            let old = self.clone();
-            self.apply(&old);
-            if old == *self {
-                break;
+impl Ty {
+    pub fn replace_tyvars(&mut self, tym: &BTreeMap<TyVar, TyVar>) {
+        match self {
+            Ty::Literal(_) => {}
+            Ty::Var(ref mut tv) => {
+                if let Some(x) = tym.get(tv) {
+                    *tv = *x;
+                }
+            }
+            Ty::Arrow(arg, ret) => {
+                arg.replace_tyvars(tym);
+                ret.replace_tyvars(tym);
+            }
+            Ty::Record { m, .. } => {
+                m.values_mut().for_each(|i| i.replace_tyvars(tym));
             }
         }
-    }
-
-    pub fn retain(&mut self, keep: &BTreeSet<TyVar>) {
-        let orig_tvcnt = self.m.len();
-        self.m.retain(|k, _| keep.contains(k));
-        tracing::debug!("Ctx::retain: #tv: {} -> {}", orig_tvcnt, self.m.len());
     }
 }
 
 impl Substitutable for Scheme {
     fn fv(&self) -> BTreeSet<TyVar> {
-        let fvt = self.t.fv();
-        fvt.difference(&self.forall).cloned().collect()
+        self.t
+            .fv()
+            .into_iter()
+            .filter(|i| !self.forall.contains_key(i))
+            .collect()
     }
 
     fn apply(&mut self, ctx: &Context) {
-        self.t.apply(&ctx.filter(&self.forall));
+        self.t
+            .apply(&ctx.filter(&self.forall.keys().copied().collect()))
     }
 }
 
-impl<V: Substitutable> Substitutable for HashMap<String, V> {
+impl<V: Substitutable> Substitutable for [V] {
+    fn fv(&self) -> BTreeSet<TyVar> {
+        self.iter().flat_map(|i| i.fv()).collect()
+    }
+
+    fn apply(&mut self, ctx: &Context) {
+        self.iter_mut().for_each(|i| i.apply(ctx))
+    }
+}
+
+impl<V: Substitutable> Substitutable for Vec<V> {
+    fn fv(&self) -> BTreeSet<TyVar> {
+        self.iter().flat_map(|i| i.fv()).collect()
+    }
+
+    fn apply(&mut self, ctx: &Context) {
+        self.iter_mut().for_each(|i| i.apply(ctx))
+    }
+}
+
+impl<V: Substitutable + cmp::Ord> Substitutable for BTreeSet<V> {
+    fn fv(&self) -> BTreeSet<TyVar> {
+        self.iter().flat_map(|i| i.fv()).collect()
+    }
+
+    fn apply(&mut self, ctx: &Context) {
+        *self = core::mem::take(self)
+            .into_iter()
+            .map(|mut i| {
+                i.apply(ctx);
+                i
+            })
+            .collect();
+    }
+}
+
+impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<K, V> {
     fn fv(&self) -> BTreeSet<TyVar> {
         self.values().flat_map(|i| i.fv()).collect()
     }
@@ -184,41 +207,17 @@ pub enum UnifyError {
     Override { v: TyVar, t1: Ty, t2: Ty },
     #[error("unification of {t1:?} = {t2:?} failed")]
     Mismatch { t1: Ty, t2: Ty },
+
+    #[error("got infinite constraint group while merging $c{c1:?} with $c{c2:?}")]
+    InfiniteConstraintGroup {
+        c1: TyConstraintGroupId,
+        c2: TyConstraintGroupId,
+    },
+    #[error("constraint {c:?} isn't compatible with type {t:?}")]
+    Constraint { c: TyConstraint, t: Ty },
 }
 
-impl Context {
-    fn bind(&mut self, v: TyVar, t: &Ty) -> Result<(), UnifyError> {
-        if let Ty::Var(y) = t {
-            if &v == y {
-                return Ok(());
-            }
-        }
-        if t.fv().contains(&v) {
-            return Err(UnifyError::Infinite { v, t: t.clone() });
-        }
-        use std::collections::hash_map::Entry;
-        match self.m.entry(v) {
-            Entry::Occupied(occ) => {
-                if occ.get() == t {
-                    Ok(())
-                } else {
-                    let present = occ.get().clone();
-                    self.unify(&present, t)?;
-                    /*Err(UnifyError::Override {
-                        v: v.clone(),
-                        t1: occ.get().clone(),
-                        t2: t.clone(),
-                    })*/
-                    Ok(())
-                }
-            }
-            Entry::Vacant(y) => {
-                y.insert(t.clone());
-                Ok(())
-            }
-        }
-    }
-
+impl constraint::Context {
     pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
         tracing::debug!("unify a={:?}, b={:?} ctx={:?}", a, b, self);
         match (a, b) {
@@ -267,8 +266,8 @@ impl Context {
                 }
                 Ok(())
             }
-            (Ty::Var(a), t) => self.bind(*a, t),
-            (t, Ty::Var(a)) => self.bind(*a, t),
+            (Ty::Var(a), t) => self.bind(*a, TyConstraintGroup::from(t.clone())),
+            (t, Ty::Var(a)) => self.bind(*a, TyConstraintGroup::from(t.clone())),
             (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
             (_, _) => Err(UnifyError::Mismatch {
                 t1: a.clone(),
@@ -279,24 +278,46 @@ impl Context {
 }
 
 impl Scheme {
-    pub fn instantiate<I: Iterator<Item = TyVar>>(&self, fresh_vars: &mut I) -> Ty {
-        let forall2 = Context {
-            m: self
-                .forall
-                .iter()
-                .map(|i| (*i, Ty::Var(fresh_vars.next().unwrap())))
-                .collect(),
-        };
+    pub fn instantiate<I: Iterator<Item = TyVar>>(
+        &self,
+        outerctx: &mut Context,
+        fresh_vars: &mut I,
+    ) -> Ty {
         let mut t2 = self.t.clone();
-        t2.apply(&forall2);
+        let mut m = BTreeMap::default();
+        let cdfl = Default::default();
+        for (k, c) in &self.forall {
+            let new_tid = fresh_vars.next().unwrap();
+            if c != &cdfl {
+                outerctx.bind(new_tid, c.clone()).unwrap();
+            }
+            m.insert(*k, new_tid);
+        }
+        t2.replace_tyvars(&m);
         t2
     }
 }
 
 impl Ty {
-    pub fn generalize<S: Substitutable>(self, env: &S) -> Scheme {
+    pub fn generalize<S: Substitutable>(self, env: &S, outerctx: &Context) -> Scheme {
         Scheme {
-            forall: self.fv().difference(&env.fv()).cloned().collect(),
+            forall: self
+                .fv()
+                .difference(&env.fv())
+                .cloned()
+                .map(|var| {
+                    // TODO: make sure this works correctly
+                    (
+                        var,
+                        outerctx
+                            .m
+                            .get(&var)
+                            .map(|gid| outerctx.g.get(gid).unwrap())
+                            .cloned()
+                            .unwrap_or_default(),
+                    )
+                })
+                .collect(),
             t: self,
         }
     }

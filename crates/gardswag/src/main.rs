@@ -51,7 +51,7 @@ fn mk_env_std() -> gardswag_typesys::Scheme {
     }
 
     TyScheme {
-        forall: [0, 1].into_iter().collect(),
+        forall: [].into_iter().map(|i| (i, Default::default())).collect(),
         t: tr!({
             plus: ta!(tl!(int) => tl!(int) => tl!(int)),
             minus: ta!(tl!(int) => tl!(int) => tl!(int)),
@@ -75,7 +75,7 @@ fn main() {
     let parsed = gardswag_syntax::parse(&dat).expect("unable to parse file");
 
     let mut tracker = infer::Tracker {
-        fresh_tyvars: 100..,
+        fresh_tyvars: 0..,
         subst: Default::default(),
     };
 
@@ -87,13 +87,19 @@ fn main() {
         Ok(t) => {
             env.gc(&mut tracker, core::iter::once(t.clone()));
             println!("type check ok");
-            for (k, v) in tracker
+            println!("--TV--");
+            for (k, v) in &tracker
                 .subst
                 .m
-                .iter()
-                .collect::<std::collections::BTreeMap<_, _>>()
             {
                 println!("\t${}:\t{}", k, v);
+            }
+            println!("--CG--");
+            for (k, v) in &tracker
+                .subst
+                .g
+            {
+                println!("\t${}:\t{:?}", k, v);
             }
             println!("=> {}", t);
         }

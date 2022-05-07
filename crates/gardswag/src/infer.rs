@@ -35,21 +35,18 @@ impl Env {
         // reduce necessary type vars to minimum
         tracker.subst.self_resolve();
 
-        // generate list of still-in-use type vars
         //self.vars.apply(&tracker.subst);
-        let mut xfv = self.vars.fv();
-        xfv.extend(tracker.subst.fv());
-        tracing::debug!("gc: FV={:?}", xfv);
 
         // remove all unnecessary type vars
-        tracker.subst.retain(&xfv);
+        let mut xfv = self.vars.fv();
+        tracker.subst.retain(xfv.clone());
 
         // reset fresh tyvars counter
         xfv.extend(
             self.vars
                 .values()
                 .flat_map(|i| &i.forall)
-                .cloned()
+                .map(|(i, _)| *i)
                 .chain(extra_tys.flat_map(|i| i.fv())),
         );
         let orig_freetvc = core::mem::replace(
@@ -100,7 +97,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty
             let t1 = infer(env, tracker, rhs)?;
             let mut env2 = env.clone();
             env2.update(tracker);
-            let t2 = t1.generalize(&env2);
+            let t2 = t1.generalize(&env2, &tracker.subst);
             env2.vars.insert(lhs.inner.clone(), t2);
             infer_block(&env2, tracker, rest)
         }
@@ -114,12 +111,12 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty
             // make it possible to assign another polymorphic function
             let mut env2 = env.clone();
             env2.update(tracker);
-            let next_ty = x.generalize(&env2);
+            let next_ty = x.generalize(&env2, &tracker.subst);
 
             // TODO: does this work as expected?
             if *prev_ty != next_ty {
-                let prev_ty = prev_ty.instantiate(&mut tracker.fresh_tyvars);
-                let next_ty = next_ty.instantiate(&mut tracker.fresh_tyvars);
+                let prev_ty = prev_ty.instantiate(&mut tracker.subst, &mut tracker.fresh_tyvars);
+                let next_ty = next_ty.instantiate(&mut tracker.subst, &mut tracker.fresh_tyvars);
                 tracker.subst.unify(&prev_ty, &next_ty)?;
             }
             Ok(Ty::Literal(TyLit::Unit))
@@ -221,7 +218,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty
 
         Ek::Identifier(id) => {
             if let Some(x) = env.vars.get(&id.inner) {
-                Ok(x.instantiate(&mut tracker.fresh_tyvars))
+                Ok(x.instantiate(&mut tracker.subst, &mut tracker.fresh_tyvars))
             } else {
                 Err(Error::UndefVar(id.clone()))
             }
