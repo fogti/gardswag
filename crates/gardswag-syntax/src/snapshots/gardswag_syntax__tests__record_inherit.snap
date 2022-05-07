@@ -1,0 +1,74 @@
+---
+source: crates/gardswag-syntax/src/lib.rs
+assertion_line: 744
+expression: "parse(r#\"\n                let id = \\x x;\n                let torben = id 1;\n                .{\n                   id;\n                   id2 = id;\n                   torben;\n                }\n            \"#).unwrap()"
+---
+stmts: []
+term:
+  offset: 17
+  inner:
+    Let:
+      lhs:
+        offset: 21
+        inner: id
+      rhs:
+        offset: 26
+        inner:
+          Lambda:
+            arg:
+              offset: 26
+              inner: x
+            body:
+              offset: 29
+              inner:
+                Identifier:
+                  offset: 29
+                  inner: x
+      rest:
+        stmts: []
+        term:
+          offset: 48
+          inner:
+            Let:
+              lhs:
+                offset: 52
+                inner: torben
+              rhs:
+                offset: 61
+                inner:
+                  Call:
+                    prim:
+                      offset: 61
+                      inner:
+                        Identifier:
+                          offset: 61
+                          inner: id
+                    args:
+                      - offset: 64
+                        inner:
+                          Integer: 1
+              rest:
+                stmts: []
+                term:
+                  offset: 83
+                  inner:
+                    Record:
+                      id:
+                        offset: 105
+                        inner:
+                          Identifier:
+                            offset: 105
+                            inner: id
+                      id2:
+                        offset: 134
+                        inner:
+                          Identifier:
+                            offset: 134
+                            inner: id
+                      torben:
+                        offset: 157
+                        inner:
+                          Identifier:
+                            offset: 157
+                            inner: torben
+

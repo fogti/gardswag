@@ -9,7 +9,7 @@
 #![deny(unused_variables)]
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 pub mod lex;
 mod offset;
@@ -93,7 +93,7 @@ pub enum ExprKind {
     Fix(Box<Expr>),
 
     FormatString(Vec<Expr>),
-    Record(HashMap<String, Expr>),
+    Record(BTreeMap<String, Expr>),
 
     Identifier(Identifier),
     Integer(i32),
@@ -462,7 +462,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
         }
         Tk::Dot => {
             // record: ` .{ key1: value1; key2: value2; } `
-            let mut rcd = HashMap::new();
+            let mut rcd = BTreeMap::new();
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::LcBracket));
             while let Some(Ok(Token {
                 offset,
@@ -476,10 +476,31 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                     })
                 )
             }) {
-                let _ = xtry!(expect_token_exact(offset, lxr, Tk::DubColon));
-                let expr = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
-                let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
-                use std::collections::hash_map::Entry;
+                let dcd = xtry!(expect_token_noeof(
+                    offset,
+                    lxr,
+                    |lex::Token { inner, offset }| {
+                        match inner {
+                            Tk::EqSym => Ok(true),
+                            Tk::SemiColon => Ok(false),
+                            _ => Err(lex::Token { inner, offset }),
+                        }
+                    }
+                ));
+                let expr = if dcd {
+                    let expr = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+                    let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
+                    expr
+                } else {
+                    Offsetted {
+                        offset,
+                        inner: ExprKind::Identifier(Offsetted {
+                            offset,
+                            inner: id.clone(),
+                        }),
+                    }
+                };
+                use std::collections::btree_map::Entry;
                 match rcd.entry(id) {
                     Entry::Vacant(v) => {
                         v.insert(expr);
@@ -714,10 +735,31 @@ mod tests {
     }
 
     #[test]
-    fn std_fixpoint() {
+    fn record() {
         insta::assert_yaml_snapshot!(parse(
             r#"
-                std.fix f
+                let id = \x x;
+                .{
+                   id = id;
+                   id2 = id;
+                   torben = id 1;
+                }
+            "#
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn record_inherit() {
+        insta::assert_yaml_snapshot!(parse(
+            r#"
+                let id = \x x;
+                let torben = id 1;
+                .{
+                   id;
+                   id2 = id;
+                   torben;
+                }
             "#
         )
         .unwrap());

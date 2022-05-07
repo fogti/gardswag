@@ -1,0 +1,59 @@
+---
+source: crates/gardswag-syntax/src/lib.rs
+assertion_line: 729
+expression: "parse(r#\"\n                let id = \\x x;\n                .{\n                   id = id;\n                   id2 = id;\n                   torben = id 1;\n                }\n            \"#).unwrap()"
+---
+stmts: []
+term:
+  offset: 17
+  inner:
+    Let:
+      lhs:
+        offset: 21
+        inner: id
+      rhs:
+        offset: 26
+        inner:
+          Lambda:
+            arg:
+              offset: 26
+              inner: x
+            body:
+              offset: 29
+              inner:
+                Identifier:
+                  offset: 29
+                  inner: x
+      rest:
+        stmts: []
+        term:
+          offset: 48
+          inner:
+            Record:
+              id:
+                offset: 75
+                inner:
+                  Identifier:
+                    offset: 75
+                    inner: id
+              id2:
+                offset: 104
+                inner:
+                  Identifier:
+                    offset: 104
+                    inner: id
+              torben:
+                offset: 136
+                inner:
+                  Call:
+                    prim:
+                      offset: 136
+                      inner:
+                        Identifier:
+                          offset: 136
+                          inner: id
+                    args:
+                      - offset: 139
+                        inner:
+                          Integer: 1
+
