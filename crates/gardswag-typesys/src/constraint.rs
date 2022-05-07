@@ -3,8 +3,14 @@ use core::fmt;
 use enum_dispatch::enum_dispatch;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TyConstraintGroupId(usize);
+
+impl fmt::Debug for TyConstraintGroupId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "$cg{}", self.0)
+    }
+}
 
 impl fmt::Display for TyConstraintGroupId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -30,11 +36,29 @@ impl Default for TyConstraintGroup {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[enum_dispatch(Substitutable)]
 pub enum TyConstraint {
     /// set of concrete types
-    /// shouldn't contain any type variables
+    /// should most of the time not contain any type variables
     OneOf(Vec<crate::Ty>),
+
+    /// record with specific field
+    PartialRecord { key: String, value: crate::Ty },
+}
+
+impl Substitutable for TyConstraint {
+    fn fv(&self) -> BTreeSet<TyVar> {
+        match self {
+            Self::OneOf(oo) => oo.fv(),
+            Self::PartialRecord { value, .. } => value.fv(),
+        }
+    }
+
+    fn apply(&mut self, ctx: &Context) {
+        match self {
+            Self::OneOf(oo) => oo.apply(ctx),
+            Self::PartialRecord { value, .. } => value.apply(ctx),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -198,6 +222,26 @@ impl Context {
                                     }
                                 }
                             }
+                            // TODO: improve inference, by adding a specialized unify
+                            // if we know the type is a record even if we don't yet know
+                            // the concrete type
+                            TyConstraint::PartialRecord { key, value } => {
+                                if let crate::Ty::Record(rcm) = &t {
+                                    if let Some(got_valty) = rcm.get(&key) {
+                                        self.unify(got_valty, &value)?;
+                                    } else {
+                                        return Err(UnifyError::Constraint {
+                                            c: TyConstraint::PartialRecord { key, value },
+                                            t,
+                                        });
+                                    }
+                                } else {
+                                    return Err(UnifyError::Constraint {
+                                        c: TyConstraint::PartialRecord { key, value },
+                                        t,
+                                    });
+                                }
+                            }
                         }
                     }
                     Tcg::Ty(t)
@@ -209,7 +253,7 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn bind(&mut self, v: TyVar, tcg: TyConstraintGroup) -> Result<(), UnifyError> {
+    pub fn bind(&mut self, v: TyVar, tcg: TyConstraintGroup) -> Result<(), UnifyError> {
         if let TyConstraintGroup::Ty(t) = &tcg {
             if let crate::Ty::Var(y) = t {
                 let tcgid = match (self.m.get(&v), self.m.get(y)) {

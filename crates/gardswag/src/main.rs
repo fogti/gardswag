@@ -41,12 +41,9 @@ fn mk_env_std() -> gardswag_typesys::Scheme {
     }
     macro_rules! tr {
         ({ $($key:ident: $value:expr),* $(,)? }) => {{
-            Ty::Record {
-                m: [
-                    $((stringify!($key).to_string(), $value)),*
-                ].into_iter().collect(),
-                partial: false,
-            }
+            Ty::Record([
+                $((stringify!($key).to_string(), $value)),*
+            ].into_iter().collect())
         }};
     }
 
@@ -88,17 +85,11 @@ fn main() {
             env.gc(&mut tracker, core::iter::once(t.clone()));
             println!("type check ok");
             println!("--TV--");
-            for (k, v) in &tracker
-                .subst
-                .m
-            {
+            for (k, v) in &tracker.subst.m {
                 println!("\t${}:\t{}", k, v);
             }
             println!("--CG--");
-            for (k, v) in &tracker
-                .subst
-                .g
-            {
+            for (k, v) in &tracker.subst.g {
                 println!("\t${}:\t{:?}", k, v);
             }
             println!("=> {}", t);

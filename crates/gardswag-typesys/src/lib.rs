@@ -35,10 +35,7 @@ pub enum Ty {
 
     Arrow(Box<Ty>, Box<Ty>),
 
-    Record {
-        m: HashMap<String, Ty>,
-        partial: bool,
-    },
+    Record(HashMap<String, Ty>),
 }
 
 impl fmt::Display for Ty {
@@ -47,13 +44,7 @@ impl fmt::Display for Ty {
             Ty::Literal(lit) => write!(f, "{}", lit),
             Ty::Var(v) => write!(f, "${:?}", v),
             Ty::Arrow(a, b) => write!(f, "({}) -> {}", a, b),
-            Ty::Record { m, partial } => {
-                write!(f, "{:?}", m)?;
-                if *partial {
-                    write!(f, "..")?;
-                }
-                Ok(())
-            }
+            Ty::Record(m) => write!(f, "{:?}", m),
         }
     }
 }
@@ -93,7 +84,7 @@ impl Substitutable for Ty {
             Ty::Literal(_) => Default::default(),
             Ty::Var(tv) => core::iter::once(*tv).collect(),
             Ty::Arrow(arg, ret) => arg.fv().union(&ret.fv()).cloned().collect(),
-            Ty::Record { m, .. } => m.values().flat_map(|i| i.fv()).collect(),
+            Ty::Record(m) => m.values().flat_map(|i| i.fv()).collect(),
         }
     }
 
@@ -111,7 +102,7 @@ impl Substitutable for Ty {
                 arg.apply(ctx);
                 ret.apply(ctx);
             }
-            Ty::Record { m, .. } => {
+            Ty::Record(m) => {
                 m.values_mut().for_each(|i| i.apply(ctx));
             }
         }
@@ -131,7 +122,7 @@ impl Ty {
                 arg.replace_tyvars(tym);
                 ret.replace_tyvars(tym);
             }
-            Ty::Record { m, .. } => {
+            Ty::Record(m) => {
                 m.values_mut().for_each(|i| i.replace_tyvars(tym));
             }
         }
@@ -229,40 +220,13 @@ impl constraint::Context {
                 self.unify(&rx1, &rx2)?;
                 Ok(())
             }
-            (
-                Ty::Record {
-                    m: rc1,
-                    partial: false,
-                },
-                Ty::Record {
-                    m: rc2,
-                    partial: false,
-                },
-            ) if rc1.len() == rc2.len() => {
+            (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
                 for (k, v1) in rc1 {
                     let v2 = rc2.get(k).ok_or_else(|| UnifyError::Mismatch {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
                     self.unify(v1, v2)?;
-                }
-                Ok(())
-            }
-            (
-                Ty::Record {
-                    m: rc1,
-                    partial: rc1p,
-                },
-                Ty::Record {
-                    m: rc2,
-                    partial: rc2p,
-                },
-            ) if *rc1p || *rc2p => {
-                // partial record, only unify intersection
-                for (k, v1) in rc1 {
-                    if let Some(v2) = rc2.get(k) {
-                        self.unify(v1, v2)?;
-                    }
                 }
                 Ok(())
             }

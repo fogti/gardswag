@@ -174,16 +174,19 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty
 
         Ek::Dot { prim, key } => {
             let t = infer(env, tracker, prim)?;
-            let mut tv = tracker.fresh_tyvar();
-            tracker.subst.unify(
-                &t,
-                &Ty::Record {
-                    m: core::iter::once((key.inner.to_string(), tv.clone())).collect(),
-                    partial: true,
-                },
+            let tvinp = tracker.fresh_tyvars.next().unwrap();
+            let mut tvout = tracker.fresh_tyvar();
+            tracker.subst.bind(
+                tvinp,
+                tysy::TyConstraintGroup::Constraints(vec![tysy::TyConstraint::PartialRecord {
+                    key: key.inner.to_string(),
+                    value: tvout.clone(),
+                }]),
             )?;
-            tv.apply(&tracker.subst);
-            Ok(tv)
+            let tvinp = Ty::Var(tvinp);
+            tracker.subst.unify(&t, &tvinp)?;
+            tvout.apply(&tracker.subst);
+            Ok(tvout)
         }
 
         Ek::Fix(body) => {
@@ -200,7 +203,21 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty
             let mut env = env.clone();
             for i in fsexs {
                 env.update(tracker);
-                let _ = infer(&env, tracker, i)?;
+                let t = infer(&env, tracker, i)?;
+                let tv = tracker.fresh_tyvars.next().unwrap();
+                tracker
+                    .subst
+                    .bind(
+                        tv,
+                        tysy::TyConstraintGroup::Constraints(vec![tysy::TyConstraint::OneOf(
+                            [TyLit::Unit, TyLit::Bool, TyLit::Int, TyLit::String]
+                                .into_iter()
+                                .map(Ty::Literal)
+                                .collect(),
+                        )]),
+                    )
+                    .unwrap();
+                tracker.subst.unify(&t, &Ty::Var(tv))?;
             }
             Ok(Ty::Literal(TyLit::String))
         }
@@ -213,7 +230,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty
                 let t = infer(&env, tracker, v)?;
                 m.insert(k.clone(), t);
             }
-            Ok(Ty::Record { m, partial: false })
+            Ok(Ty::Record(m))
         }
 
         Ek::Identifier(id) => {
