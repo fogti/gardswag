@@ -90,6 +90,7 @@ fn main() {
                 .tracker
                 .borrow()
                 .subst
+                .m
                 .iter()
                 .collect::<std::collections::BTreeMap<_, _>>()
             {

@@ -1,4 +1,4 @@
-use core::{cmp, fmt};
+use core::{cmp, fmt, hash};
 use std::collections::{BTreeSet, HashMap};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -52,7 +52,7 @@ impl<Var: fmt::Debug> fmt::Display for Ty<Var> {
 }
 
 pub trait VarBase:
-    Clone + core::fmt::Debug + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + core::hash::Hash
+    Clone + core::fmt::Debug + cmp::PartialEq + cmp::Eq + cmp::PartialOrd + cmp::Ord + hash::Hash
 {
 }
 impl<
@@ -62,10 +62,33 @@ impl<
             + cmp::Eq
             + cmp::PartialOrd
             + cmp::Ord
-            + core::hash::Hash,
+            + hash::Hash,
     > VarBase for T
 {
 }
+
+#[derive(Clone, Debug)]
+pub struct Context<Var> {
+    pub m: HashMap<Var, Ty<Var>>,
+}
+
+impl<Var: hash::Hash> Default for Context<Var> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            m: Default::default(),
+        }
+    }
+}
+
+impl<Var: hash::Hash + cmp::Eq> cmp::PartialEq for Context<Var> {
+    #[inline]
+    fn eq(&self, oth: &Self) -> bool {
+        self.m == oth.m
+    }
+}
+
+impl<Var: hash::Hash + cmp::Eq> cmp::Eq for Context<Var> {}
 
 #[derive(Clone, Debug)]
 pub struct Scheme<Var> {
@@ -81,8 +104,8 @@ impl<Var: VarBase> cmp::PartialEq for Scheme<Var> {
         } else if slfaie {
             self.t == oth.t
         } else {
-            let mut ctx = Default::default();
-            unify(&mut ctx, &self.t, &oth.t).is_ok()
+            let mut ctx = Context::default();
+            ctx.unify(&self.t, &oth.t).is_ok()
         }
     }
 }
@@ -96,7 +119,7 @@ pub trait Substitutable {
     fn fv(&self) -> BTreeSet<Self::Var>;
 
     // apply substitution
-    fn apply(&mut self, ctx: &HashMap<Self::Var, Ty<Self::Var>>);
+    fn apply(&mut self, ctx: &Context<Self::Var>);
 }
 
 impl<Var: VarBase> Substitutable for Ty<Var> {
@@ -111,11 +134,11 @@ impl<Var: VarBase> Substitutable for Ty<Var> {
         }
     }
 
-    fn apply(&mut self, ctx: &HashMap<Var, Ty<Var>>) {
+    fn apply(&mut self, ctx: &Context<Var>) {
         match self {
             Ty::Literal(_) => {}
             Ty::Var(tv) => {
-                if let Some(x) = ctx.get(tv) {
+                if let Some(x) = ctx.m.get(tv) {
                     *self = x.clone();
                 }
             }
@@ -130,6 +153,48 @@ impl<Var: VarBase> Substitutable for Ty<Var> {
     }
 }
 
+impl<Var: VarBase> Substitutable for Context<Var> {
+    type Var = Var;
+
+    fn fv(&self) -> BTreeSet<Var> {
+        self.m.values().flat_map(|i| i.fv()).collect()
+    }
+
+    fn apply(&mut self, ctx: &Context<Var>) {
+        self.m.values_mut().for_each(|i| i.apply(ctx))
+    }
+}
+
+impl<Var: VarBase> Context<Var> {
+    fn filter(&self, filt: &BTreeSet<Var>) -> Self {
+        Context {
+            m: self
+                .m
+                .iter()
+                .filter(|(k, _)| !filt.contains(k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        }
+    }
+
+    /// resolve the context using itself as far as possible
+    pub fn self_resolve(&mut self) {
+        loop {
+            let old = self.clone();
+            self.apply(&old);
+            if old == *self {
+                break;
+            }
+        }
+    }
+
+    pub fn retain(&mut self, keep: &BTreeSet<Var>) {
+        let orig_tvcnt = self.m.len();
+        self.m.retain(|k, _| keep.contains(k));
+        tracing::debug!("Ctx::retain: #tv: {} -> {}", orig_tvcnt, self.m.len());
+    }
+}
+
 impl<Var: VarBase> Substitutable for Scheme<Var> {
     type Var = Var;
 
@@ -138,13 +203,8 @@ impl<Var: VarBase> Substitutable for Scheme<Var> {
         fvt.difference(&self.forall).cloned().collect()
     }
 
-    fn apply(&mut self, ctx: &HashMap<Var, Ty<Var>>) {
-        let filtctx = ctx
-            .iter()
-            .filter(|(k, _)| !self.forall.contains(k))
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-        self.t.apply(&filtctx);
+    fn apply(&mut self, ctx: &Context<Var>) {
+        self.t.apply(&ctx.filter(&self.forall));
     }
 }
 
@@ -155,7 +215,7 @@ impl<V: Substitutable> Substitutable for HashMap<String, V> {
         self.values().flat_map(|i| i.fv()).collect()
     }
 
-    fn apply(&mut self, ctx: &HashMap<V::Var, Ty<V::Var>>) {
+    fn apply(&mut self, ctx: &Context<V::Var>) {
         self.values_mut().for_each(|i| i.apply(ctx));
     }
 }
@@ -170,114 +230,110 @@ pub enum UnifyError<Var> {
     Mismatch { t1: Ty<Var>, t2: Ty<Var> },
 }
 
-fn bind<Var: VarBase>(
-    ctx: &mut HashMap<Var, Ty<Var>>,
-    v: &Var,
-    t: &Ty<Var>,
-) -> Result<(), UnifyError<Var>> {
-    if let Ty::Var(y) = t {
-        if v == y {
-            return Ok(());
-        }
-    }
-    if t.fv().contains(v) {
-        return Err(UnifyError::Infinite {
-            v: v.clone(),
-            t: t.clone(),
-        });
-    }
-    use std::collections::hash_map::Entry;
-    match ctx.entry(v.clone()) {
-        Entry::Occupied(occ) => {
-            if occ.get() == t {
-                Ok(())
-            } else {
-                let present = occ.get().clone();
-                unify(ctx, &present, t)?;
-                /*Err(UnifyError::Override {
-                    v: v.clone(),
-                    t1: occ.get().clone(),
-                    t2: t.clone(),
-                })*/
-                Ok(())
+impl<Var: VarBase> Context<Var> {
+    fn bind(&mut self, v: &Var, t: &Ty<Var>) -> Result<(), UnifyError<Var>> {
+        if let Ty::Var(y) = t {
+            if v == y {
+                return Ok(());
             }
         }
-        Entry::Vacant(y) => {
-            y.insert(t.clone());
-            Ok(())
+        if t.fv().contains(v) {
+            return Err(UnifyError::Infinite {
+                v: v.clone(),
+                t: t.clone(),
+            });
         }
-    }
-}
-
-pub fn unify<Var: VarBase>(
-    ctx: &mut HashMap<Var, Ty<Var>>,
-    a: &Ty<Var>,
-    b: &Ty<Var>,
-) -> Result<(), UnifyError<Var>> {
-    tracing::debug!("unify a={:?}, b={:?} ctx={:?}", a, b, ctx);
-    match (a, b) {
-        (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
-            unify(ctx, l1, l2)?;
-            let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
-            rx1.apply(ctx);
-            rx2.apply(ctx);
-            unify(ctx, &rx1, &rx2)?;
-            Ok(())
-        }
-        (
-            Ty::Record {
-                m: rc1,
-                partial: false,
-            },
-            Ty::Record {
-                m: rc2,
-                partial: false,
-            },
-        ) if rc1.len() == rc2.len() => {
-            for (k, v1) in rc1 {
-                let v2 = rc2.get(k).ok_or_else(|| UnifyError::Mismatch {
-                    t1: a.clone(),
-                    t2: b.clone(),
-                })?;
-                unify(ctx, v1, v2)?;
-            }
-            Ok(())
-        }
-        (
-            Ty::Record {
-                m: rc1,
-                partial: rc1p,
-            },
-            Ty::Record {
-                m: rc2,
-                partial: rc2p,
-            },
-        ) if *rc1p || *rc2p => {
-            // partial record, only unify intersection
-            for (k, v1) in rc1 {
-                if let Some(v2) = rc2.get(k) {
-                    unify(ctx, v1, v2)?;
+        use std::collections::hash_map::Entry;
+        match self.m.entry(v.clone()) {
+            Entry::Occupied(occ) => {
+                if occ.get() == t {
+                    Ok(())
+                } else {
+                    let present = occ.get().clone();
+                    self.unify(&present, t)?;
+                    /*Err(UnifyError::Override {
+                        v: v.clone(),
+                        t1: occ.get().clone(),
+                        t2: t.clone(),
+                    })*/
+                    Ok(())
                 }
             }
-            Ok(())
+            Entry::Vacant(y) => {
+                y.insert(t.clone());
+                Ok(())
+            }
         }
-        (Ty::Var(a), t) => bind(ctx, a, t),
-        (t, Ty::Var(a)) => bind(ctx, a, t),
-        (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
-        (_, _) => Err(UnifyError::Mismatch {
-            t1: a.clone(),
-            t2: b.clone(),
-        }),
+    }
+
+    pub fn unify(&mut self, a: &Ty<Var>, b: &Ty<Var>) -> Result<(), UnifyError<Var>> {
+        tracing::debug!("unify a={:?}, b={:?} ctx={:?}", a, b, self);
+        match (a, b) {
+            (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
+                self.unify(l1, l2)?;
+                let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
+                rx1.apply(self);
+                rx2.apply(self);
+                self.unify(&rx1, &rx2)?;
+                Ok(())
+            }
+            (
+                Ty::Record {
+                    m: rc1,
+                    partial: false,
+                },
+                Ty::Record {
+                    m: rc2,
+                    partial: false,
+                },
+            ) if rc1.len() == rc2.len() => {
+                for (k, v1) in rc1 {
+                    let v2 = rc2.get(k).ok_or_else(|| UnifyError::Mismatch {
+                        t1: a.clone(),
+                        t2: b.clone(),
+                    })?;
+                    self.unify(v1, v2)?;
+                }
+                Ok(())
+            }
+            (
+                Ty::Record {
+                    m: rc1,
+                    partial: rc1p,
+                },
+                Ty::Record {
+                    m: rc2,
+                    partial: rc2p,
+                },
+            ) if *rc1p || *rc2p => {
+                // partial record, only unify intersection
+                for (k, v1) in rc1 {
+                    if let Some(v2) = rc2.get(k) {
+                        self.unify(v1, v2)?;
+                    }
+                }
+                Ok(())
+            }
+            (Ty::Var(a), t) => self.bind(a, t),
+            (t, Ty::Var(a)) => self.bind(a, t),
+            (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
+            (_, _) => Err(UnifyError::Mismatch {
+                t1: a.clone(),
+                t2: b.clone(),
+            }),
+        }
     }
 }
 
 impl<Var: VarBase> Scheme<Var> {
     pub fn instantiate<I: Iterator<Item = Var>>(&self, fresh_vars: &mut I) -> Ty<Var> {
-        let forall2 = self
-            .forall
-            .iter()
-            .map(|i| (i.clone(), Ty::Var(fresh_vars.next().unwrap())))
-            .collect();
+        let forall2 = Context {
+            m: self
+                .forall
+                .iter()
+                .map(|i| (i.clone(), Ty::Var(fresh_vars.next().unwrap())))
+                .collect(),
+        };
         let mut t2 = self.t.clone();
         t2.apply(&forall2);
         t2

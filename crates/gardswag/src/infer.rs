@@ -21,32 +21,7 @@ pub type InferData = tysy::Ty<TyVar>;
 
 pub struct Tracker {
     pub fresh_tyvars: core::ops::RangeFrom<TyVar>,
-    pub subst: HashMap<TyVar, tysy::Ty<TyVar>>,
-}
-
-impl Tracker {
-    pub fn self_resolve(&mut self) {
-        // resolve the subst map as far as possible
-        loop {
-            let old_subst = self.subst.clone();
-            self.apply(&old_subst);
-            if old_subst == self.subst {
-                break;
-            }
-        }
-    }
-}
-
-impl tysy::Substitutable for Tracker {
-    type Var = TyVar;
-
-    fn fv(&self) -> BTreeSet<TyVar> {
-        self.subst.values().flat_map(|i| i.fv()).collect()
-    }
-
-    fn apply(&mut self, ctx: &HashMap<TyVar, tysy::Ty<TyVar>>) {
-        self.subst.values_mut().for_each(|i| i.apply(ctx))
-    }
+    pub subst: tysy::Context<TyVar>,
 }
 
 #[derive(Clone)]
@@ -60,18 +35,16 @@ impl Env {
     pub fn gc<I: Iterator<Item = tysy::Ty<TyVar>>>(&self, extra_tys: I) {
         let mut tracker = self.tracker.borrow_mut();
         // reduce necessary type vars to minimum
-        tracker.self_resolve();
+        tracker.subst.self_resolve();
 
         // generate list of still-in-use type vars
         //self.vars.apply(&tracker.subst);
         let mut xfv = self.vars.fv();
-        xfv.extend(tracker.fv());
+        xfv.extend(tracker.subst.fv());
         tracing::debug!("gc: FV={:?}", xfv);
 
         // remove all unnecessary type vars
-        let orig_tvcnt = tracker.subst.len();
-        tracker.subst.retain(|k, _| xfv.contains(k));
-        tracing::debug!("gc: #tv: {} -> {}", orig_tvcnt, tracker.subst.len());
+        tracker.subst.retain(&xfv);
 
         // reset fresh tyvars counter
         xfv.extend(
@@ -100,7 +73,7 @@ impl tysy::Substitutable for Env {
         self.vars.fv()
     }
 
-    fn apply(&mut self, ctx: &HashMap<TyVar, tysy::Ty<TyVar>>) {
+    fn apply(&mut self, ctx: &tysy::Context<TyVar>) {
         self.vars.apply(ctx);
     }
 }
@@ -129,7 +102,7 @@ impl Env {
         if let Some(x) = &blk.term {
             ret = self.infer(x)?;
         }
-        self.tracker.borrow_mut().self_resolve();
+        self.tracker.borrow_mut().subst.self_resolve();
         ret.apply(&self.tracker.borrow().subst);
         Ok(ret)
     }
@@ -160,7 +133,7 @@ impl Env {
                     let mut tracker = self.tracker.borrow_mut();
                     let prev_ty = prev_ty.instantiate(&mut tracker.fresh_tyvars);
                     let next_ty = next_ty.instantiate(&mut tracker.fresh_tyvars);
-                    tysy::unify(&mut tracker.subst, &prev_ty, &next_ty)?;
+                    tracker.subst.unify(&prev_ty, &next_ty)?;
                 }
                 Ok(tysy::Ty::Literal(tysy::TyLit::Unit))
             }
@@ -175,12 +148,10 @@ impl Env {
                 let mut x_then = self.infer_block(then)?;
                 let x_else = self.infer_block(or_else)?;
                 let mut tracker = self.tracker.borrow_mut();
-                tysy::unify(
-                    &mut tracker.subst,
-                    &x_cond,
-                    &tysy::Ty::Literal(tysy::TyLit::Bool),
-                )?;
-                tysy::unify(&mut tracker.subst, &x_then, &x_else)?;
+                tracker
+                    .subst
+                    .unify(&x_cond, &tysy::Ty::Literal(tysy::TyLit::Bool))?;
+                tracker.subst.unify(&x_then, &x_else)?;
                 x_then.apply(&tracker.subst);
                 Ok(x_then)
             }
@@ -210,8 +181,7 @@ impl Env {
                     let t_arg = env2.infer(arg)?;
                     t_prim.apply(&self.tracker.borrow().subst);
                     env2.update();
-                    tysy::unify(
-                        &mut self.tracker.borrow_mut().subst,
+                    self.tracker.borrow_mut().subst.unify(
                         &t_prim,
                         &tysy::Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
                     )?;
@@ -224,8 +194,7 @@ impl Env {
             Ek::Dot { prim, key } => {
                 let t = self.infer(prim)?;
                 let mut tv = self.fresh_tyvar();
-                tysy::unify(
-                    &mut self.tracker.borrow_mut().subst,
+                self.tracker.borrow_mut().subst.unify(
                     &t,
                     &tysy::Ty::Record {
                         m: core::iter::once((key.inner.to_string(), tv.clone())).collect(),
@@ -239,8 +208,7 @@ impl Env {
             Ek::Fix(body) => {
                 let t = self.infer(body)?;
                 let mut tv = self.fresh_tyvar();
-                tysy::unify(
-                    &mut self.tracker.borrow_mut().subst,
+                self.tracker.borrow_mut().subst.unify(
                     &t,
                     &tysy::Ty::Arrow(Box::new(tv.clone()), Box::new(tv.clone())),
                 )?;
