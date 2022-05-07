@@ -2,9 +2,7 @@ use gardswag_syntax as synt;
 use gardswag_typesys as tysy;
 use std::collections::{BTreeSet, HashMap};
 
-use tysy::Substitutable as _;
-
-pub type TyVar = usize;
+use tysy::{Substitutable as _, Ty, TyLit, TyVar};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -12,30 +10,28 @@ pub enum Error {
     UndefVar(synt::Identifier),
 
     #[error("unification error: {0}")]
-    Unify(#[from] tysy::UnifyError<TyVar>),
+    Unify(#[from] tysy::UnifyError),
 }
-
-pub type InferData = tysy::Ty<TyVar>;
 
 pub struct Tracker {
     pub fresh_tyvars: core::ops::RangeFrom<TyVar>,
-    pub subst: tysy::Context<TyVar>,
+    pub subst: tysy::Context,
 }
 
 impl Tracker {
-    pub fn fresh_tyvar(&mut self) -> tysy::Ty<TyVar> {
-        tysy::Ty::Var(self.fresh_tyvars.next().unwrap())
+    pub fn fresh_tyvar(&mut self) -> Ty {
+        Ty::Var(self.fresh_tyvars.next().unwrap())
     }
 }
 
 #[derive(Clone)]
 pub struct Env {
-    pub vars: HashMap<String, tysy::Scheme<TyVar>>,
+    pub vars: HashMap<String, tysy::Scheme>,
 }
 
 impl Env {
     /// this function should only be called when this is the only env existing
-    pub fn gc<I: Iterator<Item = tysy::Ty<TyVar>>>(&self, tracker: &mut Tracker, extra_tys: I) {
+    pub fn gc<I: Iterator<Item = Ty>>(&self, tracker: &mut Tracker, extra_tys: I) {
         // reduce necessary type vars to minimum
         tracker.subst.self_resolve();
 
@@ -69,13 +65,11 @@ impl Env {
 }
 
 impl tysy::Substitutable for Env {
-    type Var = TyVar;
-
     fn fv(&self) -> BTreeSet<TyVar> {
         self.vars.fv()
     }
 
-    fn apply(&mut self, ctx: &tysy::Context<TyVar>) {
+    fn apply(&mut self, ctx: &tysy::Context) {
         self.vars.apply(ctx);
     }
 }
@@ -86,12 +80,8 @@ impl Env {
     }
 }
 
-pub fn infer_block(
-    env: &Env,
-    tracker: &mut Tracker,
-    blk: &synt::Block,
-) -> Result<InferData, Error> {
-    let mut ret = tysy::Ty::Literal(tysy::TyLit::Unit);
+pub fn infer_block(env: &Env, tracker: &mut Tracker, blk: &synt::Block) -> Result<Ty, Error> {
+    let mut ret = Ty::Literal(TyLit::Unit);
     for i in &blk.stmts {
         let _ = infer(env, tracker, i)?;
     }
@@ -103,7 +93,7 @@ pub fn infer_block(
     Ok(ret)
 }
 
-fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<InferData, Error> {
+fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty, Error> {
     use synt::ExprKind as Ek;
     match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {
@@ -132,7 +122,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
                 let next_ty = next_ty.instantiate(&mut tracker.fresh_tyvars);
                 tracker.subst.unify(&prev_ty, &next_ty)?;
             }
-            Ok(tysy::Ty::Literal(tysy::TyLit::Unit))
+            Ok(Ty::Literal(TyLit::Unit))
         }
         Ek::Block(blk) => infer_block(env, tracker, blk),
 
@@ -144,9 +134,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
             let x_cond = infer(env, tracker, cond)?;
             let mut x_then = infer_block(env, tracker, then)?;
             let x_else = infer_block(env, tracker, or_else)?;
-            tracker
-                .subst
-                .unify(&x_cond, &tysy::Ty::Literal(tysy::TyLit::Bool))?;
+            tracker.subst.unify(&x_cond, &Ty::Literal(TyLit::Bool))?;
             tracker.subst.unify(&x_then, &x_else)?;
             x_then.apply(&tracker.subst);
             Ok(x_then)
@@ -166,7 +154,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
             }
             let x = infer(&env2, tracker, body)?;
             tv.apply(&tracker.subst);
-            Ok(tysy::Ty::Arrow(Box::new(tv), Box::new(x)))
+            Ok(Ty::Arrow(Box::new(tv), Box::new(x)))
         }
 
         Ek::Call { prim, args } => {
@@ -178,10 +166,9 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
                 let t_arg = infer(&env2, tracker, arg)?;
                 t_prim.apply(&tracker.subst);
                 env2.update(tracker);
-                tracker.subst.unify(
-                    &t_prim,
-                    &tysy::Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
-                )?;
+                tracker
+                    .subst
+                    .unify(&t_prim, &Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())))?;
                 t_prim = tv;
                 t_prim.apply(&tracker.subst);
             }
@@ -193,7 +180,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
             let mut tv = tracker.fresh_tyvar();
             tracker.subst.unify(
                 &t,
-                &tysy::Ty::Record {
+                &Ty::Record {
                     m: core::iter::once((key.inner.to_string(), tv.clone())).collect(),
                     partial: true,
                 },
@@ -205,10 +192,9 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
         Ek::Fix(body) => {
             let t = infer(env, tracker, body)?;
             let mut tv = tracker.fresh_tyvar();
-            tracker.subst.unify(
-                &t,
-                &tysy::Ty::Arrow(Box::new(tv.clone()), Box::new(tv.clone())),
-            )?;
+            tracker
+                .subst
+                .unify(&t, &Ty::Arrow(Box::new(tv.clone()), Box::new(tv.clone())))?;
             tv.apply(&tracker.subst);
             Ok(tv)
         }
@@ -219,7 +205,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
                 env.update(tracker);
                 let _ = infer(&env, tracker, i)?;
             }
-            Ok(tysy::Ty::Literal(tysy::TyLit::String))
+            Ok(Ty::Literal(TyLit::String))
         }
 
         Ek::Record(rcd) => {
@@ -230,7 +216,7 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
                 let t = infer(&env, tracker, v)?;
                 m.insert(k.clone(), t);
             }
-            Ok(tysy::Ty::Record { m, partial: false })
+            Ok(Ty::Record { m, partial: false })
         }
 
         Ek::Identifier(id) => {
@@ -240,12 +226,12 @@ fn infer_inner(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<In
                 Err(Error::UndefVar(id.clone()))
             }
         }
-        Ek::Integer(_) => Ok(tysy::Ty::Literal(tysy::TyLit::Int)),
-        Ek::PureString(_) => Ok(tysy::Ty::Literal(tysy::TyLit::String)),
+        Ek::Integer(_) => Ok(Ty::Literal(TyLit::Int)),
+        Ek::PureString(_) => Ok(Ty::Literal(TyLit::String)),
     }
 }
 
-pub fn infer(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<InferData, Error> {
+pub fn infer(env: &Env, tracker: &mut Tracker, expr: &synt::Expr) -> Result<Ty, Error> {
     tracing::debug!("infer {:?}", expr);
     let res = infer_inner(env, tracker, expr);
     tracing::debug!("infer {:?} -> {:?}", expr, res);

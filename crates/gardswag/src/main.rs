@@ -10,7 +10,7 @@ struct Args {
     file: PathBuf,
 }
 
-fn mk_env_std() -> gardswag_typesys::Scheme<infer::TyVar> {
+fn mk_env_std() -> gardswag_typesys::Scheme {
     use gardswag_typesys::{Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
