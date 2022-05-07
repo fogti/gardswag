@@ -1,9 +1,11 @@
 use crate::{Substitutable, TyVar, UnifyError};
 use core::fmt;
 use enum_dispatch::enum_dispatch;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(transparent)]
 pub struct TyConstraintGroupId(usize);
 
 impl fmt::Debug for TyConstraintGroupId {
@@ -18,7 +20,7 @@ impl fmt::Display for TyConstraintGroupId {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[enum_dispatch(Substitutable)]
 pub enum TyConstraintGroup {
     /// when not yet resolved, contains the list of constraints
@@ -35,7 +37,7 @@ impl Default for TyConstraintGroup {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum TyConstraint {
     /// set of concrete types
     /// should most of the time not contain any type variables

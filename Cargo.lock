@@ -175,6 +175,7 @@ name = "gardswag-typesys"
 version = "0.1.0"
 dependencies = [
  "enum_dispatch",
+ "serde",
  "thiserror",
  "tracing",
 ]

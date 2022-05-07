@@ -1,12 +1,13 @@
 use core::{cmp, fmt};
 use enum_dispatch::enum_dispatch;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 mod constraint;
 
 pub use constraint::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum TyLit {
     Unit,
     Bool,
@@ -27,7 +28,7 @@ impl fmt::Display for TyLit {
 
 pub type TyVar = usize;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Ty {
     Literal(TyLit),
 
