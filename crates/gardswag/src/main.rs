@@ -79,8 +79,8 @@ fn main() {
 
     match infer::infer_block(&env, &mut ctx, &parsed) {
         Ok(t) => {
-            env.gc(&mut ctx, core::iter::once(t.clone()));
             println!("type check ok");
+            env.gc(&mut ctx, core::iter::once(t.clone()));
             println!("--TV--");
             for (k, v) in &ctx.m {
                 println!("\t${}:\t{}", k, v);

@@ -28,7 +28,6 @@ impl Env {
 
         // remove all unnecessary type vars
         let mut xfv = self.vars.fv();
-        ctx.retain(xfv.clone());
 
         // reset fresh tyvars counter
         xfv.extend(
@@ -38,6 +37,9 @@ impl Env {
                 .map(|(i, _)| *i)
                 .chain(extra_tys.flat_map(|i| i.fv())),
         );
+
+        ctx.retain(xfv.clone());
+
         let orig_freetvc = core::mem::replace(
             &mut ctx.fresh_tyvars,
             xfv.iter().last().map(|&i| i + 1).unwrap_or(0)..,
