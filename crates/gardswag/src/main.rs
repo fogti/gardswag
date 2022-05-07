@@ -74,21 +74,20 @@ fn main() {
 
     let parsed = gardswag_syntax::parse(&dat).expect("unable to parse file");
 
-    let env = infer::Env {
-        vars: [("std".to_string(), mk_env_std())].into_iter().collect(),
-        tracker: std::rc::Rc::new(std::cell::RefCell::new(infer::Tracker {
-            fresh_tyvars: 100..,
-            subst: Default::default(),
-        })),
+    let mut tracker = infer::Tracker {
+        fresh_tyvars: 100..,
+        subst: Default::default(),
     };
 
-    match env.infer_block(&parsed) {
+    let env = infer::Env {
+        vars: [("std".to_string(), mk_env_std())].into_iter().collect(),
+    };
+
+    match infer::infer_block(&env, &mut tracker, &parsed) {
         Ok(t) => {
-            env.gc(core::iter::once(t.clone()));
+            env.gc(&mut tracker, core::iter::once(t.clone()));
             println!("type check ok");
-            for (k, v) in env
-                .tracker
-                .borrow()
+            for (k, v) in tracker
                 .subst
                 .m
                 .iter()
