@@ -3,12 +3,25 @@ use std::path::PathBuf;
 mod bytecode;
 mod infer;
 
+#[derive(Clone, clap::ArgEnum)]
+enum Mode {
+    /// check if the file passes parsing + type-check
+    Check,
+
+    /// perform checks, then execute the expression
+    Run,
+}
+
 #[derive(clap::Parser)]
 #[clap(version)]
 struct Args {
     /// file to interpret
     #[clap(short, long)]
     file: PathBuf,
+
+    /// specify the mode
+    #[clap(arg_enum, short = 'm', long)]
+    mode: Mode,
 }
 
 fn mk_env_std() -> gardswag_typesys::Scheme {
@@ -78,7 +91,7 @@ fn main() {
         vars: [("std".to_string(), mk_env_std())].into_iter().collect(),
     };
 
-    match infer::infer_block(&env, &mut ctx, &parsed) {
+    let t = match infer::infer_block(&env, &mut ctx, &parsed) {
         Ok(t) => {
             println!("type check ok");
             env.gc(&mut ctx, core::iter::once(t.clone()));
@@ -91,9 +104,10 @@ fn main() {
                 println!("\t${}:\t{:?}", k, v);
             }
             println!("=> {}", t);
+            t
         }
         Err(e) => panic!("type checking error: {:?}", e),
-    }
+    };
 
     let mut modul = bytecode::Module {
         bbs: vec![bytecode::BasicBlock::default()],
