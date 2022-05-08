@@ -35,7 +35,7 @@ pub enum ErrorKind {
 pub type Identifier = Offsetted<String>;
 pub type Expr = Offsetted<ExprKind>;
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct Block {
     pub stmts: Vec<Expr>,
     pub term: Option<Box<Expr>>,
@@ -57,7 +57,7 @@ impl Block {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum ExprKind {
     Let {
         lhs: Identifier,
@@ -83,7 +83,7 @@ pub enum ExprKind {
     },
     Call {
         prim: Box<Expr>,
-        args: Vec<Expr>,
+        arg: Box<Expr>,
     },
     Dot {
         prim: Box<Expr>,
@@ -120,8 +120,8 @@ impl ExprKind {
                     || or_else.is_var_accessed(v)
             }
             Self::Lambda { arg, body } => arg.inner != v && body.inner.is_var_accessed(v),
-            Self::Call { prim, args } => {
-                prim.inner.is_var_accessed(v) || args.iter().any(|i| i.inner.is_var_accessed(v))
+            Self::Call { prim, arg } => {
+                prim.inner.is_var_accessed(v) || arg.inner.is_var_accessed(v)
             }
             Self::Dot { prim, .. } => prim.inner.is_var_accessed(v),
             Self::Fix(body) => body.inner.is_var_accessed(v),
@@ -175,9 +175,8 @@ impl ExprKind {
                 }
             }
 
-            Self::Call { prim, args } => {
-                prim.inner.replace_var(v, rpm)
-                    && args.iter_mut().all(|i| i.inner.replace_var(v, rpm))
+            Self::Call { prim, arg } => {
+                prim.inner.replace_var(v, rpm) && arg.inner.replace_var(v, rpm)
             }
 
             Self::Dot { prim, .. } => prim.inner.replace_var(v, rpm),
@@ -574,14 +573,10 @@ fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             }
             POk(x) => x,
         };
-        if let ExprKind::Call { ref mut args, .. } = &mut inner {
-            args.push(expr);
-        } else {
-            inner = ExprKind::Call {
-                prim: Box::new(Offsetted { offset, inner }),
-                args: vec![expr],
-            };
-        }
+        inner = ExprKind::Call {
+            prim: Box::new(Offsetted { offset, inner }),
+            arg: Box::new(expr),
+        };
     }
     POk(Offsetted { offset, inner })
 }

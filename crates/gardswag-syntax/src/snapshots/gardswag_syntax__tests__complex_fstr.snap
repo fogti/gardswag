@@ -1,6 +1,6 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 549
+assertion_line: 725
 expression: "parse(r#\"\n                \"{\n                  let a = 1;\n                  std.stdio.write(\"{a}\\n\");\n                  a\n                }\"\n            \"#).unwrap()"
 ---
 stmts: []
@@ -48,23 +48,23 @@ term:
                                   key:
                                     offset: 77
                                     inner: write
-                            args:
-                              - offset: 83
-                                inner:
-                                  FormatString:
-                                    - offset: 84
-                                      inner:
-                                        Block:
-                                          stmts: []
-                                          term:
-                                            offset: 85
-                                            inner:
-                                              Identifier:
-                                                offset: 85
-                                                inner: a
-                                    - offset: 87
-                                      inner:
-                                        PureString: "\n"
+                            arg:
+                              offset: 83
+                              inner:
+                                FormatString:
+                                  - offset: 84
+                                    inner:
+                                      Block:
+                                        stmts: []
+                                        term:
+                                          offset: 85
+                                          inner:
+                                            Identifier:
+                                              offset: 85
+                                              inner: a
+                                  - offset: 87
+                                    inner:
+                                      PureString: "\n"
                     term:
                       offset: 111
                       inner:

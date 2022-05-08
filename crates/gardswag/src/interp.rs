@@ -1,281 +1,285 @@
-use crate::bytecode::{Builtin, LiteralExpr, Module, VmInstr};
-use core::fmt;
+use gardswag_syntax::{Block, Expr};
 use std::collections::BTreeMap;
-use string_interner::symbol::SymbolU32 as Symbol;
 
-#[derive(Clone, PartialEq)]
-pub enum Value {
-    Literal(LiteralExpr),
-    Record(BTreeMap<Symbol, Value>),
-
-    Builtin { f: Builtin, args: Vec<Value> },
-    Lambda { f: usize, stacksave: Vec<Value> },
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Builtin {
+    Plus,
+    Minus,
+    Mult,
+    Eq,
+    Leq,
+    Not,
+    StdioWrite,
 }
 
-impl fmt::Debug for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Builtin {
+    fn argc(self) -> usize {
         match self {
-            Value::Literal(lit) => write!(f, "{:?}", lit),
-            Value::Builtin { f: blti, args } => {
-                write!(f, "Builtin::{:?}{:?}", blti, args)
-            }
-            Value::Lambda { f: bb, stacksave } => {
-                write!(f, "Lambda@{}(saved stack ={:?})", bb, stacksave)
-            }
-            Value::Record(rcm) => f
-                .debug_map()
-                .entries(rcm.iter().map(|(k, v)| {
-                    use string_interner::Symbol as _;
-                    (k.to_usize(), v)
-                }))
-                .finish(),
+            Self::Plus | Self::Minus | Self::Mult | Self::Eq | Self::Leq => 2,
+            Self::Not | Self::StdioWrite => 1,
         }
     }
 }
 
-pub struct VmState<'a> {
-    pub modul: &'a Module,
-    stack: Vec<Value>,
+#[derive(Clone, Debug, PartialEq)]
+pub enum Value<'a> {
+    Unit,
+    Boolean(bool),
+    Integer(i32),
+    PureString(String),
+
+    Record(BTreeMap<String, Value<'a>>),
+
+    Builtin {
+        f: Builtin,
+        args: Vec<Value<'a>>,
+    },
+    Lambda {
+        argname: &'a str,
+        f: &'a Expr,
+        stacksave: BTreeMap<String, Value<'a>>,
+    },
 }
 
-impl<'a> VmState<'a> {
-    pub fn new(modul: &'a Module) -> Self {
-        Self {
-            modul,
-            stack: Vec::new(),
+impl From<Builtin> for Value<'static> {
+    fn from(x: Builtin) -> Self {
+        Value::Builtin {
+            f: x,
+            args: Vec::new(),
         }
     }
 }
 
-#[derive(Debug)]
-struct BbsItem {
-    nextbb: usize,
-    killstackspan: core::ops::Range<usize>,
+pub fn run_block<'a>(blk: &'a Block, stack: &mut Vec<(String, Value<'a>)>) {
+    for i in &blk.stmts {
+        run(i, stack);
+        stack.pop().unwrap();
+    }
+    if let Some(i) = &blk.term {
+        run(i, stack);
+    } else {
+        stack.push((String::new(), Value::Unit));
+    }
 }
 
-impl VmState<'_> {
-    pub fn run(&mut self) -> Option<Value> {
-        let mut bbstk = vec![BbsItem {
-            nextbb: 0,
-            killstackspan: 0..0,
-        }];
-        while let Some(curbb) = bbstk.pop() {
-            tracing::debug!(?curbb, ?bbstk, "BB stack");
-            tracing::trace!("with value stack: {:?}", self.stack);
-            let bbr = self.modul.bbs.get(curbb.nextbb).unwrap();
-
-            use crate::bytecode::JumpDst;
-
-            for i in &bbr.instrs {
-                tracing::trace!("instr {:?}", i);
-                match i {
-                    VmInstr::Discard => {
-                        self.stack.pop().expect("discard failed");
-                    }
-                    VmInstr::Push(lite) => {
-                        self.stack.push(Value::Literal(lite.clone()));
-                    }
-                    VmInstr::Builtin(f) => {
-                        self.stack.push(Value::Builtin {
-                            f: *f,
-                            args: Vec::new(),
-                        });
-                    }
-                    VmInstr::Lambda(lambb) => {
-                        // TODO: this is too expensive -> try HVM-dup instead
-                        let stacksave = self.stack.clone();
-                        self.stack.push(Value::Lambda {
-                            f: *lambb,
-                            stacksave,
-                        });
-                    }
-                    VmInstr::Assign(up) => {
-                        let val = self.stack.pop().unwrap();
-                        let trgstkpos = self.stack.len() - (1 + up);
-                        self.stack[trgstkpos] = val;
-                    }
-                    VmInstr::Lift(up) => {
-                        let srcstkpos = self.stack.len() - (1 + up);
-                        // TODO: HVM-style dup management
-                        // see also: https://github.com/Kindelia/HVM/blob/master/HOW.md
-                        let val = self.stack[srcstkpos].clone();
-                        self.stack.push(val);
-                    }
-                    VmInstr::Swap => {
-                        let stkspltp = self.stack.len() - 1;
-                        let (a, b) = self.stack.split_at_mut(stkspltp);
-                        core::mem::swap(a.last_mut().unwrap(), &mut b[0]);
-                    }
-                    VmInstr::Dot(elem) => match self.stack.pop().unwrap() {
-                        Value::Record(mut rcm) => self.stack.push(rcm.remove(elem).unwrap()),
-                        x => panic!(
-                            ".{} called on non-record {:?}",
-                            self.modul.interner.resolve(*elem).unwrap(),
-                            x
-                        ),
-                    },
-                    VmInstr::StringAppend => {
-                        use LiteralExpr as LitEx;
-                        let b = match self.stack.pop().unwrap() {
-                            Value::Literal(LitEx::Unit) => String::new(),
-                            Value::Literal(LitEx::Boolean(true)) => "_1".to_string(),
-                            Value::Literal(LitEx::Boolean(false)) => "_0".to_string(),
-                            Value::Literal(LitEx::Integer(i)) => i.to_string(),
-                            Value::Literal(LitEx::PureString(s)) => s,
-                            x => panic!("stringify called on invalid value {:?}", x),
-                        };
-                        let mut a = match self.stack.pop().unwrap() {
-                            Value::Literal(LitEx::PureString(s)) => s,
-                            x => panic!("stringify called on non-string {:?}", x),
-                        };
-                        a += &b;
-                        self.stack.push(Value::Literal(LitEx::PureString(a)));
-                    }
-                    VmInstr::BuildRecord(rcdesc) => {
-                        let mut rcrd = BTreeMap::new();
-                        for i in rcdesc {
-                            let val = self.stack.pop().unwrap();
-                            rcrd.insert(*i, val);
-                        }
-                        self.stack.push(Value::Record(rcrd));
-                    }
-                }
-            }
-            if let Some(x) = bbr.condf_jump {
-                let condres = match self.stack.pop().unwrap() {
-                    Value::Literal(LiteralExpr::Boolean(b)) => b,
-                    y => panic!("`if` called with invalid condition {:?}", y),
-                };
-                if condres {
-                    bbstk.push(BbsItem {
-                        nextbb: x,
-                        killstackspan: curbb.killstackspan,
-                    });
+pub fn run<'a>(expr: &'a Expr, stack: &mut Vec<(String, Value<'a>)>) {
+    let orig_stklen = stack.len();
+    use gardswag_syntax::ExprKind as Ek;
+    match &expr.inner {
+        Ek::Let { lhs, rhs, rest } => {
+            run(rhs, stack);
+            stack.last_mut().unwrap().0 = lhs.inner.clone();
+            run_block(rest, stack);
+            let got_it_back = stack.pop().unwrap();
+            assert_eq!(lhs.inner, got_it_back.0);
+        }
+        Ek::Assign { lhs, rhs } => {
+            run(rhs, stack);
+            let v_rhs = stack.pop().unwrap().1;
+            stack.iter_mut().rev().find(|i| i.0 == lhs.inner).unwrap().1 = v_rhs;
+            stack.push((String::new(), Value::Unit));
+        }
+        Ek::Block(blk) => run_block(blk, stack),
+        Ek::If {
+            cond,
+            then,
+            or_else,
+        } => {
+            run(cond, stack);
+            let v_cond = match stack.pop().unwrap().1 {
+                Value::Boolean(x) => x,
+                x => panic!("invalid if condition: {:?}", x),
+            };
+            run_block(if v_cond { then } else { or_else }, stack);
+        }
+        Ek::Lambda { arg, body } => {
+            let mut stacksave = BTreeMap::default();
+            for (k, v) in stack.iter().rev() {
+                if k.is_empty()
+                    || k == &arg.inner
+                    || stacksave.contains_key(k)
+                    || !body.inner.is_var_accessed(k)
+                {
                     continue;
                 }
+                stacksave.insert(k.to_string(), v.clone());
             }
-            match bbr.jump {
-                JumpDst::Halt => {
-                    self.stack.drain(curbb.killstackspan);
-                    bbstk.clear();
+            stack.push((
+                String::new(),
+                Value::Lambda {
+                    argname: &arg.inner,
+                    f: body,
+                    stacksave,
+                },
+            ));
+        }
+        Ek::Call { prim, arg } => {
+            run(arg, stack);
+            run(prim, stack);
+            match stack.pop().unwrap().1 {
+                Value::Builtin { f, mut args } if f.argc() < (args.len() + 1) => {
+                    args.push(stack.pop().unwrap().1);
+                    stack.push((String::new(), Value::Builtin { f, args }));
                 }
-                JumpDst::Return => {
-                    self.stack.drain(curbb.killstackspan);
-                }
-                JumpDst::Continue(nextbb) => {
-                    bbstk.push(BbsItem {
-                        nextbb,
-                        killstackspan: curbb.killstackspan,
-                    });
-                }
-            }
-            if bbr.invoke {
-                tracing::trace!("run invoke on stack={:?}", self.stack);
-                let arg = self.stack.pop().unwrap();
-                match self.stack.pop().unwrap() {
-                    Value::Builtin { f, mut args } => {
-                        assert!(usize::from(f.argc()) > args.len());
-                        args.push(arg);
-                        self.stack.push(if usize::from(f.argc()) > args.len() {
-                            // needs more arguments
-                            Value::Builtin { f, args }
-                        } else {
-                            // has all required arguments
-                            let mut args = args.into_iter();
-                            use LiteralExpr as LitEx;
-                            match f {
-                                Builtin::Plus => {
-                                    match (args.next().unwrap(), args.next().unwrap()) {
-                                        (
-                                            Value::Literal(LitEx::Integer(a)),
-                                            Value::Literal(LitEx::Integer(b)),
-                                        ) => Value::Literal(LitEx::Integer(a + b)),
-                                        (a, b) => panic!(
-                                            "std.plus called with invalid args [{:?}, {:?}]",
-                                            a, b
-                                        ),
+                Value::Builtin { f, mut args } => {
+                    args.push(stack.pop().unwrap().1);
+                    use Builtin as Bi;
+                    match f {
+                        Bi::Plus => {
+                            stack.push((
+                                String::new(),
+                                match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                    (Value::Integer(a), Value::Integer(b)) => {
+                                        Value::Integer(*a + *b)
                                     }
-                                }
-                                Builtin::Minus => {
-                                    match (args.next().unwrap(), args.next().unwrap()) {
-                                        (
-                                            Value::Literal(LitEx::Integer(a)),
-                                            Value::Literal(LitEx::Integer(b)),
-                                        ) => Value::Literal(LitEx::Integer(a - b)),
-                                        (a, b) => panic!(
-                                            "std.minus called with invalid args [{:?}, {:?}]",
-                                            a, b
-                                        ),
-                                    }
-                                }
-                                Builtin::Mult => {
-                                    match (args.next().unwrap(), args.next().unwrap()) {
-                                        (
-                                            Value::Literal(LitEx::Integer(a)),
-                                            Value::Literal(LitEx::Integer(b)),
-                                        ) => Value::Literal(LitEx::Integer(a * b)),
-                                        (a, b) => panic!(
-                                            "std.mult called with invalid args [{:?}, {:?}]",
-                                            a, b
-                                        ),
-                                    }
-                                }
-                                Builtin::Leq => {
-                                    match (args.next().unwrap(), args.next().unwrap()) {
-                                        (
-                                            Value::Literal(LitEx::Integer(a)),
-                                            Value::Literal(LitEx::Integer(b)),
-                                        ) => Value::Literal(LitEx::Boolean(a <= b)),
-                                        (a, b) => panic!(
-                                            "std.leq called with invalid args [{:?}, {:?}]",
-                                            a, b
-                                        ),
-                                    }
-                                }
-                                Builtin::Eq => Value::Literal(LitEx::Boolean(
-                                    args.next().unwrap() == args.next().unwrap(),
-                                )),
-                                Builtin::Not => match args.next().unwrap() {
-                                    Value::Literal(LitEx::Boolean(x)) => {
-                                        Value::Literal(LitEx::Boolean(!x))
-                                    }
-                                    a => panic!("std.not called with invalid args [{:?}]", a),
+                                    _ => panic!("std.plus called with {:?}", args),
                                 },
-                                Builtin::StdioWrite => match args.next().unwrap() {
-                                    Value::Literal(LitEx::PureString(x)) => {
-                                        print!("{}", x);
-                                        Value::Literal(LitEx::Unit)
+                            ));
+                        }
+                        Bi::Minus => {
+                            stack.push((
+                                String::new(),
+                                match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                    (Value::Integer(a), Value::Integer(b)) => {
+                                        Value::Integer(*a - *b)
                                     }
-                                    a => {
-                                        panic!("std.stdio.write called with invalid args [{:?}]", a)
-                                    }
+                                    _ => panic!("std.minus called with {:?}", args),
                                 },
+                            ));
+                        }
+                        Bi::Mult => {
+                            stack.push((
+                                String::new(),
+                                match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                    (Value::Integer(a), Value::Integer(b)) => {
+                                        Value::Integer(*a * *b)
+                                    }
+                                    _ => panic!("std.minus called with {:?}", args),
+                                },
+                            ));
+                        }
+                        Bi::Leq => {
+                            stack.push((
+                                String::new(),
+                                match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                    (Value::Integer(a), Value::Integer(b)) => {
+                                        Value::Boolean(*a <= *b)
+                                    }
+                                    _ => panic!("std.minus called with {:?}", args),
+                                },
+                            ));
+                        }
+                        Bi::Eq => {
+                            stack.push((String::new(), Value::Boolean(args.get(0) == args.get(1))));
+                        }
+                        Bi::Not => {
+                            stack.push((
+                                String::new(),
+                                match args.get(0).unwrap() {
+                                    Value::Boolean(b) => Value::Boolean(!*b),
+                                    a => panic!("std.not called with {:?}", a),
+                                },
+                            ));
+                        }
+                        Bi::StdioWrite => {
+                            match args.get(0).unwrap() {
+                                Value::PureString(s) => print!("{}", s),
+                                x => panic!("std.stdio.write called with {:?}", x),
                             }
-                        });
+                            stack.push((String::new(), Value::Unit));
+                        }
                     }
-                    Value::Lambda { f, stacksave } => {
-                        let orig_stkl = self.stack.len();
-                        self.stack.extend(stacksave);
-                        let after_stksave = self.stack.len();
-                        self.stack.push(arg);
-                        bbstk.push(BbsItem {
-                            nextbb: f,
-                            killstackspan: orig_stkl..after_stksave,
-                        });
-                    }
-                    val => panic!(
-                        "called non-callable {{{:?}}} with invalid arg {{{:?}}}",
-                        val, arg
-                    ),
                 }
+                Value::Lambda {
+                    argname,
+                    f,
+                    stacksave,
+                } => {
+                    let old_stackpos = stack.len();
+                    stack.last_mut().unwrap().0 = argname.to_string();
+                    stack.extend(stacksave);
+                    run(f, stack);
+                    let ret = stack.pop().unwrap();
+                    stack.truncate(old_stackpos);
+                    stack.push(ret);
+                }
+                f => panic!(
+                    "called non-callable {:?} with argument {:?}",
+                    f,
+                    stack.last().unwrap()
+                ),
             }
         }
-
-        let ret = self.stack.pop();
-        if !self.stack.is_empty() {
-            tracing::warn!("leftover stack contents: {:?}", self.stack);
-            self.stack.clear();
+        Ek::Dot { prim, key } => {
+            run(prim, stack);
+            match stack.pop().unwrap().1 {
+                Value::Record(mut rcm) => stack.push((
+                    String::new(),
+                    rcm.remove(&key.inner)
+                        .expect("unable to find key in record"),
+                )),
+                x => panic!("called .{} on non-record {:?}", key.inner, x),
+            }
         }
-        ret
+        Ek::Fix(expr) => {
+            run(expr, stack);
+            let top = stack.last().unwrap().1.clone();
+            match &top {
+                Value::Lambda {
+                    argname,
+                    f,
+                    stacksave,
+                } => {
+                    let argname = argname.to_string();
+                    let stacksave = stacksave.clone();
+                    let f = *f;
+                    stack.push((argname, top));
+                    let old_stackpos = stack.len();
+                    stack.extend(stacksave);
+                    run(f, stack);
+                    let ret = stack.pop().unwrap();
+                    stack.truncate(old_stackpos);
+                    stack.push(ret);
+                }
+                f => panic!("called non-callable {:?} with itself as argument", f),
+            }
+        }
+        Ek::FormatString(fsts) => {
+            let mut r = String::new();
+            for i in fsts {
+                run(i, stack);
+                r += &match stack.pop().unwrap().1 {
+                    Value::PureString(s) => s,
+                    Value::Integer(i) => i.to_string(),
+                    Value::Boolean(b) => format!("_{}", if b { '1' } else { '0' }),
+                    Value::Unit => String::new(),
+                    x => panic!("invoked format' stringify on non-stringifyable {:?}", x),
+                };
+            }
+            stack.push((String::new(), Value::PureString(r)));
+        }
+        Ek::Record(rcde) => {
+            let mut rcd = BTreeMap::new();
+            for (k, v) in rcde {
+                run(v, stack);
+                let vv = stack.pop().unwrap().1;
+                rcd.insert(k.clone(), vv);
+            }
+            stack.push((String::new(), Value::Record(rcd)));
+        }
+        Ek::Identifier(id) => {
+            let v = stack
+                .iter_mut()
+                .rev()
+                .find(|i| i.0 == id.inner)
+                .unwrap()
+                .1
+                .clone();
+            stack.push((String::new(), v));
+        }
+        Ek::Boolean(b) => stack.push((String::new(), Value::Boolean(*b))),
+        Ek::Integer(i) => stack.push((String::new(), Value::Integer(*i))),
+        Ek::PureString(s) => stack.push((String::new(), Value::PureString(s.clone()))),
     }
+    assert_eq!(orig_stklen + 1, stack.len());
 }

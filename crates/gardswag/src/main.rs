@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use tracing::debug;
 
-mod bytecode;
 mod infer;
 mod interp;
 
@@ -108,7 +107,7 @@ fn main() {
             .collect(),
     };
 
-    let tg = match infer::infer_block(&env, &mut ctx, &parsed) {
+    let _ = match infer::infer_block(&env, &mut ctx, &parsed) {
         Ok(t) => {
             use gardswag_typesys::Substitutable as _;
             debug!("type check ok");
@@ -134,63 +133,39 @@ fn main() {
 
     core::mem::drop(env);
 
-    let mut modul = bytecode::Module {
-        bbs: vec![bytecode::BasicBlock::default()],
-        tg,
-        interner: Default::default(),
-    };
-
-    {
-        // std
-        use bytecode::{Builtin as Bi, VmInstr as Vi};
-        modul.push_instr(Vi::Builtin(Bi::StdioWrite));
-        let s_write = modul.interner.get_or_intern("write");
-        modul.push_instr(Vi::BuildRecord(vec![s_write]));
-        let mut record = Vec::new();
-        for (blti, name) in [
-            (Bi::Plus, "plus"),
-            (Bi::Minus, "minus"),
-            (Bi::Mult, "mult"),
-            (Bi::Eq, "eq"),
-            (Bi::Leq, "leq"),
-            (Bi::Not, "not"),
-        ] {
-            modul.push_instr(Vi::Builtin(blti));
-            record.push(name);
-        }
-        let brcrdat = record
-            .into_iter()
-            .rev()
-            .chain(core::iter::once("stdio"))
-            .map(|i| modul.interner.get_or_intern(i))
-            .collect();
-        modul.push_instr(Vi::BuildRecord(brcrdat));
-    }
-
-    bytecode::CodeGen::ser_to_bytecode(
-        &parsed,
-        &mut modul,
-        Some(bytecode::VarStack {
-            parent: None,
-            last: "std",
-        }),
-    );
-
-    modul.push_instr(bytecode::VmInstr::Swap);
-    modul.push_instr(bytecode::VmInstr::Discard);
-
-    core::mem::drop(parsed);
-
-    if args.print_bytecode {
-        println!(
-            "bytecode:\n{}",
-            serde_yaml::to_string(&modul).expect("unable to serialize bytecode")
-        );
-    }
-
     if args.mode == Mode::Check {
         return;
     }
 
-    println!("result: {:?}", interp::VmState::new(&modul).run());
+    use interp::{Builtin as Bi, Value as Val};
+
+    let mut stack = vec![(
+        "std".to_string(),
+        Val::Record(
+            [
+                ("plus", Bi::Plus.into()),
+                ("minus", Bi::Minus.into()),
+                ("mult", Bi::Mult.into()),
+                ("eq", Bi::Eq.into()),
+                ("leq", Bi::Leq.into()),
+                ("not", Bi::Not.into()),
+                (
+                    "stdio",
+                    Val::Record(
+                        [("write", Bi::StdioWrite.into())]
+                            .into_iter()
+                            .map(|(i, j)| (i.to_string(), j))
+                            .collect(),
+                    ),
+                ),
+            ]
+            .into_iter()
+            .map(|(i, j)| (i.to_string(), j))
+            .collect(),
+        ),
+    )];
+
+    interp::run_block(&parsed, &mut stack);
+
+    println!("result: {:?}", stack);
 }

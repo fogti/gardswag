@@ -1,6 +1,6 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 503
+assertion_line: 701
 expression: "parse(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
 ---
 stmts:
@@ -27,12 +27,12 @@ stmts:
               key:
                 offset: 10
                 inner: write
-        args:
-          - offset: 16
-            inner:
-              FormatString:
-                - offset: 17
-                  inner:
-                    PureString: "Hello world!\n"
+        arg:
+          offset: 16
+          inner:
+            FormatString:
+              - offset: 17
+                inner:
+                  PureString: "Hello world!\n"
 term: ~
 

@@ -1,6 +1,6 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 744
+assertion_line: 754
 expression: "parse(r#\"\n                let id = \\x x;\n                let torben = id 1;\n                .{\n                   id;\n                   id2 = id;\n                   torben;\n                }\n            \"#).unwrap()"
 ---
 stmts: []
@@ -43,10 +43,10 @@ term:
                         Identifier:
                           offset: 61
                           inner: id
-                    args:
-                      - offset: 64
-                        inner:
-                          Integer: 1
+                    arg:
+                      offset: 64
+                      inner:
+                        Integer: 1
               rest:
                 stmts: []
                 term:

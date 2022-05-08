@@ -141,19 +141,17 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             Ok(Ty::Arrow(Box::new(tv), Box::new(x)))
         }
 
-        Ek::Call { prim, args } => {
+        Ek::Call { prim, arg } => {
             let mut t_prim = infer(env, ctx, prim)?;
             let mut env2 = env.clone();
             env2.update(ctx);
-            for arg in args {
-                let tv = ctx.fresh_tyvar();
-                let t_arg = infer(&env2, ctx, arg)?;
-                t_prim.apply(ctx);
-                env2.update(ctx);
-                ctx.unify(&t_prim, &Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())))?;
-                t_prim = tv;
-                t_prim.apply(ctx);
-            }
+            let tv = ctx.fresh_tyvar();
+            let t_arg = infer(&env2, ctx, arg)?;
+            t_prim.apply(ctx);
+            env2.update(ctx);
+            ctx.unify(&t_prim, &Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())))?;
+            t_prim = tv;
+            t_prim.apply(ctx);
             Ok(t_prim)
         }
 
