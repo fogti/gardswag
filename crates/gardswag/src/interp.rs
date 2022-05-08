@@ -1,13 +1,32 @@
 use crate::bytecode::{Builtin, LiteralExpr, Module, VmInstr};
+use core::fmt;
 use std::collections::BTreeMap;
 use string_interner::symbol::SymbolU32 as Symbol;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Value {
     Literal(LiteralExpr),
     Record(BTreeMap<Symbol, Value>),
 
     Builtin { f: Builtin, args: Vec<Value> },
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Literal(lit) => write!(f, "{:?}", lit),
+            Value::Builtin { f: blti, args } => {
+                write!(f, "Builtin::{:?}{:?}", blti, args)
+            }
+            Value::Record(rcm) => f
+                .debug_map()
+                .entries(rcm.iter().map(|(k, v)| {
+                    use string_interner::Symbol as _;
+                    (k.to_usize(), v)
+                }))
+                .finish(),
+        }
+    }
 }
 
 pub struct VmState<'a> {
@@ -28,11 +47,14 @@ impl VmState<'_> {
     pub fn run(&mut self) -> Option<Value> {
         let mut bbstk = vec![0];
         while let Some(curbb) = bbstk.pop() {
+            tracing::debug!(%curbb, ?bbstk, "BB stack");
+            tracing::trace!("with value stack: {:?}", self.stack);
             let bbr = self.modul.bbs.get(curbb).unwrap();
 
             use crate::bytecode::JumpDst;
 
             for i in &bbr.instrs {
+                tracing::trace!("instr {:?}", i);
                 match i {
                     VmInstr::Discard => {
                         self.stack.pop().expect("discard failed");
@@ -121,10 +143,10 @@ impl VmState<'_> {
                 let arg = self.stack.pop().unwrap();
                 match self.stack.pop().unwrap() {
                     Value::Builtin { f, mut args } => {
-                        assert!(usize::from(f.argc()) >= args.len());
-                        self.stack.push(if usize::from(f.argc()) < args.len() {
+                        assert!(usize::from(f.argc()) > args.len());
+                        args.push(arg);
+                        self.stack.push(if usize::from(f.argc()) > args.len() {
                             // needs more arguments
-                            args.push(arg);
                             Value::Builtin { f, args }
                         } else {
                             // has all required arguments

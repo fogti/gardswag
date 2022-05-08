@@ -176,6 +176,9 @@ fn main() {
         }),
     );
 
+    modul.push_instr(bytecode::VmInstr::Swap);
+    modul.push_instr(bytecode::VmInstr::Discard);
+
     core::mem::drop(parsed);
 
     if args.print_bytecode {
