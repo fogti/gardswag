@@ -153,6 +153,8 @@ dependencies = [
  "clap",
  "gardswag-syntax",
  "gardswag-typesys",
+ "serde",
+ "serde_yaml",
  "thiserror",
  "tracing",
  "tracing-subscriber",

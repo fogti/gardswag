@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+mod bytecode;
 mod infer;
 
 #[derive(clap::Parser)]
@@ -93,4 +94,41 @@ fn main() {
         }
         Err(e) => panic!("type checking error: {:?}", e),
     }
+
+    let mut modul = bytecode::Module {
+        bbs: vec![bytecode::BasicBlock::default()],
+    };
+
+    {
+        // std
+        use bytecode::{Builtin as Bi, VmInstr as Vi};
+        modul.push_instr(Vi::Builtin(Bi::StdioWrite));
+        modul.push_instr(Vi::BuildRecord(
+            ["write"].into_iter().map(|i| i.to_string()).collect(),
+        ));
+        modul.push_instr(Vi::Builtin(Bi::Not));
+        modul.push_instr(Vi::Builtin(Bi::Leq));
+        modul.push_instr(Vi::Builtin(Bi::Minus));
+        modul.push_instr(Vi::Builtin(Bi::Add));
+        modul.push_instr(Vi::BuildRecord(
+            ["add", "minus", "leq", "not", "stdio"]
+                .into_iter()
+                .map(|i| i.to_string())
+                .collect(),
+        ));
+    }
+
+    bytecode::CodeGen::ser_to_bytecode(
+        &parsed,
+        &mut modul,
+        Some(bytecode::VarStack {
+            parent: None,
+            last: "std",
+        }),
+    );
+
+    println!(
+        "bytecode:\n{}",
+        serde_yaml::to_string(&modul.bbs).expect("unable to serialize bytecode")
+    );
 }
