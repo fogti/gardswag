@@ -96,6 +96,18 @@ impl Substitutable for Ty {
                 if let Some(x) = ctx.m.get(tv) {
                     if let Some(TyConstraintGroup::Ty(t)) = ctx.g.get(x) {
                         *self = t.clone();
+                    } else {
+                        // check if any tv with the same *x has a lower id
+                        // and replace it with that
+                        for (k, v) in &ctx.m {
+                            if *k >= *tv {
+                                break;
+                            }
+                            if *v == *x {
+                                *self = Ty::Var(*k);
+                                break;
+                            }
+                        }
                     }
                 }
             }
