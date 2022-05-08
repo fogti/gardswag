@@ -5,6 +5,7 @@ use tracing::debug;
 #[derive(Debug)]
 pub struct Module {
     pub bbs: Vec<BasicBlock>,
+    pub tg: gardswag_typesys::Scheme,
 }
 
 impl Module {

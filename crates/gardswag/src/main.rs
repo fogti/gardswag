@@ -87,14 +87,20 @@ fn main() {
 
     let mut ctx = gardswag_typesys::Context::default();
 
-    let env = infer::Env {
+    let mut env = infer::Env {
         vars: [("std".to_string(), mk_env_std())].into_iter().collect(),
     };
 
-    let t = match infer::infer_block(&env, &mut ctx, &parsed) {
+    let tg = match infer::infer_block(&env, &mut ctx, &parsed) {
         Ok(t) => {
+            use gardswag_typesys::Substitutable as _;
             println!("type check ok");
-            env.gc(&mut ctx, core::iter::once(t.clone()));
+            println!("=T> {}", t);
+            // generalize the type
+            env.vars.apply(&ctx);
+            let tg = t.clone().generalize(&env, &ctx);
+            // garbage collection
+            env.gc(&mut ctx, core::iter::once(t));
             println!("--TV--");
             for (k, v) in &ctx.m {
                 println!("\t${}:\t{}", k, v);
@@ -103,14 +109,17 @@ fn main() {
             for (k, v) in &ctx.g {
                 println!("\t${}:\t{:?}", k, v);
             }
-            println!("=> {}", t);
-            t
+            println!("=G> {:?}", tg);
+            tg
         }
         Err(e) => panic!("type checking error: {:?}", e),
     };
 
+    core::mem::drop(env);
+
     let mut modul = bytecode::Module {
         bbs: vec![bytecode::BasicBlock::default()],
+        tg,
     };
 
     {
