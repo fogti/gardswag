@@ -1,9 +1,11 @@
 use std::path::PathBuf;
+use tracing::debug;
 
 mod bytecode;
 mod infer;
+mod interp;
 
-#[derive(Clone, clap::ArgEnum)]
+#[derive(Clone, PartialEq, clap::ArgEnum)]
 enum Mode {
     /// check if the file passes parsing + type-check
     Check,
@@ -22,9 +24,12 @@ struct Args {
     /// specify the mode
     #[clap(arg_enum, short = 'm', long)]
     mode: Mode,
+
+    #[clap(long)]
+    print_bytecode: bool,
 }
 
-fn mk_env_std() -> gardswag_typesys::Scheme {
+fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
     use gardswag_typesys::{Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
@@ -61,17 +66,27 @@ fn mk_env_std() -> gardswag_typesys::Scheme {
         }};
     }
 
-    TyScheme {
-        forall: [].into_iter().map(|i| (i, Default::default())).collect(),
-        t: tr!({
-            plus: ta!(tl!(int) => tl!(int) => tl!(int)),
-            minus: ta!(tl!(int) => tl!(int) => tl!(int)),
-            leq: ta!(tl!(int) => tl!(int) => tl!(bool)),
-            not: ta!(tl!(bool) => tl!(bool)),
-            stdio: tr!({
-                write: ta!(tl!(str) => tl!(())),
-            }),
+    let tyvars: Vec<usize> = (0..2).map(|_| ctx.fresh_tyvars.next().unwrap()).collect();
+    let gtv = |i| Ty::Var(tyvars[i]);
+
+    let t = tr!({
+        plus: ta!(tl!(int) => tl!(int) => tl!(int)),
+        minus: ta!(tl!(int) => tl!(int) => tl!(int)),
+        mult: ta!(tl!(int) => tl!(int) => tl!(int)),
+        eq: ta!(gtv(0) => gtv(1) => tl!(bool)),
+        leq: ta!(tl!(int) => tl!(int) => tl!(bool)),
+        not: ta!(tl!(bool) => tl!(bool)),
+        stdio: tr!({
+            write: ta!(tl!(str) => tl!(())),
         }),
+    });
+
+    TyScheme {
+        forall: tyvars
+            .into_iter()
+            .map(|_| (ctx.fresh_tyvars.next().unwrap(), Default::default()))
+            .collect(),
+        t,
     }
 }
 
@@ -88,28 +103,30 @@ fn main() {
     let mut ctx = gardswag_typesys::Context::default();
 
     let mut env = infer::Env {
-        vars: [("std".to_string(), mk_env_std())].into_iter().collect(),
+        vars: [("std".to_string(), mk_env_std(&mut ctx))]
+            .into_iter()
+            .collect(),
     };
 
     let tg = match infer::infer_block(&env, &mut ctx, &parsed) {
         Ok(t) => {
             use gardswag_typesys::Substitutable as _;
-            println!("type check ok");
-            println!("=T> {}", t);
+            debug!("type check ok");
+            debug!("=T> {}", t);
             // generalize the type
             env.vars.apply(&ctx);
             let tg = t.clone().generalize(&env, &ctx);
             // garbage collection
             env.gc(&mut ctx, core::iter::once(t));
-            println!("--TV--");
+            debug!("--TV--");
             for (k, v) in &ctx.m {
-                println!("\t${}:\t{}", k, v);
+                debug!("\t${}:\t{}", k, v);
             }
-            println!("--CG--");
+            debug!("--CG--");
             for (k, v) in &ctx.g {
-                println!("\t${}:\t{:?}", k, v);
+                debug!("\t${}:\t{:?}", k, v);
             }
-            println!("=G> {}", tg);
+            tracing::info!("=G> {}", tg);
             tg
         }
         Err(e) => panic!("type checking error: {:?}", e),
@@ -120,25 +137,34 @@ fn main() {
     let mut modul = bytecode::Module {
         bbs: vec![bytecode::BasicBlock::default()],
         tg,
+        interner: Default::default(),
     };
 
     {
         // std
         use bytecode::{Builtin as Bi, VmInstr as Vi};
         modul.push_instr(Vi::Builtin(Bi::StdioWrite));
-        modul.push_instr(Vi::BuildRecord(
-            ["write"].into_iter().map(|i| i.to_string()).collect(),
-        ));
-        modul.push_instr(Vi::Builtin(Bi::Not));
-        modul.push_instr(Vi::Builtin(Bi::Leq));
-        modul.push_instr(Vi::Builtin(Bi::Minus));
-        modul.push_instr(Vi::Builtin(Bi::Add));
-        modul.push_instr(Vi::BuildRecord(
-            ["add", "minus", "leq", "not", "stdio"]
-                .into_iter()
-                .map(|i| i.to_string())
-                .collect(),
-        ));
+        let s_write = modul.interner.get_or_intern("write");
+        modul.push_instr(Vi::BuildRecord(vec![s_write]));
+        let mut record = Vec::new();
+        for (blti, name) in [
+            (Bi::Add, "add"),
+            (Bi::Minus, "minus"),
+            (Bi::Mult, "mult"),
+            (Bi::Eq, "eq"),
+            (Bi::Leq, "leq"),
+            (Bi::Not, "not"),
+        ] {
+            modul.push_instr(Vi::Builtin(blti));
+            record.push(name);
+        }
+        let brcrdat = record
+            .into_iter()
+            .rev()
+            .chain(core::iter::once("stdio"))
+            .map(|i| modul.interner.get_or_intern(i))
+            .collect();
+        modul.push_instr(Vi::BuildRecord(brcrdat));
     }
 
     bytecode::CodeGen::ser_to_bytecode(
@@ -150,8 +176,18 @@ fn main() {
         }),
     );
 
-    println!(
-        "bytecode:\n{}",
-        serde_yaml::to_string(&modul.bbs).expect("unable to serialize bytecode")
-    );
+    core::mem::drop(parsed);
+
+    if args.print_bytecode {
+        println!(
+            "bytecode:\n{}",
+            serde_yaml::to_string(&modul).expect("unable to serialize bytecode")
+        );
+    }
+
+    if args.mode == Mode::Check {
+        return;
+    }
+
+    println!("result: {:?}", interp::VmState::new(&modul).run());
 }

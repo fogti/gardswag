@@ -1,11 +1,13 @@
 use gardswag_syntax::{Block as SynBlock, ExprKind, Offsetted};
 use serde::{Deserialize, Serialize};
-use tracing::debug;
+use string_interner::{symbol::SymbolU32 as Symbol, StringInterner};
+use tracing::trace;
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Module {
     pub bbs: Vec<BasicBlock>,
     pub tg: gardswag_typesys::Scheme,
+    pub interner: StringInterner,
 }
 
 impl Module {
@@ -40,12 +42,17 @@ pub struct BasicBlock {
     // if the top value evaluates to false
     pub condf_jump: Option<usize>,
 
+    // if true: (invoke)
+    //   takes the top-level stack element (argument) and the previous stack element (closure)
+    //   and produces the return value
+    pub invoke: bool,
+
     // if set, and no conditional jump happened,
     // the execution will continue at the specified block index
     pub jump: JumpDst,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum LiteralExpr {
     Unit,
     Boolean(bool),
@@ -56,13 +63,25 @@ pub enum LiteralExpr {
     Lambda(usize),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub enum Builtin {
     Add,
     Minus,
+    Mult,
+    Eq,
     Leq,
     Not,
     StdioWrite,
+}
+
+impl Builtin {
+    #[inline]
+    pub fn argc(&self) -> u8 {
+        match self {
+            Self::Add | Self::Minus | Self::Mult | Self::Eq | Self::Leq => 2,
+            Self::Not | Self::StdioWrite => 1,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -85,17 +104,11 @@ pub enum VmInstr {
     // swaps the two topmost elements on the stack
     Swap,
 
-    // Invoke :: arg -> closure -> closure@arg::return
-    //
-    // takes the top-level stack element (argument) and the previous stack element (closure)
-    // and produces the return value
-    Invoke,
-
     // Dot(elem) :: record -> record.$elem
     //
     // takes the top-level stack element (must be a record)
     // and pushes the subelement with name $elem.
-    Dot(String),
+    Dot(Symbol),
 
     // fixpoint operator, invokes the top-level stack element with itself.
     Fix,
@@ -107,7 +120,7 @@ pub enum VmInstr {
 
     // takes the top #$0 elements from the stack (first one = top-level)
     // and builds a record out of them, then pushes the record
-    BuildRecord(Vec<String>),
+    BuildRecord(Vec<Symbol>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -185,31 +198,31 @@ impl CodeGen for ExprKind {
                 then,
                 or_else,
             } => {
-                debug!("bb={}: if-cond {:?}", modul.bbs.len() - 1, cond);
+                trace!("bb={}: if-cond {:?}", modul.bbs.len() - 1, cond);
                 cond.ser_to_bytecode(modul, vstk);
                 let cond_bb = modul.bbs.len() - 1;
-                debug!("bb={}: if-cond /end", cond_bb);
+                trace!("bb={}: if-cond /end", cond_bb);
                 modul.bbs.last_mut().unwrap().jump = JumpDst::Continue(modul.bbs.len());
 
-                debug!("bb={}: if-then", modul.bbs.len());
+                trace!("bb={}: if-then", modul.bbs.len());
                 modul.bbs.push(Default::default());
                 then.ser_to_bytecode(modul, vstk);
                 let next_bb = modul.bbs.len();
                 let then_bb = next_bb - 1;
                 modul.bbs[cond_bb].condf_jump = Some(next_bb);
 
-                debug!("bb={}: if-else", modul.bbs.len());
+                trace!("bb={}: if-else", modul.bbs.len());
                 modul.bbs.push(Default::default());
                 or_else.ser_to_bytecode(modul, vstk);
                 let next_bb = JumpDst::Continue(modul.bbs.len());
                 modul.bbs.last_mut().unwrap().jump = next_bb;
                 modul.bbs[then_bb].jump = next_bb;
                 modul.bbs.push(Default::default());
-                debug!("bb={}: endif", modul.bbs.len());
+                trace!("bb={}: endif", modul.bbs.len());
             }
             Ek::Lambda { arg, body } => {
                 let orig_bb = modul.bbs.len() - 1;
-                debug!("bb={} lambda", modul.bbs.len());
+                trace!("bb={} lambda", modul.bbs.len());
                 modul.push_instr(VmInstr::Push(LiteralExpr::Lambda(orig_bb + 1)));
                 modul.bbs.push(Default::default());
                 body.ser_to_bytecode(
@@ -224,7 +237,7 @@ impl CodeGen for ExprKind {
                 modul.bbs.last_mut().unwrap().jump = JumpDst::Return;
                 let next_bb = JumpDst::Continue(modul.bbs.len());
                 modul.bbs[orig_bb].jump = next_bb;
-                debug!("bb={} lambda end", modul.bbs.len());
+                trace!("bb={} lambda end", modul.bbs.len());
                 modul.bbs.push(Default::default());
             }
             Ek::Call { prim, args } => {
@@ -232,16 +245,29 @@ impl CodeGen for ExprKind {
                 let arg = args2.pop().unwrap();
                 prim.ser_to_bytecode(modul, vstk);
                 arg.ser_to_bytecode(modul, vstk);
-                modul.push_instr(VmInstr::Invoke);
+                {
+                    let bbscnt = modul.bbs.len();
+                    let mut lbb = modul.bbs.last_mut().unwrap();
+                    lbb.invoke = true;
+                    lbb.jump = JumpDst::Continue(bbscnt);
+                }
+                modul.bbs.push(Default::default());
 
                 while let Some(arg) = args2.pop() {
                     arg.ser_to_bytecode(modul, vstk);
-                    modul.push_instr(VmInstr::Invoke);
+                    {
+                        let bbscnt = modul.bbs.len();
+                        let mut lbb = modul.bbs.last_mut().unwrap();
+                        lbb.invoke = true;
+                        lbb.jump = JumpDst::Continue(bbscnt);
+                    }
+                    modul.bbs.push(Default::default());
                 }
             }
             Ek::Dot { prim, key } => {
                 prim.ser_to_bytecode(modul, vstk);
-                modul.push_instr(VmInstr::Dot(key.inner.clone()));
+                let s_key = modul.interner.get_or_intern(&key.inner);
+                modul.push_instr(VmInstr::Dot(s_key));
             }
             Ek::Fix(e) => {
                 e.ser_to_bytecode(modul, vstk);
@@ -256,10 +282,11 @@ impl CodeGen for ExprKind {
             }
             Ek::Record(rcm) => {
                 let mut rcks = Vec::new();
-                for (k, v) in rcm.iter().rev() {
+                for (k, v) in rcm.iter() {
                     v.ser_to_bytecode(modul, vstk);
-                    rcks.push(k.clone());
+                    rcks.push(modul.interner.get_or_intern(k));
                 }
+                rcks = rcks.into_iter().rev().collect();
                 modul.push_instr(VmInstr::BuildRecord(rcks));
             }
             Ek::Identifier(id) => {

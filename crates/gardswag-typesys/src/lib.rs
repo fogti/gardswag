@@ -51,7 +51,7 @@ impl fmt::Display for Ty {
                     write!(f, "{}", a)
                 }?;
                 write!(f, " -> {}", b)
-            },
+            }
             Ty::Record(m) => write!(f, "{:?}", m),
         }
     }
@@ -63,7 +63,7 @@ impl fmt::Debug for Ty {
     }
 }
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug, Eq, Deserialize, Serialize)]
 pub struct Scheme {
     pub forall: HashMap<TyVar, TyConstraintGroup>,
     pub t: Ty,
