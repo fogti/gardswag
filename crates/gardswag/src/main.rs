@@ -109,7 +109,7 @@ fn main() {
             for (k, v) in &ctx.g {
                 println!("\t${}:\t{:?}", k, v);
             }
-            println!("=G> {:?}", tg);
+            println!("=G> {}", tg);
             tg
         }
         Err(e) => panic!("type checking error: {:?}", e),

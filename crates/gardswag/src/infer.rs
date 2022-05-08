@@ -228,7 +228,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
 }
 
 pub fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
-    tracing::debug!("infer {:?}", expr);
+    tracing::trace!("infer {:?}", expr);
     let res = infer_inner(env, ctx, expr);
     tracing::debug!("infer {:?} -> {:?}", expr, res);
     res

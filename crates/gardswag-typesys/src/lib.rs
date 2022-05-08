@@ -28,7 +28,7 @@ impl fmt::Display for TyLit {
 
 pub type TyVar = usize;
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Ty {
     Literal(TyLit),
 
@@ -44,9 +44,22 @@ impl fmt::Display for Ty {
         match self {
             Ty::Literal(lit) => write!(f, "{}", lit),
             Ty::Var(v) => write!(f, "${:?}", v),
-            Ty::Arrow(a, b) => write!(f, "({}) -> {}", a, b),
+            Ty::Arrow(a, b) => {
+                if matches!(**a, Ty::Arrow(..)) {
+                    write!(f, "({})", a)
+                } else {
+                    write!(f, "{}", a)
+                }?;
+                write!(f, " -> {}", b)
+            },
             Ty::Record(m) => write!(f, "{:?}", m),
         }
+    }
+}
+
+impl fmt::Debug for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Ty{{{}}}", self)
     }
 }
 
@@ -67,6 +80,12 @@ impl cmp::PartialEq for Scheme {
             let mut ctx = Context::default();
             ctx.unify(&self.t, &oth.t).is_ok()
         }
+    }
+}
+
+impl fmt::Display for Scheme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<{:?}>({})", self.forall, self.t)
     }
 }
 
@@ -223,7 +242,7 @@ pub enum UnifyError {
 
 impl constraint::Context {
     pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
-        tracing::debug!("unify a={:?}, b={:?} ctx={:?}", a, b, self);
+        tracing::trace!("unify a={{{}}}, b={{{}}} ctx={:?}", a, b, self);
         match (a, b) {
             (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
                 self.unify(l1, l2)?;
