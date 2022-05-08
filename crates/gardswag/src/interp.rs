@@ -71,9 +71,6 @@ impl VmState<'_> {
                             x
                         ),
                     },
-                    VmInstr::Fix => {
-                        todo!()
-                    }
                     VmInstr::StringAppend => {
                         use LiteralExpr as LitEx;
                         let b = match self.stack.pop().unwrap() {

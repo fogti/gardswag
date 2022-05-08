@@ -110,9 +110,6 @@ pub enum VmInstr {
     // and pushes the subelement with name $elem.
     Dot(Symbol),
 
-    // fixpoint operator, invokes the top-level stack element with itself.
-    Fix,
-
     // takes and converts the top-level element to a string,
     // then takes the next element, and appends the top-level element to it,
     // the pushes the result.
@@ -271,7 +268,16 @@ impl CodeGen for ExprKind {
             }
             Ek::Fix(e) => {
                 e.ser_to_bytecode(modul, vstk);
-                modul.push_instr(VmInstr::Fix);
+                // this duplicates the top-level stack element
+                modul.push_instr(VmInstr::Lift(0));
+                // which then gets invoked with itself as argument
+                {
+                    let bbscnt = modul.bbs.len();
+                    let mut lbb = modul.bbs.last_mut().unwrap();
+                    lbb.invoke = true;
+                    lbb.jump = JumpDst::Continue(bbscnt);
+                }
+                modul.bbs.push(Default::default());
             }
             Ek::FormatString(fmts) => {
                 modul.push_instr(VmInstr::Push(LiteralExpr::PureString(String::new())));
