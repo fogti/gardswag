@@ -63,6 +63,8 @@ pub fn run_block<'a>(blk: &'a Block, stack: &mut Vec<(String, Value<'a>)>) {
 }
 
 pub fn run<'a>(expr: &'a Expr, stack: &mut Vec<(String, Value<'a>)>) {
+    tracing::trace!("expr={:?}", expr);
+    tracing::trace!("stack={:?}", stack);
     let orig_stklen = stack.len();
     use gardswag_syntax::ExprKind as Ek;
     match &expr.inner {
@@ -71,7 +73,7 @@ pub fn run<'a>(expr: &'a Expr, stack: &mut Vec<(String, Value<'a>)>) {
             stack.last_mut().unwrap().0 = lhs.inner.clone();
             run_block(rest, stack);
             let got_it_back = stack.pop().unwrap();
-            assert_eq!(lhs.inner, got_it_back.0);
+            //assert_eq!(lhs.inner, got_it_back.0);
         }
         Ek::Assign { lhs, rhs } => {
             run(rhs, stack);
@@ -117,12 +119,13 @@ pub fn run<'a>(expr: &'a Expr, stack: &mut Vec<(String, Value<'a>)>) {
             run(arg, stack);
             run(prim, stack);
             match stack.pop().unwrap().1 {
-                Value::Builtin { f, mut args } if f.argc() < (args.len() + 1) => {
+                Value::Builtin { f, mut args } if f.argc() > (args.len() + 1) => {
                     args.push(stack.pop().unwrap().1);
                     stack.push((String::new(), Value::Builtin { f, args }));
                 }
                 Value::Builtin { f, mut args } => {
                     args.push(stack.pop().unwrap().1);
+                    assert_eq!(f.argc(), args.len());
                     use Builtin as Bi;
                     match f {
                         Bi::Plus => {
@@ -195,7 +198,7 @@ pub fn run<'a>(expr: &'a Expr, stack: &mut Vec<(String, Value<'a>)>) {
                     f,
                     stacksave,
                 } => {
-                    let old_stackpos = stack.len();
+                    let old_stackpos = stack.len() - 1;
                     stack.last_mut().unwrap().0 = argname.to_string();
                     stack.extend(stacksave);
                     run(f, stack);
@@ -233,8 +236,8 @@ pub fn run<'a>(expr: &'a Expr, stack: &mut Vec<(String, Value<'a>)>) {
                     let argname = argname.to_string();
                     let stacksave = stacksave.clone();
                     let f = *f;
+                    let old_stackpos = stack.len() - 1;
                     stack.push((argname, top));
-                    let old_stackpos = stack.len();
                     stack.extend(stacksave);
                     run(f, stack);
                     let ret = stack.pop().unwrap();
@@ -281,5 +284,7 @@ pub fn run<'a>(expr: &'a Expr, stack: &mut Vec<(String, Value<'a>)>) {
         Ek::Integer(i) => stack.push((String::new(), Value::Integer(*i))),
         Ek::PureString(s) => stack.push((String::new(), Value::PureString(s.clone()))),
     }
+    tracing::trace!("/expr={:?}", expr);
+    tracing::trace!("/stack={:?}", stack);
     assert_eq!(orig_stklen + 1, stack.len());
 }
