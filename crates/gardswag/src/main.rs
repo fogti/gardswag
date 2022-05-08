@@ -148,7 +148,7 @@ fn main() {
         modul.push_instr(Vi::BuildRecord(vec![s_write]));
         let mut record = Vec::new();
         for (blti, name) in [
-            (Bi::Add, "add"),
+            (Bi::Plus, "plus"),
             (Bi::Minus, "minus"),
             (Bi::Mult, "mult"),
             (Bi::Eq, "eq"),

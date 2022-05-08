@@ -58,14 +58,11 @@ pub enum LiteralExpr {
     Boolean(bool),
     Integer(i32),
     PureString(String),
-
-    // desginates the basic block which contains the lambda
-    Lambda(usize),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub enum Builtin {
-    Add,
+    Plus,
     Minus,
     Mult,
     Eq,
@@ -78,7 +75,7 @@ impl Builtin {
     #[inline]
     pub fn argc(&self) -> u8 {
         match self {
-            Self::Add | Self::Minus | Self::Mult | Self::Eq | Self::Leq => 2,
+            Self::Plus | Self::Minus | Self::Mult | Self::Eq | Self::Leq => 2,
             Self::Not | Self::StdioWrite => 1,
         }
     }
@@ -94,6 +91,9 @@ pub enum VmInstr {
 
     // pushes a builtin closure onto the stack
     Builtin(Builtin),
+
+    // pushes a lambda bb reference onto the stack
+    Lambda(usize),
 
     // takes the top-level stack element and assigns it to the stack element at -$0
     Assign(usize),
@@ -220,7 +220,7 @@ impl CodeGen for ExprKind {
             Ek::Lambda { arg, body } => {
                 let orig_bb = modul.bbs.len() - 1;
                 trace!("bb={} lambda", modul.bbs.len());
-                modul.push_instr(VmInstr::Push(LiteralExpr::Lambda(orig_bb + 1)));
+                modul.push_instr(VmInstr::Lambda(orig_bb + 1));
                 modul.bbs.push(Default::default());
                 body.ser_to_bytecode(
                     modul,

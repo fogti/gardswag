@@ -9,6 +9,7 @@ pub enum Value {
     Record(BTreeMap<Symbol, Value>),
 
     Builtin { f: Builtin, args: Vec<Value> },
+    Lambda { f: usize, stacksave: Vec<Value> },
 }
 
 impl fmt::Debug for Value {
@@ -17,6 +18,9 @@ impl fmt::Debug for Value {
             Value::Literal(lit) => write!(f, "{:?}", lit),
             Value::Builtin { f: blti, args } => {
                 write!(f, "Builtin::{:?}{:?}", blti, args)
+            }
+            Value::Lambda { f: bb, stacksave } => {
+                write!(f, "Lambda@{}(saved stack ={:?})", bb, stacksave)
             }
             Value::Record(rcm) => f
                 .debug_map()
@@ -43,13 +47,22 @@ impl<'a> VmState<'a> {
     }
 }
 
+#[derive(Debug)]
+struct BbsItem {
+    nextbb: usize,
+    killstackspan: core::ops::Range<usize>,
+}
+
 impl VmState<'_> {
     pub fn run(&mut self) -> Option<Value> {
-        let mut bbstk = vec![0];
+        let mut bbstk = vec![BbsItem {
+            nextbb: 0,
+            killstackspan: 0..0,
+        }];
         while let Some(curbb) = bbstk.pop() {
-            tracing::debug!(%curbb, ?bbstk, "BB stack");
+            tracing::debug!(?curbb, ?bbstk, "BB stack");
             tracing::trace!("with value stack: {:?}", self.stack);
-            let bbr = self.modul.bbs.get(curbb).unwrap();
+            let bbr = self.modul.bbs.get(curbb.nextbb).unwrap();
 
             use crate::bytecode::JumpDst;
 
@@ -66,6 +79,14 @@ impl VmState<'_> {
                         self.stack.push(Value::Builtin {
                             f: *f,
                             args: Vec::new(),
+                        });
+                    }
+                    VmInstr::Lambda(lambb) => {
+                        // TODO: this is too expensive -> try HVM-dup instead
+                        let stacksave = self.stack.clone();
+                        self.stack.push(Value::Lambda {
+                            f: *lambb,
+                            stacksave,
                         });
                     }
                     VmInstr::Assign(up) => {
@@ -126,20 +147,30 @@ impl VmState<'_> {
                     y => panic!("`if` called with invalid condition {:?}", y),
                 };
                 if condres {
-                    *bbstk.last_mut().unwrap() = x;
+                    bbstk.push(BbsItem {
+                        nextbb: x,
+                        killstackspan: curbb.killstackspan,
+                    });
                     continue;
                 }
             }
             match bbr.jump {
                 JumpDst::Halt => {
+                    self.stack.drain(curbb.killstackspan);
                     bbstk.clear();
                 }
-                JumpDst::Return => {}
-                JumpDst::Continue(nxbb) => {
-                    bbstk.push(nxbb);
+                JumpDst::Return => {
+                    self.stack.drain(curbb.killstackspan);
+                }
+                JumpDst::Continue(nextbb) => {
+                    bbstk.push(BbsItem {
+                        nextbb,
+                        killstackspan: curbb.killstackspan,
+                    });
                 }
             }
             if bbr.invoke {
+                tracing::trace!("run invoke on stack={:?}", self.stack);
                 let arg = self.stack.pop().unwrap();
                 match self.stack.pop().unwrap() {
                     Value::Builtin { f, mut args } => {
@@ -153,14 +184,14 @@ impl VmState<'_> {
                             let mut args = args.into_iter();
                             use LiteralExpr as LitEx;
                             match f {
-                                Builtin::Add => {
+                                Builtin::Plus => {
                                     match (args.next().unwrap(), args.next().unwrap()) {
                                         (
                                             Value::Literal(LitEx::Integer(a)),
                                             Value::Literal(LitEx::Integer(b)),
                                         ) => Value::Literal(LitEx::Integer(a + b)),
                                         (a, b) => panic!(
-                                            "std.add called with invalid args [{:?}, {:?}]",
+                                            "std.plus called with invalid args [{:?}, {:?}]",
                                             a, b
                                         ),
                                     }
@@ -222,9 +253,15 @@ impl VmState<'_> {
                             }
                         });
                     }
-                    Value::Literal(LiteralExpr::Lambda(nxbb)) => {
+                    Value::Lambda { f, stacksave } => {
+                        let orig_stkl = self.stack.len();
+                        self.stack.extend(stacksave);
+                        let after_stksave = self.stack.len();
                         self.stack.push(arg);
-                        bbstk.push(nxbb);
+                        bbstk.push(BbsItem {
+                            nextbb: f,
+                            killstackspan: orig_stkl..after_stksave,
+                        });
                     }
                     val => panic!(
                         "called non-callable {{{:?}}} with invalid arg {{{:?}}}",
