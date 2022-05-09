@@ -23,9 +23,6 @@ struct Args {
     /// specify the mode
     #[clap(arg_enum, short = 'm', long)]
     mode: Mode,
-
-    #[clap(long)]
-    print_bytecode: bool,
 }
 
 fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
@@ -89,14 +86,7 @@ fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
     }
 }
 
-fn main() {
-    let args = <Args as clap::Parser>::parse();
-
-    let dat = std::fs::read(&args.file).expect("unable to read file");
-    let dat = String::from_utf8(dat).expect("file doesn't contain UTF-8 text");
-
-    tracing_subscriber::fmt::init();
-
+fn main_check(dat: &str) -> (gardswag_syntax::Block, gardswag_typesys::Scheme) {
     let parsed = gardswag_syntax::parse(&dat).expect("unable to parse file");
 
     let mut ctx = gardswag_typesys::Context::default();
@@ -107,7 +97,7 @@ fn main() {
             .collect(),
     };
 
-    let _ = match infer::infer_block(&env, &mut ctx, &parsed) {
+    match infer::infer_block(&env, &mut ctx, &parsed) {
         Ok(t) => {
             use gardswag_typesys::Substitutable as _;
             debug!("type check ok");
@@ -126,17 +116,13 @@ fn main() {
                 debug!("\t${}:\t{:?}", k, v);
             }
             tracing::info!("=G> {}", tg);
-            tg
+            (parsed, tg)
         }
         Err(e) => panic!("type checking error: {:?}", e),
-    };
-
-    core::mem::drop(env);
-
-    if args.mode == Mode::Check {
-        return;
     }
+}
 
+fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
     use interp::{Builtin as Bi, Value as Val};
 
     let stack = gardswag_varstack::VarStack {
@@ -166,7 +152,84 @@ fn main() {
         ),
     };
 
-    interp::run_block(&parsed, &stack);
+    interp::run_block(&parsed, &stack)
+}
 
-    println!("result: {:?}", stack);
+fn main() {
+    let args = <Args as clap::Parser>::parse();
+
+    let dat = std::fs::read(&args.file).expect("unable to read file");
+    let dat = String::from_utf8(dat).expect("file doesn't contain UTF-8 text");
+
+    tracing_subscriber::fmt::init();
+
+    let (parsed, _) = main_check(&dat);
+
+    if args.mode == Mode::Check {
+        return;
+    }
+
+    let result = main_interp(&parsed);
+    println!("result: {:?}", result);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chk_hello() {
+        insta::assert_yaml_snapshot!(main_check(
+            r#"std.stdio.write("Hello world!\n");"#
+        ));
+    }
+
+    #[test]
+    fn chk_fibo() {
+        insta::assert_yaml_snapshot!(main_check(
+            r#"
+                let rec fib = \x \y \n {
+                  (* seq: [..., x, y] ++ [z] *)
+                  let z = std.plus x y;
+                  if (std.leq n 0)
+                    { z }
+                    { fib y z (std.minus n 1) }
+                };
+                fib
+            "#
+        ));
+    }
+
+    #[test]
+    fn run_fibo() {
+        let x = main_check(
+            r#"
+                let rec fib = \x \y \n {
+                  (* seq: [..., x, y] ++ [z] *)
+                  let z = std.plus x y;
+                  if (std.leq n 0)
+                    { z }
+                    { fib y z (std.minus n 1) }
+                };
+                fib 1 1 5
+            "#
+        );
+        insta::assert_yaml_snapshot!(x);
+        insta::assert_yaml_snapshot!(main_interp(&x.0));
+    }
+
+    #[test]
+    fn chk_implicit_restr() {
+        insta::assert_yaml_snapshot!(main_check(
+            r#"
+                \x
+                let id = \y y;
+                .{
+                  id;
+                  x;
+                  y = "{x}";
+                }
+            "#
+        ));
+    }
 }

@@ -1,8 +1,9 @@
 use gardswag_syntax::{Block, Expr};
 use gardswag_varstack::VarStack;
+use serde::Serialize;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub enum Builtin {
     Plus,
     Minus,
@@ -22,7 +23,7 @@ impl Builtin {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub enum Value<'a> {
     Unit,
     Boolean(bool),

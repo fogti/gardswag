@@ -1,0 +1,41 @@
+---
+source: crates/gardswag/src/main.rs
+assertion_line: 182
+expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#)"
+---
+- stmts:
+    - offset: 9
+      inner:
+        Call:
+          prim:
+            offset: 9
+            inner:
+              Dot:
+                prim:
+                  offset: 3
+                  inner:
+                    Dot:
+                      prim:
+                        offset: 0
+                        inner:
+                          Identifier:
+                            offset: 0
+                            inner: std
+                      key:
+                        offset: 4
+                        inner: stdio
+                key:
+                  offset: 10
+                  inner: write
+          arg:
+            offset: 16
+            inner:
+              FormatString:
+                - offset: 17
+                  inner:
+                    PureString: "Hello world!\n"
+  term: ~
+- forall: {}
+  t:
+    Literal: Unit
+

@@ -1,0 +1,88 @@
+---
+source: crates/gardswag/src/main.rs
+assertion_line: 205
+expression: "main_check(r#\"\n                \\x\n                let id = \\y y;\n                .{\n                  id;\n                  x;\n                  y = \"{x}\";\n                }\n            \"#)"
+---
+- stmts: []
+  term:
+    offset: 17
+    inner:
+      Lambda:
+        arg:
+          offset: 17
+          inner: x
+        body:
+          offset: 36
+          inner:
+            Let:
+              lhs:
+                offset: 40
+                inner: id
+              rhs:
+                offset: 45
+                inner:
+                  Lambda:
+                    arg:
+                      offset: 45
+                      inner: y
+                    body:
+                      offset: 48
+                      inner:
+                        Identifier:
+                          offset: 48
+                          inner: y
+              rest:
+                stmts: []
+                term:
+                  offset: 67
+                  inner:
+                    Record:
+                      id:
+                        offset: 88
+                        inner:
+                          Identifier:
+                            offset: 88
+                            inner: id
+                      x:
+                        offset: 110
+                        inner:
+                          Identifier:
+                            offset: 110
+                            inner: x
+                      y:
+                        offset: 135
+                        inner:
+                          FormatString:
+                            - offset: 136
+                              inner:
+                                Block:
+                                  stmts: []
+                                  term:
+                                    offset: 137
+                                    inner:
+                                      Identifier:
+                                        offset: 137
+                                        inner: x
+- forall:
+    4:
+      Constraints:
+        - OneOf:
+            - Literal: Unit
+            - Literal: Bool
+            - Literal: Int
+            - Literal: String
+    6:
+      Constraints: []
+  t:
+    Arrow:
+      - Var: 4
+      - Record:
+          id:
+            Arrow:
+              - Var: 6
+              - Var: 6
+          x:
+            Var: 4
+          y:
+            Literal: String
+

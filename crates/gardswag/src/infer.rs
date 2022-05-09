@@ -1,6 +1,6 @@
 use gardswag_syntax as synt;
 use gardswag_typesys as tysy;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, BTreeMap, HashMap};
 
 use tysy::{Context, Substitutable as _, Ty, TyLit, TyVar};
 
@@ -182,7 +182,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
         }
 
         Ek::Record(rcd) => {
-            let mut m = HashMap::default();
+            let mut m = BTreeMap::default();
             let mut env = env.clone();
             for (k, v) in rcd {
                 env.update(ctx);

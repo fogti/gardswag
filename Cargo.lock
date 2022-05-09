@@ -321,6 +321,7 @@ dependencies = [
  "gardswag-syntax",
  "gardswag-typesys",
  "gardswag-varstack",
+ "insta",
  "serde",
  "serde_yaml",
  "string-interner",

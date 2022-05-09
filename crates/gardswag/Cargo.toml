@@ -21,3 +21,6 @@ features = ["derive"]
 [dependencies.string-interner]
 version = "0.14"
 path = "../string-interner"
+
+[dev-dependencies]
+insta = "1.14"

@@ -36,7 +36,7 @@ pub enum Ty {
 
     Arrow(Box<Ty>, Box<Ty>),
 
-    Record(HashMap<String, Ty>),
+    Record(BTreeMap<String, Ty>),
 }
 
 impl fmt::Display for Ty {
@@ -65,7 +65,7 @@ impl fmt::Debug for Ty {
 
 #[derive(Clone, Debug, Eq, Deserialize, Serialize)]
 pub struct Scheme {
-    pub forall: HashMap<TyVar, TyConstraintGroup>,
+    pub forall: BTreeMap<TyVar, TyConstraintGroup>,
     pub t: Ty,
 }
 
