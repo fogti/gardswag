@@ -41,6 +41,10 @@ pub enum Value<'a> {
         f: &'a Expr,
         stacksave: BTreeMap<String, Value<'a>>,
     },
+    FixLambda {
+        argname: &'a str,
+        f: &'a Expr,
+    },
 }
 
 impl From<Builtin> for Value<'static> {
@@ -135,35 +139,35 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 Value::Builtin { f, mut args } => {
                     args.push(v_arg);
                     if f.argc() > args.len() {
-                    Value::Builtin { f, args }
+                        Value::Builtin { f, args }
                     } else {
-                    assert_eq!(f.argc(), args.len());
-                    use Builtin as Bi;
-                    match f {
-                        Bi::Plus => match (args.get(0).unwrap(), args.get(1).unwrap()) {
-                            (Value::Integer(a), Value::Integer(b)) => Value::Integer(*a + *b),
-                            _ => panic!("std.plus called with {:?}", args),
-                        },
-                        Bi::Minus => match (args.get(0).unwrap(), args.get(1).unwrap()) {
-                            (Value::Integer(a), Value::Integer(b)) => Value::Integer(*a - *b),
-                            _ => panic!("std.minus called with {:?}", args),
-                        },
-                        Bi::Mult => match (args.get(0).unwrap(), args.get(1).unwrap()) {
-                            (Value::Integer(a), Value::Integer(b)) => Value::Integer(*a * *b),
-                            _ => panic!("std.minus called with {:?}", args),
-                        },
-                        Bi::Leq => match (args.get(0).unwrap(), args.get(1).unwrap()) {
-                            (Value::Integer(a), Value::Integer(b)) => Value::Boolean(*a <= *b),
-                            _ => panic!("std.minus called with {:?}", args),
-                        },
-                        Bi::Eq => Value::Boolean(args.get(0) == args.get(1)),
-                        Bi::Not => match args.get(0).unwrap() {
-                            Value::Boolean(b) => Value::Boolean(!*b),
-                            a => panic!("std.not called with {:?}", a),
-                        },
-                        Bi::StdioWrite => {
-                            match args.get(0).unwrap() {
-                                Value::PureString(s) => print!("{}", s),
+                        assert_eq!(f.argc(), args.len());
+                        use Builtin as Bi;
+                        match f {
+                            Bi::Plus => match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                (Value::Integer(a), Value::Integer(b)) => Value::Integer(*a + *b),
+                                _ => panic!("std.plus called with {:?}", args),
+                            },
+                            Bi::Minus => match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                (Value::Integer(a), Value::Integer(b)) => Value::Integer(*a - *b),
+                                _ => panic!("std.minus called with {:?}", args),
+                            },
+                            Bi::Mult => match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                (Value::Integer(a), Value::Integer(b)) => Value::Integer(*a * *b),
+                                _ => panic!("std.minus called with {:?}", args),
+                            },
+                            Bi::Leq => match (args.get(0).unwrap(), args.get(1).unwrap()) {
+                                (Value::Integer(a), Value::Integer(b)) => Value::Boolean(*a <= *b),
+                                _ => panic!("std.minus called with {:?}", args),
+                            },
+                            Bi::Eq => Value::Boolean(args.get(0) == args.get(1)),
+                            Bi::Not => match args.get(0).unwrap() {
+                                Value::Boolean(b) => Value::Boolean(!*b),
+                                a => panic!("std.not called with {:?}", a),
+                            },
+                            Bi::StdioWrite => {
+                                match args.get(0).unwrap() {
+                                    Value::PureString(s) => print!("{}", s),
                                     x => panic!("std.stdio.write called with {:?}", x),
                                 }
                                 Value::Unit
@@ -193,31 +197,17 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 .expect("unable to find key in record"),
             x => panic!("called .{} on non-record {:?}", key.inner, x),
         },
-        Ek::Fix(expr) => {
-            run(expr, stack);
-            let top = run(expr, stack);
-            match &top {
-                Value::Lambda {
-                    argname,
-                    f,
-                    stacksave,
-                } => {
-                    let argname = argname.to_string();
-                    let stacksave = stacksave.clone();
-                    let f = *f;
-                    run_stacksave(
-                        f,
-                        &VarStack {
-                            parent: Some(stack),
-                            name: &argname,
-                            value: top,
-                        },
-                        stacksave.into_iter(),
-                    )
-                }
-                f => panic!("called non-callable {:?} with itself as argument", f),
-            }
-        }
+        Ek::Fix { arg, body } => run(
+            body,
+            &VarStack {
+                parent: Some(stack),
+                name: &arg.inner,
+                value: Value::FixLambda {
+                    argname: &arg.inner,
+                    f: body,
+                },
+            },
+        ),
         Ek::FormatString(fsts) => {
             let mut r = String::new();
             for i in fsts {
@@ -238,11 +228,30 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
             }
             Value::Record(rcd)
         }
-        Ek::Identifier(id) => stack.find(&id.inner).unwrap().clone(),
+        Ek::Identifier(id) => {
+            let r = stack.find(&id.inner).unwrap().clone();
+            if let Value::FixLambda { argname, f } = r {
+                run(
+                    f,
+                    &VarStack {
+                        parent: Some(stack),
+                        name: argname,
+                        value: Value::FixLambda { argname, f },
+                    },
+                )
+            } else {
+                r
+            }
+        }
         Ek::Boolean(b) => Value::Boolean(*b),
         Ek::Integer(i) => Value::Integer(*i),
         Ek::PureString(s) => Value::PureString(s.clone()),
     };
-    tracing::debug!("expr@{} : {} : res={:?}", expr.offset, expr.inner.typ(), res);
+    tracing::debug!(
+        "expr@{} : {} : res={:?}",
+        expr.offset,
+        expr.inner.typ(),
+        res
+    );
     res
 }

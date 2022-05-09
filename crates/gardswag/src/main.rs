@@ -87,7 +87,7 @@ fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
 }
 
 fn main_check(dat: &str) -> (gardswag_syntax::Block, gardswag_typesys::Scheme) {
-    let parsed = gardswag_syntax::parse(&dat).expect("unable to parse file");
+    let parsed = gardswag_syntax::parse(dat).expect("unable to parse file");
 
     let mut ctx = gardswag_typesys::Context::default();
 
@@ -152,7 +152,7 @@ fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
         ),
     };
 
-    interp::run_block(&parsed, &stack)
+    interp::run_block(parsed, &stack)
 }
 
 fn main() {
@@ -214,7 +214,6 @@ mod tests {
         );
         insta::assert_yaml_snapshot!(main_interp(&x.0));
     }
-
 
     #[test]
     fn run_fibo1() {

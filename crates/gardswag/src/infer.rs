@@ -121,6 +121,25 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             Ok(Ty::Arrow(Box::new(tv), Box::new(x)))
         }
 
+        Ek::Fix { arg, body } => {
+            let mut env2 = env.clone();
+            let mut tv = ctx.fresh_tyvar();
+            if !arg.inner.is_empty() {
+                env2.vars.insert(
+                    arg.inner.clone(),
+                    tysy::Scheme {
+                        forall: Default::default(),
+                        t: tv.clone(),
+                    },
+                );
+            }
+            let x = infer(&env2, ctx, body)?;
+            // unify {$tv -> x} & {$tv -> $tv}, inlined
+            ctx.unify(&x, &tv)?;
+            tv.apply(ctx);
+            Ok(tv)
+        }
+
         Ek::Call { prim, arg } => {
             let mut t_prim = infer(env, ctx, prim)?;
             let mut env2 = env.clone();
@@ -150,14 +169,6 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             ctx.unify(&t, &tvinp)?;
             tvout.apply(ctx);
             Ok(tvout)
-        }
-
-        Ek::Fix(body) => {
-            let t = infer(env, ctx, body)?;
-            let mut tv = ctx.fresh_tyvar();
-            ctx.unify(&t, &Ty::Arrow(Box::new(tv.clone()), Box::new(tv.clone())))?;
-            tv.apply(ctx);
-            Ok(tv)
         }
 
         Ek::FormatString(fsexs) => {

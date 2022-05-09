@@ -84,8 +84,12 @@ pub enum ExprKind {
         prim: Box<Expr>,
         key: Identifier,
     },
+
     // fixpoint operator
-    Fix(Box<Expr>),
+    Fix {
+        arg: Identifier,
+        body: Box<Expr>,
+    },
 
     FormatString(Vec<Expr>),
     Record(BTreeMap<String, Expr>),
@@ -105,7 +109,7 @@ impl ExprKind {
             Self::Lambda { .. } => "lambda",
             Self::Call { .. } => "call",
             Self::Dot { .. } => "dot",
-            Self::Fix(_) => "fix",
+            Self::Fix { .. } => "fix",
             Self::FormatString(_) => "fmtstr",
             Self::Record(_) => "record",
             Self::Identifier(_) => "ident",
@@ -131,12 +135,13 @@ impl ExprKind {
                     || then.is_var_accessed(v)
                     || or_else.is_var_accessed(v)
             }
-            Self::Lambda { arg, body } => arg.inner != v && body.inner.is_var_accessed(v),
+            Self::Lambda { arg, body } | Self::Fix { arg, body } => {
+                arg.inner != v && body.inner.is_var_accessed(v)
+            }
             Self::Call { prim, arg } => {
                 prim.inner.is_var_accessed(v) || arg.inner.is_var_accessed(v)
             }
             Self::Dot { prim, .. } => prim.inner.is_var_accessed(v),
-            Self::Fix(body) => body.inner.is_var_accessed(v),
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
             Self::Record(rcd) => rcd.values().any(|i| i.inner.is_var_accessed(v)),
             Self::Identifier(id) => id.inner == v,
@@ -171,7 +176,7 @@ impl ExprKind {
                     && or_else.replace_var(v, rpm)
             }
 
-            Self::Lambda { arg, body } => {
+            Self::Lambda { arg, body } | Self::Fix { arg, body } => {
                 if arg.inner == v {
                     // variable shadowed
                     true
@@ -187,8 +192,6 @@ impl ExprKind {
             }
 
             Self::Dot { prim, .. } => prim.inner.replace_var(v, rpm),
-
-            Self::Fix(body) => body.inner.replace_var(v, rpm),
 
             Self::FormatString(exs) => exs.iter_mut().all(|i| i.inner.replace_var(v, rpm)),
 
@@ -360,13 +363,14 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 xtry!(parse_block(blk_offset, lxr))
             };
             if is_rec {
-                // desugar `let rec` to the standard library function `fix`
-                let offset = rhs.offset;
-                let mkexpr = |inner: ExprKind| Expr { offset, inner };
-                rhs = mkexpr(ExprKind::Fix(Box::new(mkexpr(ExprKind::Lambda {
-                    arg: lhs.clone(),
-                    body: Box::new(rhs),
-                }))));
+                // desugar `let rec` to `fix`
+                rhs = Expr {
+                    offset: rhs.offset,
+                    inner: ExprKind::Fix {
+                        arg: lhs.clone(),
+                        body: Box::new(rhs),
+                    },
+                };
             }
             Ok(ExprKind::Let {
                 lhs,
