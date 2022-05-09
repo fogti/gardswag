@@ -229,6 +229,27 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
             }
             Value::Record(rcd)
         }
+        Ek::Update { orig, ovrd } => {
+            let v_orig = run(orig, stack);
+            match run(ovrd, stack) {
+                Value::Record(mut rcd) => {
+                    match v_orig {
+                        Value::Record(rcd_pull) => {
+                            for (k, v) in rcd_pull.into_iter() {
+                                if let std::collections::btree_map::Entry::Vacant(vac) =
+                                    rcd.entry(k)
+                                {
+                                    vac.insert(v);
+                                }
+                            }
+                        }
+                        _ => panic!("invoked record update (lhs) on non-record {:?}", v_orig),
+                    }
+                    Value::Record(rcd)
+                }
+                v => panic!("invoked record update (rhs) on non-record {:?}", v),
+            }
+        }
         Ek::Identifier(id) => {
             let r = stack.find(&id.inner).unwrap().clone();
             if let Value::FixLambda { argname, f } = r {

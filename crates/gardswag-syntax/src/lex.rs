@@ -61,6 +61,7 @@ pub enum TokenKind {
     Dot,
     SemiColon,
     Pipe,
+    Update,
 
     LcBracket,
     RcBracket,
@@ -319,6 +320,14 @@ impl Iterator for Lexer<'_> {
                             if self.inp.starts_with('>') {
                                 self.consume(1);
                                 Ok(Tk::Pipe)
+                            } else {
+                                Err(ErrorKind::UnhandledChar(c))
+                            }
+                        }
+                        '/' => {
+                            if self.inp.starts_with('/') {
+                                self.consume(1);
+                                Ok(Tk::Update)
                             } else {
                                 Err(ErrorKind::UnhandledChar(c))
                             }

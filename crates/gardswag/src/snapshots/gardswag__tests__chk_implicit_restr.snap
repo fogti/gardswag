@@ -1,6 +1,6 @@
 ---
 source: crates/gardswag/src/main.rs
-assertion_line: 205
+assertion_line: 255
 expression: "main_check(r#\"\n                \\x\n                let id = \\y y;\n                .{\n                  id;\n                  x;\n                  y = \"{x}\";\n                }\n            \"#)"
 ---
 - stmts: []
@@ -65,14 +65,21 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                                         inner: x
 - forall:
     4:
-      Constraints:
-        - OneOf:
-            - Literal: Unit
-            - Literal: Bool
-            - Literal: Int
-            - Literal: String
+      ty: ~
+      oneof:
+        - Literal: Unit
+        - Literal: Bool
+        - Literal: Int
+        - Literal: String
+      partial_record: {}
+      listeners: []
+      record_update_info: ~
     6:
-      Constraints: []
+      ty: ~
+      oneof: []
+      partial_record: {}
+      listeners: []
+      record_update_info: ~
   t:
     Arrow:
       - Var: 4

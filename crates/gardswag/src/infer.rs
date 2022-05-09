@@ -154,13 +154,41 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             let mut tvout = ctx.fresh_tyvar();
             ctx.bind(
                 tvinp,
-                tysy::TyConstraintGroup::Constraints(vec![tysy::TyConstraint::PartialRecord {
-                    key: key.inner.to_string(),
-                    value: tvout.clone(),
-                }]),
+                tysy::TyConstraintGroup {
+                    partial_record: [(key.inner.to_string(), tvout.clone())]
+                        .into_iter()
+                        .collect(),
+                    ..Default::default()
+                },
             )?;
             let tvinp = Ty::Var(tvinp);
             ctx.unify(&t, &tvinp)?;
+            tvout.apply(&ctx.g, &ctx.m);
+            Ok(tvout)
+        }
+
+        Ek::Update { orig, ovrd } => {
+            let t_orig = infer(env, ctx, orig)?;
+            let t_ovrd = infer(env, ctx, ovrd)?;
+            let tvout = ctx.fresh_tyvars.next().unwrap();
+            let tvorig = ctx.fresh_tyvars.next().unwrap();
+            let tcg_listen = tysy::TyConstraintGroup {
+                listeners: [tvout].into_iter().collect(),
+                ..Default::default()
+            };
+            ctx.bind(tvorig, tcg_listen.clone())?;
+            let tvovrd = ctx.fresh_tyvars.next().unwrap();
+            ctx.bind(tvovrd, tcg_listen)?;
+            ctx.bind(
+                tvout,
+                tysy::TyConstraintGroup {
+                    record_update_info: Some((tvorig, tvovrd)),
+                    ..Default::default()
+                },
+            )?;
+            ctx.unify(&t_orig, &Ty::Var(tvorig))?;
+            ctx.unify(&t_ovrd, &Ty::Var(tvovrd))?;
+            let mut tvout = Ty::Var(tvout);
             tvout.apply(&ctx.g, &ctx.m);
             Ok(tvout)
         }
@@ -173,12 +201,13 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
                 let tv = ctx.fresh_tyvars.next().unwrap();
                 ctx.bind(
                     tv,
-                    tysy::TyConstraintGroup::Constraints(vec![tysy::TyConstraint::OneOf(
-                        [TyLit::Unit, TyLit::Bool, TyLit::Int, TyLit::String]
+                    tysy::TyConstraintGroup {
+                        oneof: [TyLit::Unit, TyLit::Bool, TyLit::Int, TyLit::String]
                             .into_iter()
                             .map(Ty::Literal)
                             .collect(),
-                    )]),
+                        ..Default::default()
+                    },
                 )
                 .unwrap();
                 ctx.unify(&t, &Ty::Var(tv))?;

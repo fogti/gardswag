@@ -1,6 +1,5 @@
-use crate::{Substitutable, TyVar, UnifyError};
+use crate::{Substitutable, Ty, TyVar, UnifyError};
 use core::fmt;
-use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -9,6 +8,7 @@ pub type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(transparent)]
+#[repr(transparent)]
 pub struct TyConstraintGroupId(usize);
 
 impl fmt::Debug for TyConstraintGroupId {
@@ -23,53 +23,93 @@ impl fmt::Display for TyConstraintGroupId {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[enum_dispatch(Substitutable)]
-pub enum TyConstraintGroup {
-    /// when not yet resolved, contains the list of constraints
-    Constraints(Vec<TyConstraint>),
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct TyConstraintGroup {
+    /// type hint, when this cg was already merged with a type,
+    /// might get unified with the next type
+    /// when resolved, this is the only field set
+    pub ty: Option<Ty>,
 
-    /// when resolved, contains the concrete type
-    Ty(crate::Ty),
+    /// set of possible concrete types
+    /// must not contain any type variables
+    pub oneof: Vec<Ty>,
+
+    /// type should be a record with specific fields
+    pub partial_record: BTreeMap<String, Ty>,
+
+    /// when this cg is updated, the specified tyvars get informed
+    /// (this is used to forward one-way type information)
+    pub listeners: BTreeSet<TyVar>,
+
+    /// the current type is the result of applying (orig // ovrd).
+    /// which means that the resulting type is a copy of ovrd,
+    /// plus any field present in orig but not in ovrd.
+    pub record_update_info: Option<(TyVar, TyVar)>,
 }
 
-impl Default for TyConstraintGroup {
-    #[inline]
-    fn default() -> Self {
-        Self::Constraints(vec![])
+use TyConstraintGroup as Tcg;
+
+impl Tcg {
+    /// checks if the TyCG is resolved, and returns the concrete type if yes
+    pub fn resolved(&self) -> Option<&Ty> {
+        let ret = self.ty.as_ref()?;
+        if self.oneof.is_empty()
+            && self.partial_record.is_empty()
+            && self.record_update_info.is_none()
+        {
+            Some(ret)
+        } else {
+            None
+        }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub enum TyConstraint {
-    /// set of concrete types
-    /// should most of the time not contain any type variables
-    OneOf(Vec<crate::Ty>),
-
-    /// record with specific field
-    PartialRecord { key: String, value: crate::Ty },
+pub(crate) fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
+    if let Some(&x) = m.get(&tv) {
+        // check if any tv with the same *x has a lower id
+        // and replace it with that
+        return *m.iter().find(|(_, &v)| v == x).unwrap().0;
+    }
+    tv
 }
 
-impl Substitutable for TyConstraint {
+impl Substitutable for Tcg {
     fn fv(&self) -> BTreeSet<TyVar> {
-        match self {
-            Self::OneOf(oo) => oo.fv(),
-            Self::PartialRecord { value, .. } => value.fv(),
-        }
+        self.ty
+            .as_ref()
+            .into_iter()
+            .chain(self.oneof.iter())
+            .chain(self.partial_record.values())
+            .flat_map(|i| i.fv())
+            .chain(self.listeners.iter().copied())
+            .chain(self.record_update_info.into_iter().flat_map(|(a, b)| {
+                use core::iter::once;
+                once(a).chain(once(b))
+            }))
+            .collect()
     }
 
     fn apply(&mut self, g: &Tcgs, m: &Tvs) {
-        match self {
-            Self::OneOf(oo) => oo.apply(g, m),
-            Self::PartialRecord { value, .. } => value.apply(g, m),
+        if let Some(ty) = &mut self.ty {
+            ty.apply(g, m);
+        }
+        self.oneof.apply(g, m);
+        self.partial_record.apply(g, m);
+        self.listeners = core::mem::take(&mut self.listeners)
+            .into_iter()
+            .map(|i| lowest_tvi_for_cg(m, i))
+            .collect();
+        if let Some((a, b)) = &mut self.record_update_info {
+            *a = lowest_tvi_for_cg(m, *a);
+            *b = lowest_tvi_for_cg(m, *b);
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Context {
-    pub g: HashMap<TyConstraintGroupId, TyConstraintGroup>,
-    pub m: BTreeMap<TyVar, TyConstraintGroupId>,
+    pub g: Tcgs,
+    pub m: Tvs,
 
     pub tycg_cnt: core::ops::RangeFrom<usize>,
     pub fresh_tyvars: core::ops::RangeFrom<usize>,
@@ -87,8 +127,8 @@ impl Default for Context {
 }
 
 impl Context {
-    pub fn fresh_tyvar(&mut self) -> crate::Ty {
-        crate::Ty::Var(self.fresh_tyvars.next().unwrap())
+    pub fn fresh_tyvar(&mut self) -> Ty {
+        Ty::Var(self.fresh_tyvars.next().unwrap())
     }
 
     /// resolve the context using itself as far as possible
@@ -123,7 +163,7 @@ impl Context {
         &self,
         a: TyConstraintGroupId,
         b: TyConstraintGroupId,
-        t: &crate::Ty,
+        t: &Ty,
     ) -> Result<(), UnifyError> {
         for i in t.fv() {
             if let Some(x) = self.m.get(&i) {
@@ -137,122 +177,305 @@ impl Context {
         Ok(())
     }
 
+    fn notify_cgs(&mut self, mut cgs: BTreeSet<TyConstraintGroupId>) -> Result<(), UnifyError> {
+        loop {
+            let cg = {
+                let mut it = core::mem::take(&mut cgs).into_iter();
+                let cg = match it.next() {
+                    Some(x) => x,
+                    None => break,
+                };
+                cgs = it.collect();
+                cg
+            };
+            let mut g = self.g.remove(&cg).unwrap();
+            if g.resolved().is_some() {
+                self.g.insert(cg, g);
+                // nothing to do
+                return Ok(());
+            }
+
+            // recheck constraints
+            // buffer notifications to prevent unnecessary infinite loops
+            let mut modified = false;
+
+            if let Some((orig, ovrd)) = g.record_update_info {
+                if let (
+                    Some(Tcg {
+                        ty: Some(Ty::Record(rcm_orig)),
+                        ..
+                    }),
+                    Some(Tcg {
+                        ty: Some(Ty::Record(rcm_ovrd)),
+                        ..
+                    }),
+                ) = (
+                    self.g.get(self.m.get(&orig).unwrap()),
+                    self.g.get(self.m.get(&ovrd).unwrap()),
+                ) {
+                    let mut rcm = rcm_ovrd.clone();
+                    for (k, v) in rcm_orig {
+                        if rcm.contains_key(k) {
+                            continue;
+                        }
+                        rcm.insert(k.clone(), v.clone());
+                    }
+                    let rcm_ty = Ty::Record(rcm);
+                    if let Some(ty) = &g.ty {
+                        self.unify(&rcm_ty, ty)?;
+                    }
+                    modified = true;
+                    g.ty = Some(rcm_ty);
+                    g.record_update_info = None;
+                }
+            }
+
+            if let Some(ty) = &mut g.ty {
+                ty.apply(&self.g, &self.m);
+                let tfv = ty.fv();
+                if tfv.is_empty() {
+                    let mut success = false;
+                    for j in &g.oneof {
+                        let mut self_bak = self.clone();
+                        if self_bak.unify(ty, j).is_ok() {
+                            *self = self_bak;
+                            success = true;
+                            break;
+                        }
+                    }
+                    if !success {
+                        return Err(UnifyError::OneOfConstraint {
+                            expected: core::mem::take(&mut g.oneof),
+                            got: ty.clone(),
+                        });
+                    }
+                    ty.apply(&self.g, &self.m);
+                }
+
+                if !g.partial_record.is_empty() {
+                    if let Ty::Record(rcm) = &ty {
+                        for (key, value) in core::mem::take(&mut g.partial_record) {
+                            if let Some(got_valty) = rcm.get(&key) {
+                                self.unify(got_valty, &value)?;
+                            } else {
+                                return Err(UnifyError::PartialRecord {
+                                    key,
+                                    value,
+                                    container: ty.clone(),
+                                });
+                            }
+                        }
+                    } else {
+                        return Err(UnifyError::NotARecord(ty.clone()));
+                    }
+                }
+            }
+
+            if modified {
+                cgs.extend(g.listeners.iter().flat_map(|i| self.m.get(i)).copied());
+            }
+            let tmp = self.g.insert(cg, g);
+            assert_eq!(tmp, None);
+        }
+        Ok(())
+    }
+
     fn unify_constraint_groups(
         &mut self,
         a: TyConstraintGroupId,
         b: TyConstraintGroupId,
     ) -> Result<(), UnifyError> {
-        if a == b || *self.g.get(&a).unwrap() == *self.g.get(&b).unwrap() {
+        if a == b {
             return Ok(());
         }
 
-        let lhs = self.g.remove(&a).unwrap();
-        let rhs = self.g.remove(&b).unwrap();
+        let mut lhs = self.g.remove(&a).unwrap();
+        let mut rhs = self.g.remove(&b).unwrap();
 
         // replace all occurences of $`b` with $`a`
         self.m.values_mut().filter(|i| **i == b).for_each(|i| {
             *i = a;
         });
 
-        use TyConstraintGroup as Tcg;
-        let res = match (lhs, rhs) {
-            (Tcg::Ty(mut t_a), Tcg::Ty(mut t_b)) => {
-                self.ucg_check4inf(a, b, &t_a)?;
-                self.ucg_check4inf(a, b, &t_b)?;
-                self.unify(&t_a, &t_b)?;
-                t_a.apply(&self.g, &self.m);
+        if lhs == rhs {
+            self.g.insert(a, lhs);
+            return Ok(());
+        }
+
+        let mut res = match (lhs.resolved(), rhs.resolved()) {
+            (Some(t_a), Some(t_b)) => {
+                self.ucg_check4inf(a, b, t_a)?;
+                self.ucg_check4inf(a, b, t_b)?;
+                self.unify(t_a, t_b)?;
+                lhs.ty.as_mut().unwrap().apply(&self.g, &self.m);
                 debug_assert!({
-                    t_b.apply(&self.g, &self.m);
-                    t_a == t_b
+                    rhs.ty.as_mut().unwrap().apply(&self.g, &self.m);
+                    lhs.ty == rhs.ty
                 });
-                Tcg::Ty(t_a)
+                lhs
             }
-            (Tcg::Constraints(mut c_a), Tcg::Constraints(c_b)) => {
-                c_a.extend(c_b);
-                Tcg::Constraints(c_a)
+            (None, None) => {
+                let mut ty = match (lhs.ty, rhs.ty) {
+                    (None, None) => None,
+                    (Some(t), None) | (None, Some(t)) => Some(t),
+                    (Some(mut t1), Some(t2)) => {
+                        self.unify(&t1, &t2)?;
+                        t1.apply(&self.g, &self.m);
+                        Some(t1)
+                    }
+                };
+                let listeners: BTreeSet<_> = lhs
+                    .listeners
+                    .into_iter()
+                    .chain(rhs.listeners.into_iter())
+                    .filter(|i| {
+                        if let Some(&j) = self.m.get(i) {
+                            j != a && j != b
+                        } else {
+                            false
+                        }
+                    })
+                    .collect();
+
+                let mut oneof: Vec<_> = lhs
+                    .oneof
+                    .iter()
+                    .flat_map(|i| rhs.oneof.iter().find(|&j| i == j).map(|_| i.clone()))
+                    .collect();
+                if oneof.is_empty() && (!lhs.oneof.is_empty() || !rhs.oneof.is_empty()) {
+                    return Err(UnifyError::OneOfConflict {
+                        oo1: lhs.oneof,
+                        oo2: rhs.oneof,
+                    });
+                }
+                if oneof.len() == 1 {
+                    let ty2 = oneof.remove(0);
+                    if let Some(ty) = &mut ty {
+                        self.unify(ty, &ty2)?;
+                        ty.apply(&self.g, &self.m);
+                    } else {
+                        ty = Some(ty2.clone());
+                    }
+                }
+                lhs.oneof.clear();
+                rhs.oneof.clear();
+
+                let mut partial_record = lhs.partial_record.clone();
+
+                if partial_record.is_empty() {
+                    partial_record = rhs.partial_record.clone();
+                } else {
+                    for (key, value) in rhs.partial_record {
+                        use std::collections::btree_map::Entry;
+                        match partial_record.entry(key) {
+                            Entry::Occupied(mut occ) => {
+                                self.unify(occ.get(), &value)?;
+                                occ.get_mut().apply(&self.g, &self.m);
+                            }
+                            Entry::Vacant(vac) => {
+                                vac.insert(value);
+                            }
+                        }
+                    }
+                }
+
+                let record_update_info = match (lhs.record_update_info, rhs.record_update_info) {
+                    (None, None) => None,
+                    (Some(x), None) | (None, Some(x)) => Some(x),
+                    (Some((w, x)), Some((y, z))) => {
+                        use Ty::Var;
+                        self.unify(&Var(w), &Var(y))?;
+                        self.unify(&Var(x), &Var(z))?;
+                        Some((lowest_tvi_for_cg(&self.m, w), lowest_tvi_for_cg(&self.m, x)))
+                    }
+                };
+
+                Tcg {
+                    ty,
+                    oneof,
+                    partial_record,
+                    listeners,
+                    record_update_info,
+                }
             }
-            (Tcg::Constraints(mut c), Tcg::Ty(t)) | (Tcg::Ty(t), Tcg::Constraints(mut c)) => {
-                self.ucg_check4inf(a, b, &t)?;
+            (_, _) => {
+                let (t, mut g) = if let Some(t) = lhs.resolved() {
+                    (t, rhs)
+                } else {
+                    (rhs.ty.as_ref().unwrap(), lhs)
+                };
+                self.ucg_check4inf(a, b, t)?;
                 let tfv = t.fv();
                 if !tfv.is_empty() {
                     for i in tfv {
-                        self.ucg_check4inf(a, b, &crate::Ty::Var(i))?;
+                        self.ucg_check4inf(a, b, &Ty::Var(i))?;
                     }
-
-                    // check for partial record constraints, to improve inference
-                    if let crate::Ty::Record(rcm) = &t {
-                        for i in &c {
-                            if let TyConstraint::PartialRecord { key, value } = i {
-                                if let Some(got_valty) = rcm.get(key) {
-                                    self.unify(got_valty, value)?;
-                                } else {
-                                    return Err(UnifyError::Constraint { c: i.clone(), t });
-                                }
+                } else if !g.oneof.is_empty() {
+                    if g.oneof.len() == 1 {
+                        let j = core::mem::take(&mut g.oneof).into_iter().next().unwrap();
+                        self.ucg_check4inf(a, b, &j)?;
+                        self.unify(t, &j)?;
+                    } else {
+                        let mut success = false;
+                        for j in &g.oneof {
+                            let mut self_bak = self.clone();
+                            if self_bak.unify(t, j).is_ok() {
+                                *self = self_bak;
+                                success = true;
+                                break;
                             }
                         }
-                    }
-
-                    c.push(TyConstraint::OneOf(core::iter::once(t).collect()));
-                    Tcg::Constraints(c)
-                } else {
-                    // check against all constraints
-                    for i in c {
-                        match i {
-                            TyConstraint::OneOf(oo) => {
-                                if oo.len() == 1 {
-                                    let j = oo.into_iter().next().unwrap();
-                                    self.ucg_check4inf(a, b, &j)?;
-                                    self.unify(&t, &j)?;
-                                } else {
-                                    let mut success = false;
-                                    for j in &oo {
-                                        self.ucg_check4inf(a, b, j)?;
-                                        let mut self_bak = self.clone();
-                                        if self_bak.unify(&t, j).is_ok() {
-                                            *self = self_bak;
-                                            success = true;
-                                            break;
-                                        }
-                                    }
-                                    if !success {
-                                        return Err(UnifyError::Constraint {
-                                            c: TyConstraint::OneOf(oo),
-                                            t,
-                                        });
-                                    }
-                                }
-                            }
-                            TyConstraint::PartialRecord { key, value } => {
-                                if let crate::Ty::Record(rcm) = &t {
-                                    if let Some(got_valty) = rcm.get(&key) {
-                                        self.unify(got_valty, &value)?;
-                                    } else {
-                                        return Err(UnifyError::Constraint {
-                                            c: TyConstraint::PartialRecord { key, value },
-                                            t,
-                                        });
-                                    }
-                                } else {
-                                    return Err(UnifyError::Constraint {
-                                        c: TyConstraint::PartialRecord { key, value },
-                                        t,
-                                    });
-                                }
-                            }
+                        if !success {
+                            return Err(UnifyError::OneOfConstraint {
+                                expected: core::mem::take(&mut g.oneof),
+                                got: t.clone(),
+                            });
                         }
                     }
-                    Tcg::Ty(t)
                 }
+                if !g.partial_record.is_empty() {
+                    if let Ty::Record(rcm) = &t {
+                        for (key, value) in core::mem::take(&mut g.partial_record) {
+                            if let Some(got_valty) = rcm.get(&key) {
+                                self.unify(got_valty, &value)?;
+                            } else {
+                                return Err(UnifyError::PartialRecord {
+                                    key: key.clone(),
+                                    value: value.clone(),
+                                    container: t.clone(),
+                                });
+                            }
+                        }
+                    } else if !matches!(t, Ty::Var(_)) {
+                        return Err(UnifyError::NotARecord(t.clone()));
+                    }
+                }
+                if let Some(old) = &g.ty {
+                    self.unify(old, t)?;
+                } else {
+                    g.ty = Some(t.clone());
+                }
+                g
             }
         };
+        res.apply(&self.g, &self.m);
+        let notify_cgs = res
+            .listeners
+            .iter()
+            .flat_map(|i| self.m.get(i))
+            .copied()
+            .collect();
+
         let x = self.g.insert(a, res);
         assert_eq!(x, None);
+        // propagate inference information
+        self.notify_cgs(notify_cgs)?;
         Ok(())
     }
 
-    pub fn bind(&mut self, v: TyVar, tcg: TyConstraintGroup) -> Result<(), UnifyError> {
-        if let TyConstraintGroup::Ty(t) = &tcg {
-            if let crate::Ty::Var(y) = t {
+    pub fn bind(&mut self, v: TyVar, tcg: Tcg) -> Result<(), UnifyError> {
+        if let Some(t) = tcg.resolved() {
+            if let Ty::Var(y) = t {
                 let tcgid = match (self.m.get(&v), self.m.get(y)) {
                     (None, None) => TyConstraintGroupId(self.tycg_cnt.next().unwrap()),
                     (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,

@@ -84,6 +84,10 @@ pub enum ExprKind {
         prim: Box<Expr>,
         key: Identifier,
     },
+    Update {
+        orig: Box<Expr>,
+        ovrd: Box<Expr>,
+    },
 
     // fixpoint operator
     Fix {
@@ -109,6 +113,7 @@ impl ExprKind {
             Self::Lambda { .. } => "lambda",
             Self::Call { .. } => "call",
             Self::Dot { .. } => "dot",
+            Self::Update { .. } => "update",
             Self::Fix { .. } => "fix",
             Self::FormatString(_) => "fmtstr",
             Self::Record(_) => "record",
@@ -142,6 +147,9 @@ impl ExprKind {
                 prim.inner.is_var_accessed(v) || arg.inner.is_var_accessed(v)
             }
             Self::Dot { prim, .. } => prim.inner.is_var_accessed(v),
+            Self::Update { orig, ovrd } => {
+                orig.inner.is_var_accessed(v) || ovrd.inner.is_var_accessed(v)
+            }
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
             Self::Record(rcd) => rcd.values().any(|i| i.inner.is_var_accessed(v)),
             Self::Identifier(id) => id.inner == v,
@@ -192,6 +200,10 @@ impl ExprKind {
             }
 
             Self::Dot { prim, .. } => prim.inner.replace_var(v, rpm),
+
+            Self::Update { orig, ovrd } => {
+                orig.inner.replace_var(v, rpm) && ovrd.inner.replace_var(v, rpm)
+            }
 
             Self::FormatString(exs) => exs.iter_mut().all(|i| i.inner.replace_var(v, rpm)),
 
@@ -579,24 +591,32 @@ fn parse_expr_calls(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
 }
 
 fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
+    use lex::TokenKind as Tk;
     let mut ret = xtry!(parse_expr_calls(lxr));
-    // handle pipes
+    // handle pipes and updates
     while let Some(x) = lxr.next_if(|i| {
         matches!(
             i,
             Ok(lex::Token {
-                inner: lex::TokenKind::Pipe,
+                inner: Tk::Pipe | Tk::Update,
                 ..
             }) | Err(_)
         )
     }) {
         let x = xtry!(x);
-        let prim = xtry!(unexpect_eoe(x.offset, parse_expr_calls(lxr)));
+        let expr = xtry!(unexpect_eoe(x.offset, parse_expr_calls(lxr)));
         ret = Offsetted {
             offset: x.offset,
-            inner: ExprKind::Call {
-                prim: Box::new(prim),
-                arg: Box::new(ret),
+            inner: match x.inner {
+                Tk::Pipe => ExprKind::Call {
+                    prim: Box::new(expr),
+                    arg: Box::new(ret),
+                },
+                Tk::Update => ExprKind::Update {
+                    orig: Box::new(ret),
+                    ovrd: Box::new(expr),
+                },
+                _ => unreachable!(),
             },
         };
     }
@@ -791,6 +811,23 @@ mod tests {
             r#"
                 let id = \x x |> \y y;
                 \z (id z |> \m std.plus m 1 |> \m std.minus m 2)
+            "#
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn op_update() {
+        insta::assert_yaml_snapshot!(parse(
+            r#"
+                .{
+                  a = 1;
+                  b = "what";
+                  c = .{};
+                } // .{
+                  b = 50;
+                  c = "now";
+                }
             "#
         )
         .unwrap());

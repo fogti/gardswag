@@ -1,3 +1,13 @@
+#![forbid(
+    trivial_casts,
+    unconditional_recursion,
+    unsafe_code,
+    unused_must_use,
+    clippy::as_conversions,
+    clippy::cast_ptr_alignment
+)]
+#![deny(unused_variables)]
+
 use core::{cmp, fmt};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
@@ -113,21 +123,11 @@ impl Substitutable for Ty {
             Ty::Literal(_) => {}
             Ty::Var(tv) => {
                 if let Some(x) = m.get(tv) {
-                    if let Some(TyConstraintGroup::Ty(t)) = g.get(x) {
-                        *self = t.clone();
+                    *self = if let Some(t) = g.get(x).and_then(|tcg| tcg.resolved()) {
+                        t.clone()
                     } else {
-                        // check if any tv with the same *x has a lower id
-                        // and replace it with that
-                        for (k, v) in m {
-                            if *k >= *tv {
-                                break;
-                            }
-                            if *v == *x {
-                                *self = Ty::Var(*k);
-                                break;
-                            }
-                        }
-                    }
+                        Ty::Var(constraint::lowest_tvi_for_cg(m, *tv))
+                    };
                 }
             }
             Ty::Arrow(arg, ret) => {
@@ -216,6 +216,16 @@ impl<V: Substitutable + cmp::Ord> Substitutable for BTreeSet<V> {
     }
 }
 
+impl<K: cmp::Eq + cmp::Ord, V: Substitutable> Substitutable for BTreeMap<K, V> {
+    fn fv(&self) -> BTreeSet<TyVar> {
+        self.values().flat_map(|i| i.fv()).collect()
+    }
+
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
+        self.values_mut().for_each(|i| i.apply(g, m));
+    }
+}
+
 impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<K, V> {
     fn fv(&self) -> BTreeSet<TyVar> {
         self.values().flat_map(|i| i.fv()).collect()
@@ -240,11 +250,25 @@ pub enum UnifyError {
         c1: TyConstraintGroupId,
         c2: TyConstraintGroupId,
     },
-    #[error("constraint {c:?} isn't compatible with type {t:?}")]
-    Constraint { c: TyConstraint, t: Ty },
+
+    #[error("partial-record constraint failed while merging container type {container:?} and value type {value:} at key {key:?}")]
+    PartialRecord {
+        key: String,
+        value: Ty,
+        container: Ty,
+    },
+
+    #[error("one-of constraint conflict between {oo1:?} and {oo2:?} (intersection is empty)")]
+    OneOfConflict { oo1: Vec<Ty>, oo2: Vec<Ty> },
+
+    #[error("one-of constraint got {got:?}, but expected {expected:?}")]
+    OneOfConstraint { got: Ty, expected: Vec<Ty> },
+
+    #[error("expected record, got {0:?}")]
+    NotARecord(Ty),
 }
 
-impl constraint::Context {
+impl Context {
     pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
         tracing::trace!("unify a={{{}}}, b={{{}}} ctx={:?}", a, b, self);
         match (a, b) {
@@ -266,8 +290,13 @@ impl constraint::Context {
                 }
                 Ok(())
             }
-            (Ty::Var(a), t) => self.bind(*a, TyConstraintGroup::from(t.clone())),
-            (t, Ty::Var(a)) => self.bind(*a, TyConstraintGroup::from(t.clone())),
+            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
+                *a,
+                TyConstraintGroup {
+                    ty: Some(t.clone()),
+                    ..Default::default()
+                },
+            ),
             (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
             (_, _) => Err(UnifyError::Mismatch {
                 t1: a.clone(),
