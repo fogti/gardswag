@@ -211,13 +211,14 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
         Ek::FormatString(fsts) => {
             let mut r = String::new();
             for i in fsts {
-                r += &match run(i, stack) {
-                    Value::PureString(s) => s,
-                    Value::Integer(i) => i.to_string(),
-                    Value::Boolean(b) => format!("_{}", if b { '1' } else { '0' }),
-                    Value::Unit => String::new(),
+                use core::fmt::Write;
+                match run(i, stack) {
+                    Value::PureString(s) => r += &s,
+                    Value::Integer(i) => write!(&mut r, "{}", i).unwrap(),
+                    Value::Boolean(b) => write!(&mut r, "_{}", if b { '1' } else { '0' }).unwrap(),
+                    Value::Unit => {},
                     x => panic!("invoked format' stringify on non-stringifyable {:?}", x),
-                };
+                }
             }
             Value::PureString(r)
         }

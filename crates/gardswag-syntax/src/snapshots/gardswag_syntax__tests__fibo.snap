@@ -1,6 +1,6 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 706
+assertion_line: 701
 expression: "parse(r#\"\n                let a = 1;\n                let b = 1;\n                let rec fib = \\x \\y \\n {\n                  (* seq: [..., x, y] ++ [z] *)\n                  let z = std.plus x y;\n                  if (std.leq n 0)\n                    { z }\n                    { fib y z (std.minus n 1) }\n                };\n                std.stdio.write \"{fib 1 1 6}\\m\";\n            \"#).unwrap()"
 ---
 stmts: []
@@ -41,186 +41,183 @@ term:
                         offset: 85
                         inner:
                           Fix:
-                            offset: 85
-                            inner:
-                              Lambda:
-                                arg:
-                                  offset: 79
-                                  inner: fib
-                                body:
-                                  offset: 85
-                                  inner:
-                                    Lambda:
-                                      arg:
-                                        offset: 85
-                                        inner: x
-                                      body:
-                                        offset: 88
-                                        inner:
-                                          Lambda:
-                                            arg:
-                                              offset: 88
-                                              inner: y
-                                            body:
-                                              offset: 91
-                                              inner:
-                                                Lambda:
-                                                  arg:
-                                                    offset: 91
-                                                    inner: n
-                                                  body:
-                                                    offset: 94
-                                                    inner:
-                                                      Block:
-                                                        stmts: []
-                                                        term:
-                                                          offset: 162
-                                                          inner:
-                                                            Let:
-                                                              lhs:
-                                                                offset: 166
-                                                                inner: z
-                                                              rhs:
-                                                                offset: 173
-                                                                inner:
-                                                                  Call:
-                                                                    prim:
-                                                                      offset: 173
-                                                                      inner:
-                                                                        Call:
-                                                                          prim:
-                                                                            offset: 173
-                                                                            inner:
-                                                                              Dot:
-                                                                                prim:
-                                                                                  offset: 170
-                                                                                  inner:
-                                                                                    Identifier:
-                                                                                      offset: 170
-                                                                                      inner: std
-                                                                                key:
-                                                                                  offset: 174
-                                                                                  inner: plus
-                                                                          arg:
-                                                                            offset: 179
-                                                                            inner:
-                                                                              Identifier:
-                                                                                offset: 179
-                                                                                inner: x
-                                                                    arg:
-                                                                      offset: 181
-                                                                      inner:
-                                                                        Identifier:
-                                                                          offset: 181
-                                                                          inner: y
-                                                              rest:
-                                                                stmts: []
-                                                                term:
-                                                                  offset: 202
+                            arg:
+                              offset: 79
+                              inner: fib
+                            body:
+                              offset: 85
+                              inner:
+                                Lambda:
+                                  arg:
+                                    offset: 85
+                                    inner: x
+                                  body:
+                                    offset: 88
+                                    inner:
+                                      Lambda:
+                                        arg:
+                                          offset: 88
+                                          inner: y
+                                        body:
+                                          offset: 91
+                                          inner:
+                                            Lambda:
+                                              arg:
+                                                offset: 91
+                                                inner: n
+                                              body:
+                                                offset: 94
+                                                inner:
+                                                  Block:
+                                                    stmts: []
+                                                    term:
+                                                      offset: 162
+                                                      inner:
+                                                        Let:
+                                                          lhs:
+                                                            offset: 166
+                                                            inner: z
+                                                          rhs:
+                                                            offset: 173
+                                                            inner:
+                                                              Call:
+                                                                prim:
+                                                                  offset: 173
                                                                   inner:
-                                                                    If:
-                                                                      cond:
-                                                                        offset: 209
+                                                                    Call:
+                                                                      prim:
+                                                                        offset: 173
                                                                         inner:
-                                                                          Call:
+                                                                          Dot:
                                                                             prim:
-                                                                              offset: 209
+                                                                              offset: 170
                                                                               inner:
-                                                                                Call:
-                                                                                  prim:
-                                                                                    offset: 209
-                                                                                    inner:
-                                                                                      Dot:
-                                                                                        prim:
-                                                                                          offset: 206
-                                                                                          inner:
-                                                                                            Identifier:
-                                                                                              offset: 206
-                                                                                              inner: std
-                                                                                        key:
-                                                                                          offset: 210
-                                                                                          inner: leq
-                                                                                  arg:
-                                                                                    offset: 214
-                                                                                    inner:
-                                                                                      Identifier:
-                                                                                        offset: 214
-                                                                                        inner: n
-                                                                            arg:
-                                                                              offset: 216
-                                                                              inner:
-                                                                                Integer: 0
-                                                                      then:
-                                                                        stmts: []
-                                                                        term:
-                                                                          offset: 241
-                                                                          inner:
-                                                                            Identifier:
-                                                                              offset: 241
-                                                                              inner: z
-                                                                      or_else:
-                                                                        stmts: []
-                                                                        term:
-                                                                          offset: 267
+                                                                                Identifier:
+                                                                                  offset: 170
+                                                                                  inner: std
+                                                                            key:
+                                                                              offset: 174
+                                                                              inner: plus
+                                                                      arg:
+                                                                        offset: 179
+                                                                        inner:
+                                                                          Identifier:
+                                                                            offset: 179
+                                                                            inner: x
+                                                                arg:
+                                                                  offset: 181
+                                                                  inner:
+                                                                    Identifier:
+                                                                      offset: 181
+                                                                      inner: y
+                                                          rest:
+                                                            stmts: []
+                                                            term:
+                                                              offset: 202
+                                                              inner:
+                                                                If:
+                                                                  cond:
+                                                                    offset: 209
+                                                                    inner:
+                                                                      Call:
+                                                                        prim:
+                                                                          offset: 209
                                                                           inner:
                                                                             Call:
                                                                               prim:
-                                                                                offset: 267
+                                                                                offset: 209
                                                                                 inner:
-                                                                                  Call:
+                                                                                  Dot:
                                                                                     prim:
-                                                                                      offset: 267
-                                                                                      inner:
-                                                                                        Call:
-                                                                                          prim:
-                                                                                            offset: 267
-                                                                                            inner:
-                                                                                              Identifier:
-                                                                                                offset: 267
-                                                                                                inner: fib
-                                                                                          arg:
-                                                                                            offset: 271
-                                                                                            inner:
-                                                                                              Identifier:
-                                                                                                offset: 271
-                                                                                                inner: y
-                                                                                    arg:
-                                                                                      offset: 273
+                                                                                      offset: 206
                                                                                       inner:
                                                                                         Identifier:
-                                                                                          offset: 273
-                                                                                          inner: z
+                                                                                          offset: 206
+                                                                                          inner: std
+                                                                                    key:
+                                                                                      offset: 210
+                                                                                      inner: leq
                                                                               arg:
-                                                                                offset: 279
+                                                                                offset: 214
                                                                                 inner:
-                                                                                  Call:
-                                                                                    prim:
-                                                                                      offset: 279
-                                                                                      inner:
-                                                                                        Call:
-                                                                                          prim:
-                                                                                            offset: 279
-                                                                                            inner:
-                                                                                              Dot:
-                                                                                                prim:
+                                                                                  Identifier:
+                                                                                    offset: 214
+                                                                                    inner: n
+                                                                        arg:
+                                                                          offset: 216
+                                                                          inner:
+                                                                            Integer: 0
+                                                                  then:
+                                                                    stmts: []
+                                                                    term:
+                                                                      offset: 241
+                                                                      inner:
+                                                                        Identifier:
+                                                                          offset: 241
+                                                                          inner: z
+                                                                  or_else:
+                                                                    stmts: []
+                                                                    term:
+                                                                      offset: 267
+                                                                      inner:
+                                                                        Call:
+                                                                          prim:
+                                                                            offset: 267
+                                                                            inner:
+                                                                              Call:
+                                                                                prim:
+                                                                                  offset: 267
+                                                                                  inner:
+                                                                                    Call:
+                                                                                      prim:
+                                                                                        offset: 267
+                                                                                        inner:
+                                                                                          Identifier:
+                                                                                            offset: 267
+                                                                                            inner: fib
+                                                                                      arg:
+                                                                                        offset: 271
+                                                                                        inner:
+                                                                                          Identifier:
+                                                                                            offset: 271
+                                                                                            inner: y
+                                                                                arg:
+                                                                                  offset: 273
+                                                                                  inner:
+                                                                                    Identifier:
+                                                                                      offset: 273
+                                                                                      inner: z
+                                                                          arg:
+                                                                            offset: 279
+                                                                            inner:
+                                                                              Call:
+                                                                                prim:
+                                                                                  offset: 279
+                                                                                  inner:
+                                                                                    Call:
+                                                                                      prim:
+                                                                                        offset: 279
+                                                                                        inner:
+                                                                                          Dot:
+                                                                                            prim:
+                                                                                              offset: 276
+                                                                                              inner:
+                                                                                                Identifier:
                                                                                                   offset: 276
-                                                                                                  inner:
-                                                                                                    Identifier:
-                                                                                                      offset: 276
-                                                                                                      inner: std
-                                                                                                key:
-                                                                                                  offset: 280
-                                                                                                  inner: minus
-                                                                                          arg:
+                                                                                                  inner: std
+                                                                                            key:
+                                                                                              offset: 280
+                                                                                              inner: minus
+                                                                                      arg:
+                                                                                        offset: 286
+                                                                                        inner:
+                                                                                          Identifier:
                                                                                             offset: 286
-                                                                                            inner:
-                                                                                              Identifier:
-                                                                                                offset: 286
-                                                                                                inner: n
-                                                                                    arg:
-                                                                                      offset: 288
-                                                                                      inner:
-                                                                                        Integer: 1
+                                                                                            inner: n
+                                                                                arg:
+                                                                                  offset: 288
+                                                                                  inner:
+                                                                                    Integer: 1
                       rest:
                         stmts:
                           - offset: 337
