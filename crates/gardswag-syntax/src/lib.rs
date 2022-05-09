@@ -329,7 +329,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
         if let Ok(Token { inner, .. }) = i {
             !matches!(
                 inner,
-                Tk::RcBracket | Tk::RParen | Tk::SemiColon | Tk::StringEnd
+                Tk::RcBracket | Tk::RParen | Tk::SemiColon | Tk::Pipe | Tk::StringEnd
             )
         } else {
             true
@@ -552,7 +552,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
     }
 }
 
-fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
+fn parse_expr_calls(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
     let Offsetted { mut inner, offset } = xtry!(parse_expr(lxr));
     // hanble arguments
     loop {
@@ -576,6 +576,31 @@ fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
         };
     }
     POk(Offsetted { offset, inner })
+}
+
+fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
+    let mut ret = xtry!(parse_expr_calls(lxr));
+    // handle pipes
+    while let Some(x) = lxr.next_if(|i| {
+        matches!(
+            i,
+            Ok(lex::Token {
+                inner: lex::TokenKind::Pipe,
+                ..
+            }) | Err(_)
+        )
+    }) {
+        let x = xtry!(x);
+        let prim = xtry!(unexpect_eoe(x.offset, parse_expr_calls(lxr)));
+        ret = Offsetted {
+            offset: x.offset,
+            inner: ExprKind::Call {
+                prim: Box::new(prim),
+                arg: Box::new(ret),
+            },
+        };
+    }
+    POk(ret)
 }
 
 fn parse_block(super_offset: usize, lxr: &mut PeekLexer<'_>) -> Result<Block, Error> {
@@ -755,6 +780,17 @@ mod tests {
                    id2 = id;
                    torben;
                 }
+            "#
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn pipe() {
+        insta::assert_yaml_snapshot!(parse(
+            r#"
+                let id = \x x |> \y y;
+                \z (id z |> \m std.plus m 1 |> \m std.minus m 2)
             "#
         )
         .unwrap());

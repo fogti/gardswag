@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 704fcb24818f8b27b5030b0b260ea984209530be752e0079b258c975adea2b9a # shrinks to s = "(*ਓ"
+cc 9899aa2880a6aaef8b81f9764325355f06503604de6d74a5d94489b9b4491094 # shrinks to s = "𐨙🛰"

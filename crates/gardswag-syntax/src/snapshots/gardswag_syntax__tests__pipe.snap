@@ -1,0 +1,153 @@
+---
+source: crates/gardswag-syntax/src/lib.rs
+assertion_line: 790
+expression: "parse(r#\"\n                let id = \\x x |> \\y y;\n                \\z (id z |> \\m std.plus m 1 |> \\m std.minus m 2)\n            \"#).unwrap()"
+---
+stmts: []
+term:
+  offset: 17
+  inner:
+    Let:
+      lhs:
+        offset: 21
+        inner: id
+      rhs:
+        offset: 31
+        inner:
+          Call:
+            prim:
+              offset: 34
+              inner:
+                Lambda:
+                  arg:
+                    offset: 34
+                    inner: y
+                  body:
+                    offset: 37
+                    inner:
+                      Identifier:
+                        offset: 37
+                        inner: y
+            arg:
+              offset: 26
+              inner:
+                Lambda:
+                  arg:
+                    offset: 26
+                    inner: x
+                  body:
+                    offset: 29
+                    inner:
+                      Identifier:
+                        offset: 29
+                        inner: x
+      rest:
+        stmts: []
+        term:
+          offset: 56
+          inner:
+            Lambda:
+              arg:
+                offset: 56
+                inner: z
+              body:
+                offset: 84
+                inner:
+                  Call:
+                    prim:
+                      offset: 87
+                      inner:
+                        Call:
+                          prim:
+                            offset: 87
+                            inner:
+                              Call:
+                                prim:
+                                  offset: 87
+                                  inner:
+                                    Lambda:
+                                      arg:
+                                        offset: 87
+                                        inner: m
+                                      body:
+                                        offset: 93
+                                        inner:
+                                          Dot:
+                                            prim:
+                                              offset: 90
+                                              inner:
+                                                Identifier:
+                                                  offset: 90
+                                                  inner: std
+                                            key:
+                                              offset: 94
+                                              inner: minus
+                                arg:
+                                  offset: 100
+                                  inner:
+                                    Identifier:
+                                      offset: 100
+                                      inner: m
+                          arg:
+                            offset: 102
+                            inner:
+                              Integer: 2
+                    arg:
+                      offset: 65
+                      inner:
+                        Call:
+                          prim:
+                            offset: 68
+                            inner:
+                              Call:
+                                prim:
+                                  offset: 68
+                                  inner:
+                                    Call:
+                                      prim:
+                                        offset: 68
+                                        inner:
+                                          Lambda:
+                                            arg:
+                                              offset: 68
+                                              inner: m
+                                            body:
+                                              offset: 74
+                                              inner:
+                                                Dot:
+                                                  prim:
+                                                    offset: 71
+                                                    inner:
+                                                      Identifier:
+                                                        offset: 71
+                                                        inner: std
+                                                  key:
+                                                    offset: 75
+                                                    inner: plus
+                                      arg:
+                                        offset: 80
+                                        inner:
+                                          Identifier:
+                                            offset: 80
+                                            inner: m
+                                arg:
+                                  offset: 82
+                                  inner:
+                                    Integer: 1
+                          arg:
+                            offset: 60
+                            inner:
+                              Call:
+                                prim:
+                                  offset: 60
+                                  inner:
+                                    Identifier:
+                                      offset: 60
+                                      inner: id
+                                arg:
+                                  offset: 63
+                                  inner:
+                                    Identifier:
+                                      offset: 63
+                                      inner: z
+

@@ -216,7 +216,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                     Value::PureString(s) => r += &s,
                     Value::Integer(i) => write!(&mut r, "{}", i).unwrap(),
                     Value::Boolean(b) => write!(&mut r, "_{}", if b { '1' } else { '0' }).unwrap(),
-                    Value::Unit => {},
+                    Value::Unit => {}
                     x => panic!("invoked format' stringify on non-stringifyable {:?}", x),
                 }
             }

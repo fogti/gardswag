@@ -9,7 +9,7 @@ pub(crate) struct Lexer<'a> {
     buffer: Option<Result<Token, Error>>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 enum LvlKind {
     Quotes,
     Comment,
@@ -60,6 +60,7 @@ pub enum TokenKind {
     EqSym,
     Dot,
     SemiColon,
+    Pipe,
 
     LcBracket,
     RcBracket,
@@ -146,10 +147,7 @@ impl<'a> Lexer<'a> {
 
     /// checks if the lexer is inside a format string
     fn is_in_fmtstr(&self) -> bool {
-        match self.lvl.last() {
-            Some(&x) => x == LvlKind::Quotes,
-            None => false,
-        }
+        matches!(self.lvl.last(), Some(&LvlKind::Quotes))
     }
 }
 
@@ -245,7 +243,7 @@ impl Iterator for Lexer<'_> {
             self.consume_select(|i| i.is_whitespace());
             offset = self.offset;
 
-            let in_comment = self.lvl.last() == Some(&LvlKind::Comment);
+            let in_comment = matches!(self.lvl.last(), Some(&LvlKind::Comment));
 
             break match self.inp.chars().next()? {
                 c if in_comment => {
@@ -317,21 +315,22 @@ impl Iterator for Lexer<'_> {
                         '=' => Ok(Tk::EqSym),
                         '.' => Ok(Tk::Dot),
                         ';' => Ok(Tk::SemiColon),
+                        '|' => {
+                            if self.inp.starts_with('>') {
+                                self.consume(1);
+                                Ok(Tk::Pipe)
+                            } else {
+                                Err(ErrorKind::UnhandledChar(c))
+                            }
+                        }
                         '{' => {
                             self.lvl.push(LvlKind::CurlyBrks);
                             Ok(Tk::LcBracket)
                         }
-                        '}' => {
-                            if let Some(x) = self.lvl.pop() {
-                                if x != LvlKind::CurlyBrks {
-                                    Err(ErrorKind::UnbalancedNesting)
-                                } else {
-                                    Ok(Tk::RcBracket)
-                                }
-                            } else {
-                                Ok(Tk::RcBracket)
-                            }
-                        }
+                        '}' => match self.lvl.pop() {
+                            None | Some(LvlKind::CurlyBrks) => Ok(Tk::RcBracket),
+                            _ => Err(ErrorKind::UnbalancedNesting),
+                        },
                         '(' => {
                             if self.inp.starts_with('*') {
                                 // comment
