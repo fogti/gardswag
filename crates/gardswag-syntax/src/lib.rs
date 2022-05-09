@@ -97,6 +97,24 @@ pub enum ExprKind {
 }
 
 impl ExprKind {
+    pub fn typ(&self) -> &'static str {
+        match self {
+            Self::Let { .. } => "let",
+            Self::Block(_) => "block",
+            Self::If { .. } => "if",
+            Self::Lambda { .. } => "lambda",
+            Self::Call { .. } => "call",
+            Self::Dot { .. } => "dot",
+            Self::Fix(_) => "fix",
+            Self::FormatString(_) => "fmtstr",
+            Self::Record(_) => "record",
+            Self::Identifier(_) => "ident",
+            Self::Boolean(_) => "lit.bool",
+            Self::Integer(_) => "lit.int",
+            Self::PureString(_) => "lit.str",
+        }
+    }
+
     /// checks if a variable is used anywhere in a expression
     pub fn is_var_accessed(&self, v: &str) -> bool {
         match self {

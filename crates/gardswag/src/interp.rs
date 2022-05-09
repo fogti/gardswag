@@ -86,10 +86,10 @@ where
 }
 
 pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<'a> {
-    tracing::trace!("expr={:?}", expr);
+    tracing::debug!("expr@{} : {}", expr.offset, expr.inner.typ());
     tracing::trace!("stack={:?}", stack);
     use gardswag_syntax::ExprKind as Ek;
-    match &expr.inner {
+    let res = match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {
             let v_rhs = run(rhs, stack);
             run_block(
@@ -132,12 +132,11 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
             let v_arg = run(arg, stack);
             let v_prim = run(prim, stack);
             match v_prim {
-                Value::Builtin { f, mut args } if f.argc() > (args.len() + 1) => {
-                    args.push(v_arg);
-                    Value::Builtin { f, args }
-                }
                 Value::Builtin { f, mut args } => {
                     args.push(v_arg);
+                    if f.argc() > args.len() {
+                    Value::Builtin { f, args }
+                    } else {
                     assert_eq!(f.argc(), args.len());
                     use Builtin as Bi;
                     match f {
@@ -165,9 +164,10 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                         Bi::StdioWrite => {
                             match args.get(0).unwrap() {
                                 Value::PureString(s) => print!("{}", s),
-                                x => panic!("std.stdio.write called with {:?}", x),
+                                    x => panic!("std.stdio.write called with {:?}", x),
+                                }
+                                Value::Unit
                             }
-                            Value::Unit
                         }
                     }
                 }
@@ -242,5 +242,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
         Ek::Boolean(b) => Value::Boolean(*b),
         Ek::Integer(i) => Value::Integer(*i),
         Ek::PureString(s) => Value::PureString(s.clone()),
-    }
+    };
+    tracing::debug!("expr@{} : {} : res={:?}", expr.offset, expr.inner.typ(), res);
+    res
 }

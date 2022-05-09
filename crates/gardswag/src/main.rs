@@ -179,9 +179,7 @@ mod tests {
 
     #[test]
     fn chk_hello() {
-        insta::assert_yaml_snapshot!(main_check(
-            r#"std.stdio.write("Hello world!\n");"#
-        ));
+        insta::assert_yaml_snapshot!(main_check(r#"std.stdio.write("Hello world!\n");"#));
     }
 
     #[test]
@@ -201,6 +199,41 @@ mod tests {
     }
 
     #[test]
+    fn run_fibo0() {
+        let x = main_check(
+            r#"
+                let rec fib = \x \y \n {
+                  (* seq: [..., x, y] ++ [z] *)
+                  let z = std.plus x y;
+                  if (std.leq n 0)
+                    { z }
+                    { fib y z (std.minus n 1) }
+                };
+                fib 1 1 0
+            "#,
+        );
+        insta::assert_yaml_snapshot!(main_interp(&x.0));
+    }
+
+
+    #[test]
+    fn run_fibo1() {
+        let x = main_check(
+            r#"
+                let rec fib = \x \y \n {
+                  (* seq: [..., x, y] ++ [z] *)
+                  let z = std.plus x y;
+                  if (std.leq n 0)
+                    { z }
+                    { fib y z (std.minus n 1) }
+                };
+                fib 1 1 1
+            "#,
+        );
+        insta::assert_yaml_snapshot!(main_interp(&x.0));
+    }
+
+    #[test]
     fn run_fibo() {
         let x = main_check(
             r#"
@@ -212,7 +245,7 @@ mod tests {
                     { fib y z (std.minus n 1) }
                 };
                 fib 1 1 5
-            "#
+            "#,
         );
         insta::assert_yaml_snapshot!(x);
         insta::assert_yaml_snapshot!(main_interp(&x.0));
@@ -231,5 +264,28 @@ mod tests {
                 }
             "#
         ));
+    }
+
+    #[test]
+    fn run_id() {
+        let x = main_check(
+            r#"
+                let id = \x x;
+                id 1
+            "#,
+        );
+        insta::assert_yaml_snapshot!(x);
+        insta::assert_yaml_snapshot!(main_interp(&x.0));
+    }
+
+    #[test]
+    fn run_call_blti() {
+        let x = main_check(
+            r#"
+                std.plus 1 1
+            "#,
+        );
+        insta::assert_yaml_snapshot!(x);
+        insta::assert_yaml_snapshot!(main_interp(&x.0));
     }
 }

@@ -1,0 +1,39 @@
+---
+source: crates/gardswag/src/main.rs
+assertion_line: 253
+expression: x
+---
+- stmts: []
+  term:
+    offset: 20
+    inner:
+      Call:
+        prim:
+          offset: 20
+          inner:
+            Call:
+              prim:
+                offset: 20
+                inner:
+                  Dot:
+                    prim:
+                      offset: 17
+                      inner:
+                        Identifier:
+                          offset: 17
+                          inner: std
+                    key:
+                      offset: 21
+                      inner: plus
+              arg:
+                offset: 26
+                inner:
+                  Integer: 1
+        arg:
+          offset: 28
+          inner:
+            Integer: 1
+- forall: {}
+  t:
+    Literal: Int
+

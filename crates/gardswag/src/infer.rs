@@ -1,6 +1,6 @@
 use gardswag_syntax as synt;
 use gardswag_typesys as tysy;
-use std::collections::{BTreeSet, BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use tysy::{Context, Substitutable as _, Ty, TyLit, TyVar};
 

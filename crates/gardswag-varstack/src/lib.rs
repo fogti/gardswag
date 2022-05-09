@@ -1,4 +1,8 @@
-#[derive(Debug)]
+#![no_std]
+#![forbid(unsafe_code)]
+
+use core::fmt;
+
 pub struct VarStack<'a, V> {
     pub parent: Option<&'a VarStack<'a, V>>,
     pub name: &'a str,
@@ -30,5 +34,11 @@ impl<'a, V> Iterator for Iter<'a, V> {
         let inner = self.inner.take()?;
         self.inner = inner.parent;
         Some((inner.name, &inner.value))
+    }
+}
+
+impl<V: fmt::Debug> fmt::Debug for VarStack<'_, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
     }
 }
