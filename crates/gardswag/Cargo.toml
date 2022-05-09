@@ -7,6 +7,7 @@ license = "Apache-2.0"
 [dependencies]
 gardswag-syntax.path = "../gardswag-syntax"
 gardswag-typesys.path = "../gardswag-typesys"
+gardswag-varstack.path = "../gardswag-varstack"
 serde = "1.0"
 serde_yaml = "0.8"
 thiserror = "1.0"

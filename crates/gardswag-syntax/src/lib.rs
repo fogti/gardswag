@@ -64,11 +64,6 @@ pub enum ExprKind {
         rhs: Box<Expr>,
         rest: Block,
     },
-    // assignment is not allowed to change types
-    Assign {
-        lhs: Identifier,
-        rhs: Box<Expr>,
-    },
     Block(Block),
 
     If {
@@ -108,7 +103,6 @@ impl ExprKind {
             Self::Let { lhs, rhs, rest } => {
                 rhs.inner.is_var_accessed(v) || (lhs.inner != v && rest.is_var_accessed(v))
             }
-            Self::Assign { lhs, rhs } => lhs.inner == v || rhs.inner.is_var_accessed(v),
             Self::Block(blk) => blk.is_var_accessed(v),
             Self::If {
                 cond,
@@ -133,8 +127,7 @@ impl ExprKind {
     }
 
     /// tries to replace all occurences of a variable
-    /// with another expression, fails if the variable
-    /// is used in an assignment or `rpm`-interna are captured.
+    /// with another expression, fails if `rpm`-interna are captured.
     pub fn replace_var(&mut self, v: &str, rpm: &ExprKind) -> bool {
         match self {
             Self::Let { lhs, rhs, rest } => {
@@ -147,10 +140,6 @@ impl ExprKind {
                     !rpm.is_var_accessed(&lhs.inner) && rest.replace_var(v, rpm)
                 } && rhs.inner.replace_var(v, rpm))
             }
-
-            // catch illegal replacement
-            Self::Assign { lhs, .. } if lhs.inner == v => false,
-            Self::Assign { rhs, .. } => rhs.inner.replace_var(v, rpm),
 
             Self::Block(blk) => blk.replace_var(v, rpm),
 
@@ -398,21 +387,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
         }
         Tk::Identifier(id) => {
             let id = Offsetted { offset, inner: id };
-            Ok(
-                if let Some(Ok(Offsetted {
-                    inner: Tk::EqSym, ..
-                })) = lxr.peek()
-                {
-                    let _ = lxr.next();
-                    let rhs = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
-                    ExprKind::Assign {
-                        lhs: id,
-                        rhs: Box::new(rhs),
-                    }
-                } else {
-                    ExprKind::Identifier(id)
-                },
-            )
+            Ok(ExprKind::Identifier(id))
         }
         Tk::Keyword(Kw::False) => Ok(ExprKind::Boolean(false)),
         Tk::Keyword(Kw::True) => Ok(ExprKind::Boolean(true)),

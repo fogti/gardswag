@@ -88,26 +88,6 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             env2.vars.insert(lhs.inner.clone(), t2);
             infer_block(&env2, ctx, rest)
         }
-        Ek::Assign { lhs, rhs } => {
-            let x = infer(env, ctx, rhs)?;
-            let prev_ty = env
-                .vars
-                .get(&lhs.inner)
-                .ok_or_else(|| Error::UndefVar(lhs.clone()))?;
-
-            // make it possible to assign another polymorphic function
-            let mut env2 = env.clone();
-            env2.update(ctx);
-            let next_ty = x.generalize(&env2, ctx);
-
-            // TODO: does this work as expected?
-            if *prev_ty != next_ty {
-                let prev_ty = prev_ty.instantiate(ctx);
-                let next_ty = next_ty.instantiate(ctx);
-                ctx.unify(&prev_ty, &next_ty)?;
-            }
-            Ok(Ty::Literal(TyLit::Unit))
-        }
         Ek::Block(blk) => infer_block(env, ctx, blk),
 
         Ek::If {

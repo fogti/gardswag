@@ -320,6 +320,7 @@ dependencies = [
  "clap 3.1.15",
  "gardswag-syntax",
  "gardswag-typesys",
+ "gardswag-varstack",
  "serde",
  "serde_yaml",
  "string-interner",
@@ -349,6 +350,10 @@ dependencies = [
  "thiserror",
  "tracing",
 ]
+
+[[package]]
+name = "gardswag-varstack"
+version = "0.1.0"
 
 [[package]]
 name = "getrandom"

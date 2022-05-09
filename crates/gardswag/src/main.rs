@@ -139,9 +139,10 @@ fn main() {
 
     use interp::{Builtin as Bi, Value as Val};
 
-    let mut stack = vec![(
-        "std".to_string(),
-        Val::Record(
+    let stack = gardswag_varstack::VarStack {
+        parent: None,
+        name: "std",
+        value: Val::Record(
             [
                 ("plus", Bi::Plus.into()),
                 ("minus", Bi::Minus.into()),
@@ -163,9 +164,9 @@ fn main() {
             .map(|(i, j)| (i.to_string(), j))
             .collect(),
         ),
-    )];
+    };
 
-    interp::run_block(&parsed, &mut stack);
+    interp::run_block(&parsed, &stack);
 
     println!("result: {:?}", stack);
 }
