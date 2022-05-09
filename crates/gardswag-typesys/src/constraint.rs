@@ -4,6 +4,9 @@ use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+pub type Tcgs = HashMap<TyConstraintGroupId, TyConstraintGroup>;
+pub type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct TyConstraintGroupId(usize);
@@ -55,10 +58,10 @@ impl Substitutable for TyConstraint {
         }
     }
 
-    fn apply(&mut self, ctx: &Context) {
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
         match self {
-            Self::OneOf(oo) => oo.apply(ctx),
-            Self::PartialRecord { value, .. } => value.apply(ctx),
+            Self::OneOf(oo) => oo.apply(g, m),
+            Self::PartialRecord { value, .. } => value.apply(g, m),
         }
     }
 }
@@ -83,43 +86,17 @@ impl Default for Context {
     }
 }
 
-impl Substitutable for Context {
-    #[inline(always)]
-    fn fv(&self) -> BTreeSet<TyVar> {
-        self.g.fv()
-    }
-
-    #[inline(always)]
-    fn apply(&mut self, ctx: &Context) {
-        self.g.apply(ctx)
-    }
-}
-
 impl Context {
     pub fn fresh_tyvar(&mut self) -> crate::Ty {
         crate::Ty::Var(self.fresh_tyvars.next().unwrap())
     }
 
-    pub(crate) fn filter(&self, filt: &BTreeSet<TyVar>) -> Self {
-        Context {
-            m: self
-                .m
-                .iter()
-                .filter(|(k, _)| !filt.contains(k))
-                .map(|(&k, &v)| (k, v))
-                .collect(),
-            g: self.g.clone(),
-            tycg_cnt: self.tycg_cnt.clone(),
-            fresh_tyvars: self.fresh_tyvars.clone(),
-        }
-    }
-
     /// resolve the context using itself as far as possible
     pub fn self_resolve(&mut self) {
         loop {
-            let old = self.clone();
-            self.apply(&old);
-            if old == *self {
+            let oldg = self.g.clone();
+            self.g.apply(&oldg, &self.m);
+            if oldg == self.g {
                 break;
             }
         }
@@ -127,7 +104,7 @@ impl Context {
 
     /// reduce resolved type variable to those listed in the `keep` set
     pub fn retain(&mut self, mut keep: BTreeSet<TyVar>) {
-        keep.extend(self.fv());
+        keep.extend(self.g.fv());
         tracing::debug!("Ctx::retain: FV={:?}", keep);
 
         let orig_tvcnt = self.m.len();
@@ -183,9 +160,9 @@ impl Context {
                 self.ucg_check4inf(a, b, &t_a)?;
                 self.ucg_check4inf(a, b, &t_b)?;
                 self.unify(&t_a, &t_b)?;
-                t_a.apply(self);
+                t_a.apply(&self.g, &self.m);
                 debug_assert!({
-                    t_b.apply(self);
+                    t_b.apply(&self.g, &self.m);
                     t_a == t_b
                 });
                 Tcg::Ty(t_a)

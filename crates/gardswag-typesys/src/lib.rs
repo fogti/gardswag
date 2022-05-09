@@ -95,7 +95,7 @@ pub trait Substitutable {
     fn fv(&self) -> BTreeSet<TyVar>;
 
     // apply substitution
-    fn apply(&mut self, ctx: &Context);
+    fn apply(&mut self, g: &Tcgs, m: &Tvs);
 }
 
 impl Substitutable for Ty {
@@ -108,17 +108,17 @@ impl Substitutable for Ty {
         }
     }
 
-    fn apply(&mut self, ctx: &Context) {
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
         match self {
             Ty::Literal(_) => {}
             Ty::Var(tv) => {
-                if let Some(x) = ctx.m.get(tv) {
-                    if let Some(TyConstraintGroup::Ty(t)) = ctx.g.get(x) {
+                if let Some(x) = m.get(tv) {
+                    if let Some(TyConstraintGroup::Ty(t)) = g.get(x) {
                         *self = t.clone();
                     } else {
                         // check if any tv with the same *x has a lower id
                         // and replace it with that
-                        for (k, v) in &ctx.m {
+                        for (k, v) in m {
                             if *k >= *tv {
                                 break;
                             }
@@ -131,11 +131,11 @@ impl Substitutable for Ty {
                 }
             }
             Ty::Arrow(arg, ret) => {
-                arg.apply(ctx);
-                ret.apply(ctx);
+                arg.apply(g, m);
+                ret.apply(g, m);
             }
-            Ty::Record(m) => {
-                m.values_mut().for_each(|i| i.apply(ctx));
+            Ty::Record(rcm) => {
+                rcm.values_mut().for_each(|i| i.apply(g, m));
             }
         }
     }
@@ -170,9 +170,13 @@ impl Substitutable for Scheme {
             .collect()
     }
 
-    fn apply(&mut self, ctx: &Context) {
-        self.t
-            .apply(&ctx.filter(&self.forall.keys().copied().collect()))
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
+        let subm = m
+            .iter()
+            .filter(|(k, _)| !self.forall.contains_key(k))
+            .map(|(&k, &v)| (k, v))
+            .collect();
+        self.t.apply(g, &subm)
     }
 }
 
@@ -181,8 +185,8 @@ impl<V: Substitutable> Substitutable for [V] {
         self.iter().flat_map(|i| i.fv()).collect()
     }
 
-    fn apply(&mut self, ctx: &Context) {
-        self.iter_mut().for_each(|i| i.apply(ctx))
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
+        self.iter_mut().for_each(|i| i.apply(g, m))
     }
 }
 
@@ -191,8 +195,8 @@ impl<V: Substitutable> Substitutable for Vec<V> {
         self.iter().flat_map(|i| i.fv()).collect()
     }
 
-    fn apply(&mut self, ctx: &Context) {
-        self.iter_mut().for_each(|i| i.apply(ctx))
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
+        self.iter_mut().for_each(|i| i.apply(g, m))
     }
 }
 
@@ -201,11 +205,11 @@ impl<V: Substitutable + cmp::Ord> Substitutable for BTreeSet<V> {
         self.iter().flat_map(|i| i.fv()).collect()
     }
 
-    fn apply(&mut self, ctx: &Context) {
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
         *self = core::mem::take(self)
             .into_iter()
             .map(|mut i| {
-                i.apply(ctx);
+                i.apply(g, m);
                 i
             })
             .collect();
@@ -217,8 +221,8 @@ impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<
         self.values().flat_map(|i| i.fv()).collect()
     }
 
-    fn apply(&mut self, ctx: &Context) {
-        self.values_mut().for_each(|i| i.apply(ctx));
+    fn apply(&mut self, g: &Tcgs, m: &Tvs) {
+        self.values_mut().for_each(|i| i.apply(g, m));
     }
 }
 
@@ -247,8 +251,8 @@ impl constraint::Context {
             (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
                 self.unify(l1, l2)?;
                 let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
-                rx1.apply(self);
-                rx2.apply(self);
+                rx1.apply(&self.g, &self.m);
+                rx2.apply(&self.g, &self.m);
                 self.unify(&rx1, &rx2)?;
                 Ok(())
             }

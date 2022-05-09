@@ -24,7 +24,7 @@ impl Env {
         // reduce necessary type vars to minimum
         ctx.self_resolve();
 
-        //self.vars.apply(ctx);
+        //self.vars.apply(&ctx.g, &ctx.m);
 
         // remove all unnecessary type vars
         let mut xfv = self.vars.fv();
@@ -53,14 +53,8 @@ impl tysy::Substitutable for Env {
         self.vars.fv()
     }
 
-    fn apply(&mut self, ctx: &tysy::Context) {
-        self.vars.apply(ctx);
-    }
-}
-
-impl Env {
-    fn update(&mut self, ctx: &Context) {
-        self.vars.apply(ctx);
+    fn apply(&mut self, g: &tysy::Tcgs, m: &tysy::Tvs) {
+        self.vars.apply(g, m);
     }
 }
 
@@ -73,7 +67,7 @@ pub fn infer_block(env: &Env, ctx: &mut Context, blk: &synt::Block) -> Result<Ty
         ret = infer(env, ctx, x)?;
     }
     ctx.self_resolve();
-    ret.apply(ctx);
+    ret.apply(&ctx.g, &ctx.m);
     Ok(ret)
 }
 
@@ -83,7 +77,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
         Ek::Let { lhs, rhs, rest } => {
             let t1 = infer(env, ctx, rhs)?;
             let mut env2 = env.clone();
-            env2.update(ctx);
+            env2.apply(&ctx.g, &ctx.m);
             let t2 = t1.generalize(&env2, ctx);
             env2.vars.insert(lhs.inner.clone(), t2);
             infer_block(&env2, ctx, rest)
@@ -100,7 +94,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             let x_else = infer_block(env, ctx, or_else)?;
             ctx.unify(&x_cond, &Ty::Literal(TyLit::Bool))?;
             ctx.unify(&x_then, &x_else)?;
-            x_then.apply(ctx);
+            x_then.apply(&ctx.g, &ctx.m);
             Ok(x_then)
         }
 
@@ -117,7 +111,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
                 );
             }
             let x = infer(&env2, ctx, body)?;
-            tv.apply(ctx);
+            tv.apply(&ctx.g, &ctx.m);
             Ok(Ty::Arrow(Box::new(tv), Box::new(x)))
         }
 
@@ -136,21 +130,21 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             let x = infer(&env2, ctx, body)?;
             // unify {$tv -> x} & {$tv -> $tv}, inlined
             ctx.unify(&x, &tv)?;
-            tv.apply(ctx);
+            tv.apply(&ctx.g, &ctx.m);
             Ok(tv)
         }
 
         Ek::Call { prim, arg } => {
             let mut t_prim = infer(env, ctx, prim)?;
             let mut env2 = env.clone();
-            env2.update(ctx);
+            env2.apply(&ctx.g, &ctx.m);
             let tv = ctx.fresh_tyvar();
             let t_arg = infer(&env2, ctx, arg)?;
-            t_prim.apply(ctx);
-            env2.update(ctx);
+            t_prim.apply(&ctx.g, &ctx.m);
+            env2.apply(&ctx.g, &ctx.m);
             ctx.unify(&t_prim, &Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())))?;
             t_prim = tv;
-            t_prim.apply(ctx);
+            t_prim.apply(&ctx.g, &ctx.m);
             Ok(t_prim)
         }
 
@@ -167,14 +161,14 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             )?;
             let tvinp = Ty::Var(tvinp);
             ctx.unify(&t, &tvinp)?;
-            tvout.apply(ctx);
+            tvout.apply(&ctx.g, &ctx.m);
             Ok(tvout)
         }
 
         Ek::FormatString(fsexs) => {
             let mut env = env.clone();
             for i in fsexs {
-                env.update(ctx);
+                env.apply(&ctx.g, &ctx.m);
                 let t = infer(&env, ctx, i)?;
                 let tv = ctx.fresh_tyvars.next().unwrap();
                 ctx.bind(
@@ -196,7 +190,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             let mut m = BTreeMap::default();
             let mut env = env.clone();
             for (k, v) in rcd {
-                env.update(ctx);
+                env.apply(&ctx.g, &ctx.m);
                 let t = infer(&env, ctx, v)?;
                 m.insert(k.clone(), t);
             }

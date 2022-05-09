@@ -103,7 +103,7 @@ fn main_check(dat: &str) -> (gardswag_syntax::Block, gardswag_typesys::Scheme) {
             debug!("type check ok");
             debug!("=T> {}", t);
             // generalize the type
-            env.vars.apply(&ctx);
+            env.vars.apply(&ctx.g, &ctx.m);
             let tg = t.clone().generalize(&env, &ctx);
             // garbage collection
             env.gc(&mut ctx, core::iter::once(t));
