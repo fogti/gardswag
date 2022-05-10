@@ -1,0 +1,54 @@
+---
+source: crates/gardswag/src/main.rs
+assertion_line: 336
+expression: x
+---
+- stmts: []
+  term:
+    offset: 120
+    inner:
+      Update:
+        orig:
+          offset: 17
+          inner:
+            Record:
+              a:
+                offset: 42
+                inner:
+                  FormatString:
+                    - offset: 43
+                      inner:
+                        PureString: what
+              b:
+                offset: 72
+                inner:
+                  Integer: 1
+              c:
+                offset: 97
+                inner:
+                  Record: {}
+        ovrd:
+          offset: 123
+          inner:
+            Record:
+              b:
+                offset: 148
+                inner:
+                  FormatString:
+                    - offset: 149
+                      inner:
+                        PureString: "no"
+              c:
+                offset: 176
+                inner:
+                  Integer: 50
+- forall: {}
+  t:
+    Record:
+      a:
+        Literal: String
+      b:
+        Literal: String
+      c:
+        Literal: Int
+

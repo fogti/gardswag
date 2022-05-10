@@ -234,12 +234,13 @@ impl Context {
                 ty.apply(&self.g, &self.m);
                 let tfv = ty.fv();
                 if tfv.is_empty() {
-                    let mut success = false;
+                    let mut success = g.oneof.is_empty();
                     for j in &g.oneof {
                         let mut self_bak = self.clone();
                         if self_bak.unify(ty, j).is_ok() {
                             *self = self_bak;
                             success = true;
+                            ty.apply(&self.g, &self.m);
                             break;
                         }
                     }
@@ -249,7 +250,6 @@ impl Context {
                             got: ty.clone(),
                         });
                     }
-                    ty.apply(&self.g, &self.m);
                 }
 
                 if !g.partial_record.is_empty() {
@@ -483,7 +483,7 @@ impl Context {
                         let tmp = self.g.insert(tcgid, Default::default());
                         assert_eq!(tmp, None);
                         tcgid
-                    },
+                    }
                     (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,
                     (Some(&vcg), Some(&ycg)) => return self.unify_constraint_groups(vcg, ycg),
                 };
