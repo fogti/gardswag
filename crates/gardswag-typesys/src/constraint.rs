@@ -289,6 +289,7 @@ impl Context {
             return Ok(());
         }
 
+        tracing::debug!("unify-cgs {} {}", a, b);
         let mut lhs = self.g.remove(&a).unwrap();
         let mut rhs = self.g.remove(&b).unwrap();
 
@@ -477,7 +478,12 @@ impl Context {
         if let Some(t) = tcg.resolved() {
             if let Ty::Var(y) = t {
                 let tcgid = match (self.m.get(&v), self.m.get(y)) {
-                    (None, None) => TyConstraintGroupId(self.tycg_cnt.next().unwrap()),
+                    (None, None) => {
+                        let tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
+                        let tmp = self.g.insert(tcgid, Default::default());
+                        assert_eq!(tmp, None);
+                        tcgid
+                    },
                     (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,
                     (Some(&vcg), Some(&ycg)) => return self.unify_constraint_groups(vcg, ycg),
                 };

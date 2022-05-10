@@ -1,0 +1,104 @@
+---
+source: crates/gardswag/src/main.rs
+assertion_line: 316
+expression: x
+---
+- stmts: []
+  term:
+    offset: 17
+    inner:
+      Let:
+        lhs:
+          offset: 25
+          inner: f
+        rhs:
+          offset: 29
+          inner:
+            Fix:
+              arg:
+                offset: 25
+                inner: f
+              body:
+                offset: 29
+                inner:
+                  Lambda:
+                    arg:
+                      offset: 29
+                      inner: a
+                    body:
+                      offset: 32
+                      inner:
+                        If:
+                          cond:
+                            offset: 39
+                            inner:
+                              Call:
+                                prim:
+                                  offset: 39
+                                  inner:
+                                    Call:
+                                      prim:
+                                        offset: 39
+                                        inner:
+                                          Dot:
+                                            prim:
+                                              offset: 36
+                                              inner:
+                                                Identifier:
+                                                  offset: 36
+                                                  inner: std
+                                            key:
+                                              offset: 40
+                                              inner: eq
+                                      arg:
+                                        offset: 43
+                                        inner:
+                                          Identifier:
+                                            offset: 43
+                                            inner: a
+                                arg:
+                                  offset: 45
+                                  inner:
+                                    Integer: 0
+                          then:
+                            stmts: []
+                            term:
+                              offset: 50
+                              inner:
+                                Integer: 0
+                          or_else:
+                            stmts: []
+                            term:
+                              offset: 56
+                              inner:
+                                Call:
+                                  prim:
+                                    offset: 56
+                                    inner:
+                                      Identifier:
+                                        offset: 56
+                                        inner: f
+                                  arg:
+                                    offset: 58
+                                    inner:
+                                      Integer: 0
+        rest:
+          stmts: []
+          term:
+            offset: 79
+            inner:
+              Call:
+                prim:
+                  offset: 79
+                  inner:
+                    Identifier:
+                      offset: 79
+                      inner: f
+                arg:
+                  offset: 81
+                  inner:
+                    Integer: 1
+- forall: {}
+  t:
+    Literal: Int
+

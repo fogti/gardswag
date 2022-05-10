@@ -1,0 +1,45 @@
+---
+source: crates/gardswag-syntax/src/lib.rs
+assertion_line: 821
+expression: "parse(r#\"\n                .{\n                  a = 1;\n                  b = \"what\";\n                  c = .{};\n                } // .{\n                  b = 50;\n                  c = \"now\";\n                }\n            \"#).unwrap()"
+---
+stmts: []
+term:
+  offset: 120
+  inner:
+    Update:
+      orig:
+        offset: 17
+        inner:
+          Record:
+            a:
+              offset: 42
+              inner:
+                Integer: 1
+            b:
+              offset: 67
+              inner:
+                FormatString:
+                  - offset: 68
+                    inner:
+                      PureString: what
+            c:
+              offset: 97
+              inner:
+                Record: {}
+      ovrd:
+        offset: 123
+        inner:
+          Record:
+            b:
+              offset: 148
+              inner:
+                Integer: 50
+            c:
+              offset: 174
+              inner:
+                FormatString:
+                  - offset: 175
+                    inner:
+                      PureString: now
+

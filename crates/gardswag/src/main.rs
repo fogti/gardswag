@@ -177,6 +177,12 @@ fn main() {
 mod tests {
     use super::*;
 
+    fn dflsubscr() -> impl tracing::subscriber::Subscriber {
+        tracing_subscriber::fmt::Subscriber::builder()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .finish()
+    }
+
     #[test]
     fn chk_hello() {
         insta::assert_yaml_snapshot!(main_check(r#"std.stdio.write("Hello world!\n");"#));
@@ -200,8 +206,9 @@ mod tests {
 
     #[test]
     fn run_fibo0() {
-        let x = main_check(
-            r#"
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                r#"
                 let rec fib = \x \y \n {
                   (* seq: [..., x, y] ++ [z] *)
                   let z = std.plus x y;
@@ -211,14 +218,16 @@ mod tests {
                 };
                 fib 1 1 0
             "#,
-        );
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+            );
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
     }
 
     #[test]
     fn run_fibo1() {
-        let x = main_check(
-            r#"
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                r#"
                 let rec fib = \x \y \n {
                   (* seq: [..., x, y] ++ [z] *)
                   let z = std.plus x y;
@@ -228,14 +237,16 @@ mod tests {
                 };
                 fib 1 1 1
             "#,
-        );
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+            );
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
     }
 
     #[test]
     fn run_fibo() {
-        let x = main_check(
-            r#"
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                r#"
                 let rec fib = \x \y \n {
                   (* seq: [..., x, y] ++ [z] *)
                   let z = std.plus x y;
@@ -245,9 +256,10 @@ mod tests {
                 };
                 fib 1 1 5
             "#,
-        );
-        insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+            );
+            insta::assert_yaml_snapshot!(x);
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
     }
 
     #[test]
@@ -267,24 +279,62 @@ mod tests {
 
     #[test]
     fn run_id() {
-        let x = main_check(
-            r#"
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                r#"
                 let id = \x x;
                 id 1
             "#,
-        );
-        insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+            );
+            insta::assert_yaml_snapshot!(x);
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
     }
 
     #[test]
     fn run_call_blti() {
-        let x = main_check(
-            r#"
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                r#"
                 std.plus 1 1
             "#,
-        );
-        insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+            );
+            insta::assert_yaml_snapshot!(x);
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
+    }
+
+    #[test]
+    fn run_fix() {
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                r#"
+                let rec f = \a if (std.eq a 0) { 0 } { f 0 };
+                f 1
+            "#,
+            );
+            insta::assert_yaml_snapshot!(x);
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
+    }
+
+    #[test]
+    fn run_update() {
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                r#"
+                .{
+                  a = "what";
+                  b = 1;
+                  c = .{};
+                } // .{
+                  b = "no";
+                  c = 50;
+                }
+            "#,
+            );
+            insta::assert_yaml_snapshot!(x);
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
     }
 }

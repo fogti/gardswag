@@ -1,0 +1,7 @@
+---
+source: crates/gardswag/src/main.rs
+assertion_line: 317
+expression: main_interp(&x.0)
+---
+Integer: 0
+
