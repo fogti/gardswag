@@ -5,6 +5,7 @@ edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
+anyhow = "1.0"
 gardswag-syntax.path = "../gardswag-syntax"
 gardswag-typesys.path = "../gardswag-typesys"
 gardswag-varstack.path = "../gardswag-varstack"
@@ -23,3 +24,4 @@ features = ["env-filter"]
 
 [dev-dependencies]
 insta = "1.14"
+proptest = "1.0"

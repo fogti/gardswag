@@ -86,8 +86,8 @@ fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
     }
 }
 
-fn main_check(dat: &str) -> (gardswag_syntax::Block, gardswag_typesys::Scheme) {
-    let parsed = gardswag_syntax::parse(dat).expect("unable to parse file");
+fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typesys::Scheme)> {
+    let parsed = gardswag_syntax::parse(dat)?;
 
     let mut ctx = gardswag_typesys::Context::default();
 
@@ -97,8 +97,7 @@ fn main_check(dat: &str) -> (gardswag_syntax::Block, gardswag_typesys::Scheme) {
             .collect(),
     };
 
-    match infer::infer_block(&env, &mut ctx, &parsed) {
-        Ok(t) => {
+    let t = infer::infer_block(&env, &mut ctx, &parsed)?;
             use gardswag_typesys::Substitutable as _;
             debug!("type check ok");
             debug!("=T> {}", t);
@@ -116,10 +115,7 @@ fn main_check(dat: &str) -> (gardswag_syntax::Block, gardswag_typesys::Scheme) {
                 debug!("\t${}:\t{:?}", k, v);
             }
             tracing::info!("=G> {}", tg);
-            (parsed, tg)
-        }
-        Err(e) => panic!("type checking error: {:?}", e),
-    }
+            Ok((parsed, tg))
 }
 
 fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
@@ -163,7 +159,7 @@ fn main() {
 
     tracing_subscriber::fmt::init();
 
-    let (parsed, _) = main_check(&dat);
+    let (parsed, _) = main_check(&dat).expect("unable to parse + type-check file");
 
     if args.mode == Mode::Check {
         return;
@@ -185,7 +181,7 @@ mod tests {
 
     #[test]
     fn chk_hello() {
-        insta::assert_yaml_snapshot!(main_check(r#"std.stdio.write("Hello world!\n");"#));
+        insta::assert_yaml_snapshot!(main_check(r#"std.stdio.write("Hello world!\n");"#).unwrap());
     }
 
     #[test]
@@ -201,7 +197,7 @@ mod tests {
                 };
                 fib
             "#
-        ));
+        ).unwrap());
     }
 
     #[test]
@@ -218,7 +214,7 @@ mod tests {
                 };
                 fib 1 1 0
             "#,
-            );
+            ).unwrap();
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
     }
@@ -237,7 +233,7 @@ mod tests {
                 };
                 fib 1 1 1
             "#,
-            );
+            ).unwrap();
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
     }
@@ -256,7 +252,7 @@ mod tests {
                 };
                 fib 1 1 5
             "#,
-            );
+            ).unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -274,7 +270,7 @@ mod tests {
                   y = "{x}";
                 }
             "#
-        ));
+        ).unwrap());
     }
 
     #[test]
@@ -285,7 +281,7 @@ mod tests {
                 let id = \x x;
                 id 1
             "#,
-            );
+            ).unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -298,7 +294,7 @@ mod tests {
                 r#"
                 std.plus 1 1
             "#,
-            );
+            ).unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -312,7 +308,7 @@ mod tests {
                 let rec f = \a if (std.eq a 0) { 0 } { f 0 };
                 f 1
             "#,
-            );
+            ).unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -332,9 +328,27 @@ mod tests {
                   c = 50;
                 }
             "#,
-            );
+            ).unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
+    }
+
+    #[test]
+    fn check_regression0() {
+        tracing::subscriber::with_default(dflsubscr(), || {
+            insta::assert_yaml_snapshot!(main_check("0//0").map_err(|e| e.to_string()));
+        });
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config::with_cases(4096000))]
+
+        #[test]
+        fn doesnt_crash(s in "[ -~]+") {
+            if let Ok(x) = main_check(&s) {
+                main_interp(&x.0);
+            }
+        }
     }
 }
