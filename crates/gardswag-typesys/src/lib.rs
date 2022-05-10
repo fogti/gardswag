@@ -312,23 +312,28 @@ impl Scheme {
         let mut m = BTreeMap::default();
         let cdfl = Default::default();
         for (k, c) in &self.forall {
+            tracing::trace!("instantiate (forall item) {:?}=>{:?}", k, c);
             let new_tid = outerctx.fresh_tyvars.next().unwrap();
             if c != &cdfl {
                 outerctx.bind(new_tid, c.clone()).unwrap();
             }
             m.insert(*k, new_tid);
         }
+        tracing::trace!("instantiate (input): {:?}", t2);
+        tracing::trace!("instantiate (ctx): {:?}", outerctx);
         t2.replace_tyvars(&m);
+        tracing::trace!("instantiate (output): {:?}", t2);
         t2
     }
 }
 
 impl Ty {
-    pub fn generalize<S: Substitutable>(self, env: &S, outerctx: &Context) -> Scheme {
-        Scheme {
+    pub fn generalize<S: Substitutable + fmt::Debug>(self, env: &S, outerctx: &Context) -> Scheme {
+        let ret = Scheme {
             forall: self
                 .fv()
                 .difference(&env.fv())
+                .inspect(|var| tracing::trace!(?var, "generalize:tyvar"))
                 .cloned()
                 .map(|var| {
                     // TODO: make sure this works correctly
@@ -344,7 +349,9 @@ impl Ty {
                 })
                 .collect(),
             t: self,
-        }
+        };
+        tracing::trace!(?env, ?outerctx, ?ret, "generalize");
+        ret
     }
 }
 

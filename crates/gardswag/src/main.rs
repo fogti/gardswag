@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use tracing::debug;
+use tracing::{debug, trace};
 
 mod infer;
 mod interp;
@@ -80,7 +80,7 @@ fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
     TyScheme {
         forall: tyvars
             .into_iter()
-            .map(|_| (ctx.fresh_tyvars.next().unwrap(), Default::default()))
+            .map(|i| (i, Default::default()))
             .collect(),
         t,
     }
@@ -104,6 +104,15 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     // generalize the type
     env.vars.apply(&ctx.g, &ctx.m);
     let tg = t.clone().generalize(&env, &ctx);
+    ctx.self_resolve();
+    trace!("--TV--");
+    for (k, v) in &ctx.m {
+        trace!("\t${}:\t{}", k, v);
+    }
+    trace!("--CG--");
+    for (k, v) in &ctx.g {
+        trace!("\t${}:\t{:?}", k, v);
+    }
     // garbage collection
     env.gc(&mut ctx, core::iter::once(t));
     debug!("--TV--");

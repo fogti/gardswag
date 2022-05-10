@@ -13,7 +13,7 @@ pub enum Error {
     Unify(#[from] tysy::UnifyError),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Env {
     pub vars: HashMap<String, tysy::Scheme>,
 }

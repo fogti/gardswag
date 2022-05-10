@@ -3,7 +3,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-pub type Tcgs = HashMap<TyConstraintGroupId, TyConstraintGroup>;
+pub type Tcgs = BTreeMap<TyConstraintGroupId, TyConstraintGroup>;
 pub type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
