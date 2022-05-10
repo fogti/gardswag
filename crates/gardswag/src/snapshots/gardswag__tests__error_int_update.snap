@@ -1,0 +1,7 @@
+---
+source: crates/gardswag/src/main.rs
+assertion_line: 349
+expression: "main_check(\"0//0\").map_err(|e| e.to_string())"
+---
+Err: "unification error: expected record, got Ty{int}"
+

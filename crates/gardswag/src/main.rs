@@ -98,24 +98,24 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     };
 
     let t = infer::infer_block(&env, &mut ctx, &parsed)?;
-            use gardswag_typesys::Substitutable as _;
-            debug!("type check ok");
-            debug!("=T> {}", t);
-            // generalize the type
-            env.vars.apply(&ctx.g, &ctx.m);
-            let tg = t.clone().generalize(&env, &ctx);
-            // garbage collection
-            env.gc(&mut ctx, core::iter::once(t));
-            debug!("--TV--");
-            for (k, v) in &ctx.m {
-                debug!("\t${}:\t{}", k, v);
-            }
-            debug!("--CG--");
-            for (k, v) in &ctx.g {
-                debug!("\t${}:\t{:?}", k, v);
-            }
-            tracing::info!("=G> {}", tg);
-            Ok((parsed, tg))
+    use gardswag_typesys::Substitutable as _;
+    debug!("type check ok");
+    debug!("=T> {}", t);
+    // generalize the type
+    env.vars.apply(&ctx.g, &ctx.m);
+    let tg = t.clone().generalize(&env, &ctx);
+    // garbage collection
+    env.gc(&mut ctx, core::iter::once(t));
+    debug!("--TV--");
+    for (k, v) in &ctx.m {
+        debug!("\t${}:\t{}", k, v);
+    }
+    debug!("--CG--");
+    for (k, v) in &ctx.g {
+        debug!("\t${}:\t{:?}", k, v);
+    }
+    tracing::info!("=G> {}", tg);
+    Ok((parsed, tg))
 }
 
 fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
@@ -197,7 +197,8 @@ mod tests {
                 };
                 fib
             "#
-        ).unwrap());
+        )
+        .unwrap());
     }
 
     #[test]
@@ -214,7 +215,8 @@ mod tests {
                 };
                 fib 1 1 0
             "#,
-            ).unwrap();
+            )
+            .unwrap();
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
     }
@@ -233,7 +235,8 @@ mod tests {
                 };
                 fib 1 1 1
             "#,
-            ).unwrap();
+            )
+            .unwrap();
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
     }
@@ -252,7 +255,8 @@ mod tests {
                 };
                 fib 1 1 5
             "#,
-            ).unwrap();
+            )
+            .unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -270,7 +274,8 @@ mod tests {
                   y = "{x}";
                 }
             "#
-        ).unwrap());
+        )
+        .unwrap());
     }
 
     #[test]
@@ -281,7 +286,8 @@ mod tests {
                 let id = \x x;
                 id 1
             "#,
-            ).unwrap();
+            )
+            .unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -294,7 +300,8 @@ mod tests {
                 r#"
                 std.plus 1 1
             "#,
-            ).unwrap();
+            )
+            .unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -308,7 +315,8 @@ mod tests {
                 let rec f = \a if (std.eq a 0) { 0 } { f 0 };
                 f 1
             "#,
-            ).unwrap();
+            )
+            .unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
@@ -328,21 +336,22 @@ mod tests {
                   c = 50;
                 }
             "#,
-            ).unwrap();
+            )
+            .unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
     }
 
     #[test]
-    fn check_regression0() {
+    fn error_int_update() {
         tracing::subscriber::with_default(dflsubscr(), || {
             insta::assert_yaml_snapshot!(main_check("0//0").map_err(|e| e.to_string()));
         });
     }
 
     proptest::proptest! {
-        #![proptest_config(proptest::test_runner::Config::with_cases(4096000))]
+        #![proptest_config(proptest::test_runner::Config::with_cases(8192))]
 
         #[test]
         fn doesnt_crash(s in "[ -~]+") {

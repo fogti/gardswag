@@ -188,8 +188,10 @@ impl Context {
                 cgs = it.collect();
                 cg
             };
+            tracing::trace!(?cg, "notify-cg");
             let mut g = self.g.remove(&cg).unwrap();
             if g.resolved().is_some() {
+                tracing::trace!(?cg, ?g, "already resolved");
                 self.g.insert(cg, g);
                 // nothing to do
                 return Ok(());
@@ -200,33 +202,69 @@ impl Context {
             let mut modified = false;
 
             if let Some((orig, ovrd)) = g.record_update_info {
-                if let (
-                    Some(Tcg {
-                        ty: Some(Ty::Record(rcm_orig)),
-                        ..
-                    }),
-                    Some(Tcg {
-                        ty: Some(Ty::Record(rcm_ovrd)),
-                        ..
-                    }),
-                ) = (
+                match (
                     self.g.get(self.m.get(&orig).unwrap()),
                     self.g.get(self.m.get(&ovrd).unwrap()),
                 ) {
-                    let mut rcm = rcm_ovrd.clone();
-                    for (k, v) in rcm_orig {
-                        if rcm.contains_key(k) {
-                            continue;
+                    (
+                        Some(Tcg {
+                            ty: Some(Ty::Record(rcm_orig)),
+                            ..
+                        }),
+                        Some(Tcg {
+                            ty: Some(Ty::Record(rcm_ovrd)),
+                            ..
+                        }),
+                    ) => {
+                        let mut rcm = rcm_ovrd.clone();
+                        for (k, v) in rcm_orig {
+                            if rcm.contains_key(k) {
+                                continue;
+                            }
+                            rcm.insert(k.clone(), v.clone());
                         }
-                        rcm.insert(k.clone(), v.clone());
+                        let rcm_ty = Ty::Record(rcm);
+                        if let Some(ty) = &g.ty {
+                            self.unify(&rcm_ty, ty)?;
+                        }
+                        modified = true;
+                        g.ty = Some(rcm_ty);
+                        g.record_update_info = None;
                     }
-                    let rcm_ty = Ty::Record(rcm);
-                    if let Some(ty) = &g.ty {
-                        self.unify(&rcm_ty, ty)?;
+                    (
+                        Some(Tcg {
+                            ty: Some(ty_orig @ Ty::Literal(_) | ty_orig @ Ty::Arrow(_, _)),
+                            ..
+                        }),
+                        _,
+                    ) => {
+                        return Err(UnifyError::NotARecord(ty_orig.clone()));
                     }
-                    modified = true;
-                    g.ty = Some(rcm_ty);
-                    g.record_update_info = None;
+                    (
+                        _,
+                        Some(Tcg {
+                            ty: Some(ty_ovrd @ Ty::Literal(_) | ty_ovrd @ Ty::Arrow(_, _)),
+                            ..
+                        }),
+                    ) => {
+                        return Err(UnifyError::NotARecord(ty_ovrd.clone()));
+                    }
+                    (
+                        None
+                        | Some(Tcg {
+                            ty: None | Some(Ty::Var(_)),
+                            ..
+                        }),
+                        _,
+                    )
+                    | (
+                        _,
+                        None
+                        | Some(Tcg {
+                            ty: None | Some(Ty::Var(_)),
+                            ..
+                        }),
+                    ) => {}
                 }
             }
 
@@ -305,6 +343,7 @@ impl Context {
 
         let mut res = match (lhs.resolved(), rhs.resolved()) {
             (Some(t_a), Some(t_b)) => {
+                tracing::trace!(?t_a, ?t_b, "unify-cgs");
                 self.ucg_check4inf(a, b, t_a)?;
                 self.ucg_check4inf(a, b, t_b)?;
                 self.unify(t_a, t_b)?;
@@ -316,6 +355,7 @@ impl Context {
                 lhs
             }
             (None, None) => {
+                tracing::trace!(?lhs, ?rhs, "unify-cgs (full merge)");
                 let mut ty = match (lhs.ty, rhs.ty) {
                     (None, None) => None,
                     (Some(t), None) | (None, Some(t)) => Some(t),
@@ -325,6 +365,7 @@ impl Context {
                         Some(t1)
                     }
                 };
+                tracing::trace!(?ty, "unify-cgs type");
                 let listeners: BTreeSet<_> = lhs
                     .listeners
                     .into_iter()
@@ -405,6 +446,7 @@ impl Context {
                 } else {
                     (rhs.ty.as_ref().unwrap(), lhs)
                 };
+                tracing::trace!(?t, ?g, "unify-cg");
                 self.ucg_check4inf(a, b, t)?;
                 let tfv = t.fv();
                 if !tfv.is_empty() {
