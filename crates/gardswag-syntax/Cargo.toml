@@ -6,6 +6,7 @@ edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
+gardswag-core.path = "../gardswag-core"
 thiserror = "1.0"
 unicode-normalization = "0.1"
 unicode-xid = "0.2"

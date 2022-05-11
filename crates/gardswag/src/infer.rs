@@ -78,7 +78,7 @@ fn infer_inner(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Er
             let t1 = infer(env, ctx, rhs)?;
             let mut env2 = env.clone();
             env2.apply(&ctx.g, &ctx.m);
-            let t2 = t1.generalize(&env2, ctx);
+            let t2 = tysy::generalize(t1, &env2, ctx);
             env2.vars.insert(lhs.inner.clone(), t2);
             infer_block(&env2, ctx, rest)
         }

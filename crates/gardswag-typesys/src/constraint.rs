@@ -1,7 +1,7 @@
 use crate::{Substitutable, Ty, TyVar, UnifyError};
 use core::fmt;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub type Tcgs = BTreeMap<TyConstraintGroupId, TyConstraintGroup>;
 pub type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;

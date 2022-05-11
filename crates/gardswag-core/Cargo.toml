@@ -1,15 +1,13 @@
 [package]
-name = "gardswag-typesys"
-description = "Hindley Milner type system implementation for gardswag"
+name = "gardswag-core"
+description = "Stuff shared between multiple gardswag crates"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
 enum_dispatch = "0.3"
-gardswag-core.path = "../gardswag-core"
 thiserror = "1.0"
-tracing = "0.1"
 
 [dependencies.serde]
 version = "1.0"

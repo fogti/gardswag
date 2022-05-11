@@ -103,7 +103,7 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     debug!("=T> {}", t);
     // generalize the type
     env.vars.apply(&ctx.g, &ctx.m);
-    let tg = t.clone().generalize(&env, &ctx);
+    let tg = gardswag_typesys::generalize(t.clone(), &env, &ctx);
     ctx.self_resolve();
     trace!("--TV--");
     for (k, v) in &ctx.m {
@@ -130,7 +130,7 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
 fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
     use interp::{Builtin as Bi, Value as Val};
 
-    let stack = gardswag_varstack::VarStack {
+    let stack = gardswag_core::VarStack {
         parent: None,
         name: "std",
         value: Val::Record(
@@ -273,8 +273,9 @@ mod tests {
 
     #[test]
     fn chk_implicit_restr() {
-        insta::assert_yaml_snapshot!(main_check(
-            r#"
+        tracing::subscriber::with_default(dflsubscr(), || {
+            insta::assert_yaml_snapshot!(main_check(
+                r#"
                 \x
                 let id = \y y;
                 .{
@@ -283,8 +284,9 @@ mod tests {
                   y = "{x}";
                 }
             "#
-        )
-        .unwrap());
+            )
+            .unwrap());
+        });
     }
 
     #[test]

@@ -1,5 +1,5 @@
+use gardswag_core::VarStack;
 use gardswag_syntax::{Block, Expr};
-use gardswag_varstack::VarStack;
 use serde::Serialize;
 use std::collections::BTreeMap;
 

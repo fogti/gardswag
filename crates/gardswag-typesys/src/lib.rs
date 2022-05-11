@@ -17,61 +17,7 @@ mod constraint;
 
 pub use constraint::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
-pub enum TyLit {
-    Unit,
-    Bool,
-    Int,
-    String,
-}
-
-impl fmt::Display for TyLit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Unit => "()",
-            Self::Bool => "bool",
-            Self::Int => "int",
-            Self::String => "str",
-        })
-    }
-}
-
-pub type TyVar = usize;
-
-#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub enum Ty {
-    Literal(TyLit),
-
-    Var(TyVar),
-
-    Arrow(Box<Ty>, Box<Ty>),
-
-    Record(BTreeMap<String, Ty>),
-}
-
-impl fmt::Display for Ty {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Ty::Literal(lit) => write!(f, "{}", lit),
-            Ty::Var(v) => write!(f, "${:?}", v),
-            Ty::Arrow(a, b) => {
-                if matches!(**a, Ty::Arrow(..)) {
-                    write!(f, "({})", a)
-                } else {
-                    write!(f, "{}", a)
-                }?;
-                write!(f, " -> {}", b)
-            }
-            Ty::Record(m) => write!(f, "{:?}", m),
-        }
-    }
-}
-
-impl fmt::Debug for Ty {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Ty{{{}}}", self)
-    }
-}
+pub use gardswag_core::{Ty, TyLit, TyVar};
 
 #[derive(Clone, Debug, Eq, Deserialize, Serialize)]
 pub struct Scheme {
@@ -136,26 +82,6 @@ impl Substitutable for Ty {
             }
             Ty::Record(rcm) => {
                 rcm.values_mut().for_each(|i| i.apply(g, m));
-            }
-        }
-    }
-}
-
-impl Ty {
-    pub fn replace_tyvars(&mut self, tym: &BTreeMap<TyVar, TyVar>) {
-        match self {
-            Ty::Literal(_) => {}
-            Ty::Var(ref mut tv) => {
-                if let Some(x) = tym.get(tv) {
-                    *tv = *x;
-                }
-            }
-            Ty::Arrow(arg, ret) => {
-                arg.replace_tyvars(tym);
-                ret.replace_tyvars(tym);
-            }
-            Ty::Record(m) => {
-                m.values_mut().for_each(|i| i.replace_tyvars(tym));
             }
         }
     }
@@ -327,32 +253,30 @@ impl Scheme {
     }
 }
 
-impl Ty {
-    pub fn generalize<S: Substitutable + fmt::Debug>(self, env: &S, outerctx: &Context) -> Scheme {
-        let ret = Scheme {
-            forall: self
-                .fv()
-                .difference(&env.fv())
-                .inspect(|var| tracing::trace!(?var, "generalize:tyvar"))
-                .cloned()
-                .map(|var| {
-                    // TODO: make sure this works correctly
-                    (
-                        var,
-                        outerctx
-                            .m
-                            .get(&var)
-                            .map(|gid| outerctx.g.get(gid).unwrap())
-                            .cloned()
-                            .unwrap_or_default(),
-                    )
-                })
-                .collect(),
-            t: self,
-        };
-        tracing::trace!(?env, ?outerctx, ?ret, "generalize");
-        ret
-    }
+pub fn generalize<S: Substitutable + fmt::Debug>(ty: Ty, env: &S, outerctx: &Context) -> Scheme {
+    let ret = Scheme {
+        forall: ty
+            .fv()
+            .difference(&env.fv())
+            .inspect(|var| tracing::trace!(?var, "generalize:tyvar"))
+            .cloned()
+            .map(|var| {
+                // TODO: make sure this works correctly
+                (
+                    var,
+                    outerctx
+                        .m
+                        .get(&var)
+                        .map(|gid| outerctx.g.get(gid).unwrap())
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect(),
+        t: ty,
+    };
+    tracing::trace!(?env, ?outerctx, ?ret, "generalize");
+    ret
 }
 
 #[cfg(test)]
