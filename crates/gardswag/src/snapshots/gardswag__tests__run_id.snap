@@ -1,6 +1,5 @@
 ---
 source: crates/gardswag/src/main.rs
-assertion_line: 242
 expression: x
 ---
 - stmts: []
@@ -40,7 +39,7 @@ expression: x
                   offset: 51
                   inner:
                     Integer: 1
-- forall: {}
-  t:
+- forall: []
+  ty:
     Literal: Int
 

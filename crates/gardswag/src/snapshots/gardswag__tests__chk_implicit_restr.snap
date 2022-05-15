@@ -1,6 +1,5 @@
 ---
 source: crates/gardswag/src/main.rs
-assertion_line: 277
 expression: "main_check(r#\"\n                \\x\n                let id = \\y y;\n                .{\n                  id;\n                  x;\n                  y = \"{x}\";\n                }\n            \"#).unwrap()"
 ---
 - stmts: []
@@ -64,23 +63,9 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                                         offset: 137
                                         inner: x
 - forall:
-    2:
-      ty: ~
-      oneof:
-        - Literal: Unit
-        - Literal: Bool
-        - Literal: Int
-        - Literal: String
-      partial_record: {}
-      listeners: []
-      record_update_info: ~
-    4:
-      ty: ~
-      oneof: []
-      partial_record: {}
-      listeners: []
-      record_update_info: ~
-  t:
+    - 2
+    - 4
+  ty:
     Arrow:
       - Var: 2
       - Record:

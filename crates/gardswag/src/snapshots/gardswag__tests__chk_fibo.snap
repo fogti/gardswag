@@ -1,7 +1,6 @@
 ---
 source: crates/gardswag/src/main.rs
-assertion_line: 187
-expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n                  (* seq: [..., x, y] ++ [z] *)\n                  let z = std.plus x y;\n                  if (std.leq n 0)\n                    { z }\n                    { fib y z (std.minus n 1) }\n                };\n                fib\n            \"#)"
+expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n                  (* seq: [..., x, y] ++ [z] *)\n                  let z = std.plus x y;\n                  if (std.leq n 0)\n                    { z }\n                    { fib y z (std.minus n 1) }\n                };\n                fib\n            \"#).unwrap()"
 ---
 - stmts: []
   term:
@@ -200,8 +199,8 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
               Identifier:
                 offset: 274
                 inner: fib
-- forall: {}
-  t:
+- forall: []
+  ty:
     Arrow:
       - Literal: Int
       - Arrow:

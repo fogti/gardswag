@@ -44,11 +44,21 @@ pub enum UnifyError {
 }
 
 impl Context {
-    fn on_apply(&self, i: TyVar) -> Option<Ty> {
-        self.m
-            .get(&i)
-            .and_then(|j| self.g.get(j))
+    pub fn on_apply(&self, i: TyVar) -> Option<Ty> {
+        let cgid = *self.m.get(&i)?;
+        let j = lowest_tvi_for_cg(&self.m, i);
+        let ret = self.g.get(&cgid)
             .and_then(|k| k.ty.clone())
+            .map(|mut k| {
+                k.apply(&|&l| self.on_apply(l));
+                k
+            });
+        tracing::trace!(%i, %j, ?ret, "on_apply");
+        Some(if let Some(x) = ret {
+            x
+        } else {
+            Ty::Var(j)
+        })
     }
 
     pub fn real_unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
@@ -114,7 +124,7 @@ impl fmt::Display for TyConstraintGroupId {
 
 use TyConstraintGroup as Tcg;
 
-pub(crate) fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
+fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
     if let Some(&x) = m.get(&tv) {
         // check if any tv with the same *x has a lower id
         // and replace it with that
@@ -127,9 +137,7 @@ pub(crate) fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
 pub struct Context {
     pub g: Tcgs,
     pub m: Tvs,
-
     pub tycg_cnt: core::ops::RangeFrom<usize>,
-    pub fresh_tyvars: core::ops::RangeFrom<usize>,
 }
 
 impl Default for Context {
@@ -138,7 +146,6 @@ impl Default for Context {
             g: Default::default(),
             m: Default::default(),
             tycg_cnt: 0..,
-            fresh_tyvars: 0..,
         }
     }
 }
@@ -353,6 +360,7 @@ impl Context {
                 lhs.ty.as_mut().unwrap().apply(&|&i| self.on_apply(i));
                 debug_assert!({
                     rhs.ty.as_mut().unwrap().apply(&|&i| self.on_apply(i));
+                    tracing::trace!(?lhs.ty, ?rhs.ty, "unify res");
                     lhs.ty == rhs.ty
                 });
                 lhs

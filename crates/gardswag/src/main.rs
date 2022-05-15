@@ -94,19 +94,21 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
             .collect(),
     };
 
-    let t = infer::infer_block(&env, &mut ctx, &parsed)?;
+    let mut t = infer::infer_block(&env, &mut ctx, &parsed)?;
     debug!("type check ok");
     debug!("=T> {}", t);
-    // generalize the type
-    let tg = t.generalize(&env);
     trace!("--constraints--");
     for v in &ctx.constraints {
         trace!("\t{:?}", v);
     }
     let mut ctx2 = gardswag_typesys::Context::default();
     ctx2.solve(ctx)
-        .map_err(|(offset, e)| anyhow::anyhow!("@{}: {:?}", offset, e))?;
+        .map_err(|(offset, e)| anyhow::anyhow!("@{}: {}", offset, e))?;
     ctx2.self_resolve();
+    // generalize the type
+    use gardswag_typesys::Substitutable;
+    t.apply(&|&i| ctx2.on_apply(i));
+    let tg = t.generalize(&env);
     trace!("--TV--");
     for (k, v) in &ctx2.m {
         trace!("\t${}:\t{}", k, v);
@@ -187,8 +189,9 @@ mod tests {
 
     #[test]
     fn chk_fibo() {
-        insta::assert_yaml_snapshot!(main_check(
-            r#"
+        tracing::subscriber::with_default(dflsubscr(), || {
+            insta::assert_yaml_snapshot!(main_check(
+                r#"
                 let rec fib = \x \y \n {
                   (* seq: [..., x, y] ++ [z] *)
                   let z = std.plus x y;
@@ -198,8 +201,9 @@ mod tests {
                 };
                 fib
             "#
-        )
-        .unwrap());
+            )
+            .unwrap());
+        });
     }
 
     #[test]
