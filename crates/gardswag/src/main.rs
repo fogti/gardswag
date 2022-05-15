@@ -62,7 +62,8 @@ fn mk_env_std(ctx: &mut gardswag_tysy_collect::Context) -> gardswag_typesys::Sch
         }};
     }
 
-    let tyvars: Vec<usize> = (0..2).map(|_| ctx.fresh_tyvars.next().unwrap()).collect();
+    use gardswag_core::ty::Context as _;
+    let tyvars: Vec<usize> = (0..2).map(|_| ctx.fresh_tyvar()).collect();
     let gtv = |i| Ty::Var(tyvars[i]);
 
     let ty = tr!({

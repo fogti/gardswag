@@ -96,7 +96,7 @@ impl Substitutable for Tcg {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Context {
-    pub fresh_tyvars: core::ops::RangeFrom<usize>,
+    fresh_tyvars: core::ops::RangeFrom<usize>,
     pub constraints: Vec<(usize, Constraint)>,
 }
 

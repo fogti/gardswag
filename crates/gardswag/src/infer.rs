@@ -137,14 +137,14 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
         Ek::Update { orig, ovrd } => {
             let t_orig = infer(env, ctx, orig)?;
             let t_ovrd = infer(env, ctx, ovrd)?;
-            let tvout = ctx.fresh_tyvars.next().unwrap();
-            let tvorig = ctx.fresh_tyvars.next().unwrap();
+            let tvout = ctx.fresh_tyvar();
+            let tvorig = ctx.fresh_tyvar();
             let tcg_listen = tysy::TyConstraintGroup {
                 listeners: [tvout].into_iter().collect(),
                 ..Default::default()
             };
             ctx.bind(expr.offset, tvorig, tcg_listen.clone());
-            let tvovrd = ctx.fresh_tyvars.next().unwrap();
+            let tvovrd = ctx.fresh_tyvar();
             ctx.bind(expr.offset, tvovrd, tcg_listen);
             ctx.bind(
                 expr.offset,
@@ -164,7 +164,14 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
             let env = env.clone();
             for i in fsexs {
                 let t = infer(&env, ctx, i)?;
-                let tv = ctx.fresh_tyvars.next().unwrap();
+                let tv = match t {
+                    Ty::Var(x) => x,
+                    _ => {
+                        let tv = ctx.fresh_tyvar();
+                        ctx.unify(i.offset, t, Ty::Var(tv));
+                        tv
+                    }
+                };
                 ctx.bind(
                     i.offset,
                     tv,
@@ -176,7 +183,6 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
                         ..Default::default()
                     },
                 );
-                ctx.unify(i.offset, t, Ty::Var(tv));
             }
             Ok(Ty::Literal(TyLit::String))
         }
