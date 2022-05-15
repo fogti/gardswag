@@ -110,10 +110,16 @@ impl Substitutable for Ty {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Scheme {
     pub forall: BTreeSet<TyVar>,
     pub ty: Ty,
+}
+
+impl fmt::Display for Scheme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<{:?}>({})", self.forall, self.ty)
+    }
 }
 
 impl Ty {
@@ -126,10 +132,7 @@ impl Ty {
         let mut forall = Default::default();
         self.fv(&mut forall, true);
         depenv.fv(&mut forall, false);
-        Scheme {
-            forall,
-            ty: self,
-        }
+        Scheme { forall, ty: self }
     }
 }
 
@@ -140,7 +143,40 @@ impl Scheme {
     {
         let mut t2 = self.ty.clone();
         let m = outerctx.dup_tyvars(self.forall.iter().copied());
-        t2.apply(& |i| m.get(i).map(|&j| Ty::Var(j)));
+        t2.apply(&|i| m.get(i).map(|&j| Ty::Var(j)));
         t2
+    }
+}
+
+impl Substitutable for Scheme {
+    type In = TyVar;
+    type Out = Ty;
+
+    fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
+        if do_add {
+            let x: Vec<usize> = self.forall.difference(accu).copied().collect();
+            if !x.is_empty() {
+                panic!("Scheme::fv: accu contains elements of forall: {:?}", x);
+            }
+            self.ty.fv(accu, true);
+            for i in &self.forall {
+                accu.remove(i);
+            }
+        } else {
+            self.ty.fv(accu, false);
+        }
+    }
+
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&Self::In) -> Option<Self::Out>,
+    {
+        self.ty.apply(&|i| {
+            if self.forall.contains(i) {
+                None
+            } else {
+                f(i)
+            }
+        });
     }
 }
