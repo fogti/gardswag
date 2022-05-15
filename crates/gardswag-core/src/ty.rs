@@ -25,8 +25,14 @@ impl fmt::Display for TyLit {
 pub type TyVar = usize;
 
 pub trait Context {
-    /// duplicates a type variable, including it's constraints
-    fn dup_tyvars<I: Iterator<Item = TyVar>>(&mut self, tv: I) -> BTreeMap<TyVar, TyVar>;
+    /// creates a fresh type variable
+    fn fresh_tyvar(&mut self) -> TyVar;
+
+    /// duplicates type variables, including their constraints
+    fn dup_tyvars<I: Iterator<Item = TyVar>>(&mut self, tvs: I) -> BTreeMap<TyVar, TyVar>;
+
+    /// registers a unification
+    fn unify(&mut self, offset: usize, a: Ty, b: Ty);
 }
 
 #[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]

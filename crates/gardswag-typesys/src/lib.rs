@@ -9,6 +9,7 @@
 #![deny(unused_variables)]
 
 pub use gardswag_core::{ty::Scheme, Substitutable, Ty, TyLit, TyVar};
+pub use gardswag_tysy_collect::TyConstraintGroup;
 
 #[derive(Debug, thiserror::Error)]
 pub enum UnifyError {
@@ -50,15 +51,15 @@ impl Context {
             .and_then(|k| k.ty.clone())
     }
 
-    pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
-        tracing::trace!("unify a={{{}}}, b={{{}}} ctx={:?}", a, b, self);
+    pub fn real_unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
+        tracing::trace!("real_unify a={{{}}}, b={{{}}} ctx={:?}", a, b, self);
         match (a, b) {
             (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
-                self.unify(l1, l2)?;
+                self.real_unify(l1, l2)?;
                 let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
                 rx1.apply(&|&i| self.on_apply(i));
                 rx2.apply(&|&i| self.on_apply(i));
-                self.unify(&rx1, &rx2)?;
+                self.real_unify(&rx1, &rx2)?;
                 Ok(())
             }
             (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
@@ -67,11 +68,11 @@ impl Context {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
-                    self.unify(v1, v2)?;
+                    self.real_unify(v1, v2)?;
                 }
                 Ok(())
             }
-            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
+            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.real_bind(
                 *a,
                 TyConstraintGroup {
                     ty: Some(t.clone()),
@@ -111,46 +112,7 @@ impl fmt::Display for TyConstraintGroupId {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct TyConstraintGroup {
-    /// type hint, when this cg was already merged with a type,
-    /// might get unified with the next type
-    /// when resolved, this is the only field set
-    pub ty: Option<Ty>,
-
-    /// set of possible concrete types
-    /// must not contain any type variables
-    pub oneof: Vec<Ty>,
-
-    /// type should be a record with specific fields
-    pub partial_record: BTreeMap<String, Ty>,
-
-    /// when this cg is updated, the specified tyvars get informed
-    /// (this is used to forward one-way type information)
-    pub listeners: BTreeSet<TyVar>,
-
-    /// the current type is the result of applying (orig // ovrd).
-    /// which means that the resulting type is a copy of ovrd,
-    /// plus any field present in orig but not in ovrd.
-    pub record_update_info: Option<(TyVar, TyVar)>,
-}
-
 use TyConstraintGroup as Tcg;
-
-impl Tcg {
-    /// checks if the TyCG is resolved, and returns the concrete type if yes
-    pub fn resolved(&self) -> Option<&Ty> {
-        let ret = self.ty.as_ref()?;
-        if self.oneof.is_empty()
-            && self.partial_record.is_empty()
-            && self.record_update_info.is_none()
-        {
-            Some(ret)
-        } else {
-            None
-        }
-    }
-}
 
 pub(crate) fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
     if let Some(&x) = m.get(&tv) {
@@ -159,46 +121,6 @@ pub(crate) fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
         return *m.iter().find(|(_, &v)| v == x).unwrap().0;
     }
     tv
-}
-
-impl Substitutable for Tcg {
-    type In = TyVar;
-    type Out = Ty;
-
-    fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
-        if let Some(x) = &self.ty {
-            x.fv(accu, do_add);
-        }
-        self.oneof.fv(accu, do_add);
-        self.partial_record.fv(accu, do_add);
-        if do_add {
-            accu.extend(self.listeners.iter().copied());
-        } else {
-            accu.retain(|i| !self.listeners.contains(i));
-        }
-        if let Some((a, b)) = self.record_update_info {
-            if do_add {
-                accu.insert(a);
-                accu.insert(b);
-            } else {
-                accu.remove(&a);
-                accu.remove(&b);
-            }
-        }
-    }
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&TyVar) -> Option<Ty>,
-    {
-        if let Some(ty) = &mut self.ty {
-            ty.apply(f);
-        }
-        self.oneof.apply(f);
-        self.partial_record.apply(f);
-        // listeners?
-        // record_update_info?
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -222,10 +144,6 @@ impl Default for Context {
 }
 
 impl Context {
-    pub fn fresh_tyvar(&mut self) -> Ty {
-        Ty::Var(self.fresh_tyvars.next().unwrap())
-    }
-
     /// resolve the context using itself as far as possible
     pub fn self_resolve(&mut self) {
         loop {
@@ -236,23 +154,6 @@ impl Context {
             }
             self.g = newg;
         }
-    }
-
-    /// reduce resolved type variable to those listed in the `keep` set
-    pub fn retain(&mut self, mut keep: BTreeSet<TyVar>) {
-        self.g.fv(&mut keep, true);
-        tracing::debug!("Ctx::retain: FV={:?}", keep);
-
-        let orig_tvcnt = self.m.len();
-        self.m.retain(|k, _| keep.contains(k));
-        tracing::debug!("Ctx::retain: #tv: {} -> {}", orig_tvcnt, self.m.len());
-
-        let keep_gids: BTreeSet<_> = self.m.values().copied().collect();
-        tracing::debug!("Ctx::retain: uCG={:?}", keep_gids);
-
-        let orig_cgcnt = self.g.len();
-        self.g.retain(|k, _| keep_gids.contains(k));
-        tracing::debug!("Ctx::retain: #cg: {} -> {}", orig_cgcnt, self.g.len());
     }
 
     fn ucg_check4inf(
@@ -323,7 +224,7 @@ impl Context {
                         }
                         let rcm_ty = Ty::Record(rcm);
                         if let Some(ty) = &g.ty {
-                            self.unify(&rcm_ty, ty)?;
+                            self.real_unify(&rcm_ty, ty)?;
                         }
                         modified = true;
                         g.ty = Some(rcm_ty);
@@ -377,7 +278,7 @@ impl Context {
                     let mut success = g.oneof.is_empty();
                     for j in &g.oneof {
                         let mut self_bak = self.clone();
-                        if self_bak.unify(ty, j).is_ok() {
+                        if self_bak.real_unify(ty, j).is_ok() {
                             *self = self_bak;
                             success = true;
                             ty.apply(&|&i| self.on_apply(i));
@@ -396,7 +297,7 @@ impl Context {
                     if let Ty::Record(rcm) = &ty {
                         for (key, value) in core::mem::take(&mut g.partial_record) {
                             if let Some(got_valty) = rcm.get(&key) {
-                                self.unify(got_valty, &value)?;
+                                self.real_unify(got_valty, &value)?;
                             } else {
                                 return Err(UnifyError::PartialRecord {
                                     key,
@@ -448,7 +349,7 @@ impl Context {
                 tracing::trace!(?t_a, ?t_b, "unify-cgs");
                 self.ucg_check4inf(a, b, t_a)?;
                 self.ucg_check4inf(a, b, t_b)?;
-                self.unify(t_a, t_b)?;
+                self.real_unify(t_a, t_b)?;
                 lhs.ty.as_mut().unwrap().apply(&|&i| self.on_apply(i));
                 debug_assert!({
                     rhs.ty.as_mut().unwrap().apply(&|&i| self.on_apply(i));
@@ -462,7 +363,7 @@ impl Context {
                     (None, None) => None,
                     (Some(t), None) | (None, Some(t)) => Some(t),
                     (Some(mut t1), Some(t2)) => {
-                        self.unify(&t1, &t2)?;
+                        self.real_unify(&t1, &t2)?;
                         t1.apply(&|&i| self.on_apply(i));
                         Some(t1)
                     }
@@ -495,7 +396,7 @@ impl Context {
                 if oneof.len() == 1 {
                     let ty2 = oneof.remove(0);
                     if let Some(ty) = &mut ty {
-                        self.unify(ty, &ty2)?;
+                        self.real_unify(ty, &ty2)?;
                         ty.apply(&|&i| self.on_apply(i));
                     } else {
                         ty = Some(ty2.clone());
@@ -513,7 +414,7 @@ impl Context {
                         use std::collections::btree_map::Entry;
                         match partial_record.entry(key) {
                             Entry::Occupied(mut occ) => {
-                                self.unify(occ.get(), &value)?;
+                                self.real_unify(occ.get(), &value)?;
                                 occ.get_mut().apply(&|&i| self.on_apply(i));
                             }
                             Entry::Vacant(vac) => {
@@ -528,8 +429,8 @@ impl Context {
                     (Some(x), None) | (None, Some(x)) => Some(x),
                     (Some((w, x)), Some((y, z))) => {
                         use Ty::Var;
-                        self.unify(&Var(w), &Var(y))?;
-                        self.unify(&Var(x), &Var(z))?;
+                        self.real_unify(&Var(w), &Var(y))?;
+                        self.real_unify(&Var(x), &Var(z))?;
                         Some((lowest_tvi_for_cg(&self.m, w), lowest_tvi_for_cg(&self.m, x)))
                     }
                 };
@@ -563,12 +464,12 @@ impl Context {
                     if g.oneof.len() == 1 {
                         let j = core::mem::take(&mut g.oneof).into_iter().next().unwrap();
                         self.ucg_check4inf(a, b, &j)?;
-                        self.unify(t, &j)?;
+                        self.real_unify(t, &j)?;
                     } else {
                         let mut success = false;
                         for j in &g.oneof {
                             let mut self_bak = self.clone();
-                            if self_bak.unify(t, j).is_ok() {
+                            if self_bak.real_unify(t, j).is_ok() {
                                 *self = self_bak;
                                 success = true;
                                 break;
@@ -586,7 +487,7 @@ impl Context {
                     if let Ty::Record(rcm) = &t {
                         for (key, value) in core::mem::take(&mut g.partial_record) {
                             if let Some(got_valty) = rcm.get(&key) {
-                                self.unify(got_valty, &value)?;
+                                self.real_unify(got_valty, &value)?;
                             } else {
                                 return Err(UnifyError::PartialRecord {
                                     key: key.clone(),
@@ -600,7 +501,7 @@ impl Context {
                     }
                 }
                 if let Some(old) = &g.ty {
-                    self.unify(old, t)?;
+                    self.real_unify(old, t)?;
                 } else {
                     g.ty = Some(t.clone());
                 }
@@ -622,7 +523,7 @@ impl Context {
         Ok(())
     }
 
-    pub fn bind(&mut self, v: TyVar, tcg: Tcg) -> Result<(), UnifyError> {
+    fn real_bind(&mut self, v: TyVar, tcg: Tcg) -> Result<(), UnifyError> {
         if let Some(t) = tcg.resolved() {
             if let Ty::Var(y) = t {
                 let tcgid = match (self.m.get(&v), self.m.get(y)) {
@@ -669,5 +570,25 @@ impl Context {
                 Ok(())
             }
         }
+    }
+
+    pub fn solve(
+        &mut self,
+        constrs: gardswag_tysy_collect::Context,
+    ) -> Result<(), (usize, UnifyError)> {
+        use core::mem::take;
+        let mut constraints = constrs.constraints;
+        for (offset, constr) in take(&mut constraints) {
+            use gardswag_tysy_collect::Constraint;
+            let tmp = match constr {
+                Constraint::Unify(a, b) => self.real_unify(&a, &b),
+                Constraint::Bind(tv, cg) => self.real_bind(tv, cg),
+            };
+            match tmp {
+                Ok(()) => {}
+                Err(e) => return Err((offset, e)),
+            }
+        }
+        Ok(())
     }
 }

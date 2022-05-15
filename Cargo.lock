@@ -161,6 +161,7 @@ dependencies = [
  "gardswag-core",
  "gardswag-syntax",
  "gardswag-typesys",
+ "gardswag-tysy-collect",
  "insta",
  "proptest",
  "serde",
@@ -199,9 +200,18 @@ version = "0.1.0"
 dependencies = [
  "enum_dispatch",
  "gardswag-core",
+ "gardswag-tysy-collect",
  "serde",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "gardswag-tysy-collect"
+version = "0.1.0"
+dependencies = [
+ "gardswag-core",
+ "serde",
 ]
 
 [[package]]

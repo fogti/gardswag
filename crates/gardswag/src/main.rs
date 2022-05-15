@@ -25,8 +25,8 @@ struct Args {
     mode: Mode,
 }
 
-fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
-    use gardswag_typesys::{Scheme as TyScheme, Ty, TyLit};
+fn mk_env_std(ctx: &mut gardswag_tysy_collect::Context) -> gardswag_typesys::Scheme {
+    use gardswag_core::{ty::Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
         (int) => {{
@@ -65,7 +65,7 @@ fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
     let tyvars: Vec<usize> = (0..2).map(|_| ctx.fresh_tyvars.next().unwrap()).collect();
     let gtv = |i| Ty::Var(tyvars[i]);
 
-    let t = tr!({
+    let ty = tr!({
         plus: ta!(tl!(int) => tl!(int) => tl!(int)),
         minus: ta!(tl!(int) => tl!(int) => tl!(int)),
         mult: ta!(tl!(int) => tl!(int) => tl!(int)),
@@ -78,50 +78,42 @@ fn mk_env_std(ctx: &mut gardswag_typesys::Context) -> gardswag_typesys::Scheme {
     });
 
     TyScheme {
-        forall: tyvars
-            .into_iter()
-            .map(|i| (i, Default::default()))
-            .collect(),
-        t,
+        forall: tyvars.into_iter().collect(),
+        ty,
     }
 }
 
 fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typesys::Scheme)> {
     let parsed = gardswag_syntax::parse(dat)?;
 
-    let mut ctx = gardswag_typesys::Context::default();
+    let mut ctx = gardswag_tysy_collect::Context::default();
 
-    let mut env = infer::Env {
+    let env = infer::Env {
         vars: [("std".to_string(), mk_env_std(&mut ctx))]
             .into_iter()
             .collect(),
     };
 
     let t = infer::infer_block(&env, &mut ctx, &parsed)?;
-    use gardswag_typesys::Substitutable as _;
     debug!("type check ok");
     debug!("=T> {}", t);
     // generalize the type
-    env.vars.apply(&ctx.g, &ctx.m);
-    let tg = gardswag_typesys::generalize(t.clone(), &env, &ctx);
-    ctx.self_resolve();
+    let tg = t.generalize(&env);
+    trace!("--constraints--");
+    for v in &ctx.constraints {
+        trace!("\t{:?}", v);
+    }
+    let mut ctx2 = gardswag_typesys::Context::default();
+    ctx2.solve(ctx)
+        .map_err(|(offset, e)| anyhow::anyhow!("@{}: {:?}", offset, e))?;
+    ctx2.self_resolve();
     trace!("--TV--");
-    for (k, v) in &ctx.m {
+    for (k, v) in &ctx2.m {
         trace!("\t${}:\t{}", k, v);
     }
     trace!("--CG--");
-    for (k, v) in &ctx.g {
+    for (k, v) in &ctx2.g {
         trace!("\t${}:\t{:?}", k, v);
-    }
-    // garbage collection
-    env.gc(&mut ctx, core::iter::once(t));
-    debug!("--TV--");
-    for (k, v) in &ctx.m {
-        debug!("\t${}:\t{}", k, v);
-    }
-    debug!("--CG--");
-    for (k, v) in &ctx.g {
-        debug!("\t${}:\t{:?}", k, v);
     }
     tracing::info!("=G> {}", tg);
     Ok((parsed, tg))
