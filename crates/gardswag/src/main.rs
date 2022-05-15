@@ -109,7 +109,15 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     // generalize the type
     use gardswag_typesys::Substitutable;
     t.apply(&|&i| ctx2.on_apply(i));
-    let tg = t.generalize(&env);
+    //let tg = t.generalize(&env);
+    let tg = gardswag_core::ty::Scheme {
+        forall: {
+            let mut tfv = Default::default();
+            t.fv(&mut tfv, true);
+            tfv
+        },
+        ty: t,
+    };
     trace!("--TV--");
     for (k, v) in &ctx2.m {
         trace!("\t${}:\t{}", k, v);

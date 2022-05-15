@@ -153,14 +153,16 @@ impl fmt::Display for Scheme {
 impl Ty {
     /// compute the type scheme
     /// by recording all inner type variables
-    pub fn generalize<E>(self, depenv: &E) -> Scheme
+    pub fn generalize<E>(self, depenv: &E, rng: core::ops::Range<TyVar>) -> Scheme
     where
         E: Substitutable<In = TyVar>,
     {
-        let mut forall = Default::default();
-        self.fv(&mut forall, true);
+        let mut forall = rng.collect();
+        //self.fv(&mut forall, true);
         depenv.fv(&mut forall, false);
-        Scheme { forall, ty: self }
+        let ret = Scheme { forall, ty: self };
+        tracing::trace!("generalize res {:?}", ret);
+        ret
     }
 }
 
@@ -172,6 +174,7 @@ impl Scheme {
         let mut t2 = self.ty.clone();
         let m = outerctx.dup_tyvars(self.forall.iter().copied());
         t2.apply(&|i| m.get(i).map(|&j| Ty::Var(j)));
+        tracing::trace!("instantiate res {:?}", t2);
         t2
     }
 }
@@ -202,7 +205,12 @@ impl Substitutable for Scheme {
         self.ty.apply(&|i| {
             if self.forall.contains(i) {
                 if let Some(x) = f(i) {
-                    tracing::warn!("Scheme::apply: tried to apply ${} <- {:?}, but ${} is an forall element", i, x, i);
+                    tracing::warn!(
+                        "Scheme::apply: tried to apply ${} <- {:?}, but ${} is an forall element",
+                        i,
+                        x,
+                        i
+                    );
                 }
                 None
             } else {

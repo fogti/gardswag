@@ -58,9 +58,11 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
     use synt::ExprKind as Ek;
     match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {
+            let lev = ctx.peek_next_tyvar();
             let t1 = infer(env, ctx, rhs)?;
+            let lev2 = ctx.peek_next_tyvar();
             let mut env2 = env.clone();
-            let t2 = t1.generalize(&env2);
+            let t2 = t1.generalize(&env2, lev..lev2);
             env2.vars.insert(lhs.inner.clone(), t2);
             infer_block(&env2, ctx, rest)
         }

@@ -208,6 +208,11 @@ impl gardswag_core::ty::Context for Context {
 }
 
 impl Context {
+    #[inline]
+    pub fn peek_next_tyvar(&self) -> TyVar {
+        self.fresh_tyvars.start
+    }
+
     pub fn bind(&mut self, offset: usize, v: TyVar, tcg: Tcg) {
         self.constraints.push((offset, Constraint::Bind(v, tcg)));
     }
