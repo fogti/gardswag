@@ -116,6 +116,28 @@ impl Substitutable for Ty {
     }
 }
 
+impl Substitutable for TyVar {
+    type In = Self;
+    type Out = Self;
+
+    fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
+        if do_add {
+            accu.insert(*self);
+        } else {
+            accu.remove(self);
+        }
+    }
+
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&Self::In) -> Option<Self::Out>,
+    {
+        if let Some(x) = f(self) {
+            *self = x;
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Scheme {
     pub forall: BTreeSet<TyVar>,

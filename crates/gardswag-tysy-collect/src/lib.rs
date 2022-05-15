@@ -89,8 +89,23 @@ impl Substitutable for Tcg {
         }
         self.oneof.apply(f);
         self.partial_record.apply(f);
-        // listeners?
-        // record_update_info?
+        let f2 = move |i: &TyVar| {
+            // this is annoyingly fragile
+            if let Some(Ty::Var(x)) = f(i) {
+                Some(x)
+            } else {
+                None
+            }
+        };
+        self.listeners.apply(&f2);
+        if let Some((a, b)) = &mut self.record_update_info {
+            if let Some(x) = f2(a) {
+                *a = x;
+            }
+            if let Some(x) = f2(b) {
+                *b = x;
+            }
+        }
     }
 }
 

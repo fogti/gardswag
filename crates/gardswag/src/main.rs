@@ -105,7 +105,7 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     let mut ctx2 = gardswag_typesys::Context::default();
     ctx2.solve(ctx)
         .map_err(|(offset, e)| anyhow::anyhow!("@{}: {}", offset, e))?;
-    ctx2.self_resolve();
+    ctx2.self_resolve()?;
     // generalize the type
     use gardswag_typesys::Substitutable;
     t.apply(&|&i| ctx2.on_apply(i));

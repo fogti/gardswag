@@ -185,7 +185,6 @@ dependencies = [
 name = "gardswag-syntax"
 version = "0.1.0"
 dependencies = [
- "gardswag-core",
  "insta",
  "proptest",
  "serde",

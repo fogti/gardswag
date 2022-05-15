@@ -47,29 +47,23 @@ impl Context {
     pub fn on_apply(&self, i: TyVar) -> Option<Ty> {
         let cgid = *self.m.get(&i)?;
         let j = lowest_tvi_for_cg(&self.m, i);
-        let ret = self.g.get(&cgid)
-            .and_then(|k| k.ty.clone())
-            .map(|mut k| {
-                k.apply(&|&l| self.on_apply(l));
-                k
-            });
+        let ret = self.g.get(&cgid).and_then(|k| k.ty.clone()).map(|mut k| {
+            k.apply(&|&l| self.on_apply(l));
+            k
+        });
         tracing::trace!(%i, %j, ?ret, "on_apply");
-        Some(if let Some(x) = ret {
-            x
-        } else {
-            Ty::Var(j)
-        })
+        Some(if let Some(x) = ret { x } else { Ty::Var(j) })
     }
 
-    pub fn real_unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
-        tracing::trace!("real_unify a={{{}}}, b={{{}}} ctx={:?}", a, b, self);
+    pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
+        tracing::trace!("unify a={{{}}}, b={{{}}} ctx={:?}", a, b, self);
         match (a, b) {
             (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
-                self.real_unify(l1, l2)?;
+                self.unify(l1, l2)?;
                 let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
                 rx1.apply(&|&i| self.on_apply(i));
                 rx2.apply(&|&i| self.on_apply(i));
-                self.real_unify(&rx1, &rx2)?;
+                self.unify(&rx1, &rx2)?;
                 Ok(())
             }
             (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
@@ -78,11 +72,11 @@ impl Context {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
-                    self.real_unify(v1, v2)?;
+                    self.unify(v1, v2)?;
                 }
                 Ok(())
             }
-            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.real_bind(
+            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
                 *a,
                 TyConstraintGroup {
                     ty: Some(t.clone()),
@@ -152,12 +146,20 @@ impl Default for Context {
 
 impl Context {
     /// resolve the context using itself as far as possible
-    pub fn self_resolve(&mut self) {
+    pub fn self_resolve(&mut self) -> Result<(), UnifyError> {
         loop {
+            let notify_cgs = self
+                .g
+                .values()
+                .flat_map(|i| &i.listeners)
+                .flat_map(|i| self.m.get(i))
+                .copied()
+                .collect();
+            self.notify_cgs(notify_cgs)?;
             let mut newg = self.g.clone();
             newg.apply(&|&i| self.on_apply(i));
             if newg == self.g {
-                break;
+                break Ok(());
             }
             self.g = newg;
         }
@@ -231,7 +233,7 @@ impl Context {
                         }
                         let rcm_ty = Ty::Record(rcm);
                         if let Some(ty) = &g.ty {
-                            self.real_unify(&rcm_ty, ty)?;
+                            self.unify(&rcm_ty, ty)?;
                         }
                         modified = true;
                         g.ty = Some(rcm_ty);
@@ -285,7 +287,7 @@ impl Context {
                     let mut success = g.oneof.is_empty();
                     for j in &g.oneof {
                         let mut self_bak = self.clone();
-                        if self_bak.real_unify(ty, j).is_ok() {
+                        if self_bak.unify(ty, j).is_ok() {
                             *self = self_bak;
                             success = true;
                             ty.apply(&|&i| self.on_apply(i));
@@ -304,7 +306,7 @@ impl Context {
                     if let Ty::Record(rcm) = &ty {
                         for (key, value) in core::mem::take(&mut g.partial_record) {
                             if let Some(got_valty) = rcm.get(&key) {
-                                self.real_unify(got_valty, &value)?;
+                                self.unify(got_valty, &value)?;
                             } else {
                                 return Err(UnifyError::PartialRecord {
                                     key,
@@ -356,7 +358,7 @@ impl Context {
                 tracing::trace!(?t_a, ?t_b, "unify-cgs");
                 self.ucg_check4inf(a, b, t_a)?;
                 self.ucg_check4inf(a, b, t_b)?;
-                self.real_unify(t_a, t_b)?;
+                self.unify(t_a, t_b)?;
                 lhs.ty.as_mut().unwrap().apply(&|&i| self.on_apply(i));
                 debug_assert!({
                     rhs.ty.as_mut().unwrap().apply(&|&i| self.on_apply(i));
@@ -371,7 +373,7 @@ impl Context {
                     (None, None) => None,
                     (Some(t), None) | (None, Some(t)) => Some(t),
                     (Some(mut t1), Some(t2)) => {
-                        self.real_unify(&t1, &t2)?;
+                        self.unify(&t1, &t2)?;
                         t1.apply(&|&i| self.on_apply(i));
                         Some(t1)
                     }
@@ -404,7 +406,7 @@ impl Context {
                 if oneof.len() == 1 {
                     let ty2 = oneof.remove(0);
                     if let Some(ty) = &mut ty {
-                        self.real_unify(ty, &ty2)?;
+                        self.unify(ty, &ty2)?;
                         ty.apply(&|&i| self.on_apply(i));
                     } else {
                         ty = Some(ty2.clone());
@@ -422,7 +424,7 @@ impl Context {
                         use std::collections::btree_map::Entry;
                         match partial_record.entry(key) {
                             Entry::Occupied(mut occ) => {
-                                self.real_unify(occ.get(), &value)?;
+                                self.unify(occ.get(), &value)?;
                                 occ.get_mut().apply(&|&i| self.on_apply(i));
                             }
                             Entry::Vacant(vac) => {
@@ -437,8 +439,8 @@ impl Context {
                     (Some(x), None) | (None, Some(x)) => Some(x),
                     (Some((w, x)), Some((y, z))) => {
                         use Ty::Var;
-                        self.real_unify(&Var(w), &Var(y))?;
-                        self.real_unify(&Var(x), &Var(z))?;
+                        self.unify(&Var(w), &Var(y))?;
+                        self.unify(&Var(x), &Var(z))?;
                         Some((lowest_tvi_for_cg(&self.m, w), lowest_tvi_for_cg(&self.m, x)))
                     }
                 };
@@ -472,12 +474,12 @@ impl Context {
                     if g.oneof.len() == 1 {
                         let j = core::mem::take(&mut g.oneof).into_iter().next().unwrap();
                         self.ucg_check4inf(a, b, &j)?;
-                        self.real_unify(t, &j)?;
+                        self.unify(t, &j)?;
                     } else {
                         let mut success = false;
                         for j in &g.oneof {
                             let mut self_bak = self.clone();
-                            if self_bak.real_unify(t, j).is_ok() {
+                            if self_bak.unify(t, j).is_ok() {
                                 *self = self_bak;
                                 success = true;
                                 break;
@@ -495,7 +497,7 @@ impl Context {
                     if let Ty::Record(rcm) = &t {
                         for (key, value) in core::mem::take(&mut g.partial_record) {
                             if let Some(got_valty) = rcm.get(&key) {
-                                self.real_unify(got_valty, &value)?;
+                                self.unify(got_valty, &value)?;
                             } else {
                                 return Err(UnifyError::PartialRecord {
                                     key: key.clone(),
@@ -509,7 +511,7 @@ impl Context {
                     }
                 }
                 if let Some(old) = &g.ty {
-                    self.real_unify(old, t)?;
+                    self.unify(old, t)?;
                 } else {
                     g.ty = Some(t.clone());
                 }
@@ -531,7 +533,7 @@ impl Context {
         Ok(())
     }
 
-    fn real_bind(&mut self, v: TyVar, tcg: Tcg) -> Result<(), UnifyError> {
+    fn bind(&mut self, v: TyVar, tcg: Tcg) -> Result<(), UnifyError> {
         if let Some(t) = tcg.resolved() {
             if let Ty::Var(y) = t {
                 let tcgid = match (self.m.get(&v), self.m.get(y)) {
@@ -558,23 +560,19 @@ impl Context {
             }
         }
         use std::collections::btree_map::Entry;
+        let rhs_tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
+        let z = self.g.insert(rhs_tcgid, tcg);
+        assert_eq!(z, None);
         match self.m.entry(v) {
             Entry::Occupied(occ) => {
                 let lhs_tcgid = *occ.get();
-                let rhs_tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
-                self.g.insert(rhs_tcgid, tcg);
                 self.unify_constraint_groups(lhs_tcgid, rhs_tcgid)
-                /*Err(UnifyError::Override {
-                    v: v.clone(),
-                    t1: occ.get().clone(),
-                    t2: t.clone(),
-                })*/
             }
             Entry::Vacant(y) => {
-                let tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
-                y.insert(tcgid);
-                let z = self.g.insert(tcgid, tcg);
-                assert_eq!(z, None);
+                y.insert(rhs_tcgid);
+                if self.g.values().flat_map(|i| &i.listeners).any(|&i| i == v) {
+                    self.notify_cgs(core::iter::once(rhs_tcgid).collect())?;
+                }
                 Ok(())
             }
         }
@@ -589,8 +587,8 @@ impl Context {
         for (offset, constr) in take(&mut constraints) {
             use gardswag_tysy_collect::Constraint;
             let tmp = match constr {
-                Constraint::Unify(a, b) => self.real_unify(&a, &b),
-                Constraint::Bind(tv, cg) => self.real_bind(tv, cg),
+                Constraint::Unify(a, b) => self.unify(&a, &b),
+                Constraint::Bind(tv, cg) => self.bind(tv, cg),
             };
             match tmp {
                 Ok(()) => {}
