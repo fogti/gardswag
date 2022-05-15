@@ -201,6 +201,9 @@ impl Substitutable for Scheme {
     {
         self.ty.apply(&|i| {
             if self.forall.contains(i) {
+                if let Some(x) = f(i) {
+                    tracing::warn!("Scheme::apply: tried to apply ${} <- {:?}, but ${} is an forall element", i, x, i);
+                }
                 None
             } else {
                 f(i)

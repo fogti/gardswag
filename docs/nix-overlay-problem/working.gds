@@ -1,9 +1,9 @@
-let ovl_a = \prev .{
-  fast_tags_a = std.plus prev.fast_tags 5;
-};
-let ovl_b = \prev .{
-  fast_tags_b = std.plus prev.fast_tags_a 10;
-};
 (* apply_ovl: (a -> b) -> a -> c *)
 let apply_ovl = \ovl \prev (prev // ovl prev);
-.{ fast_tags = 1; } |> apply_ovl ovl_a |> apply_ovl ovl_b
+.{ fast_tags = 1; }
+|> apply_ovl (\prev .{
+  fast_tags_a = std.plus prev.fast_tags 5;
+})
+|> apply_ovl (\prev .{
+  fast_tags_b = std.plus prev.fast_tags_a 10;
+})

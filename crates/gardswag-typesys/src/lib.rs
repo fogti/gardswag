@@ -56,7 +56,7 @@ impl Context {
     }
 
     pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
-        tracing::trace!("unify a={{{}}}, b={{{}}} ctx={:?}", a, b, self);
+        tracing::trace!(%a, %b, ?self, "unify");
         match (a, b) {
             (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
                 self.unify(l1, l2)?;
@@ -563,6 +563,7 @@ impl Context {
         let rhs_tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
         let z = self.g.insert(rhs_tcgid, tcg);
         assert_eq!(z, None);
+        tracing::debug!("bound ${} <- {}", v, rhs_tcgid);
         match self.m.entry(v) {
             Entry::Occupied(occ) => {
                 let lhs_tcgid = *occ.get();
