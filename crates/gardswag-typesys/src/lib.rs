@@ -258,6 +258,29 @@ impl Context {
                         return Err(UnifyError::NotARecord(ty_ovrd.clone()));
                     }
                     (
+                        _,
+                        Some(Tcg {
+                            ty: Some(Ty::Record(rcm_ovrd)),
+                            ..
+                        }),
+                    ) if !g.partial_record.is_empty() => {
+                        // if an item is present in the override, we can already propagate it
+                        let mut unifiers = Vec::new();
+                        for (k, v) in core::mem::take(&mut g.partial_record) {
+                            match rcm_ovrd.get(&k).cloned() {
+                                Some(v2) => {
+                                    unifiers.push((v, v2));
+                                }
+                                None => {
+                                    g.partial_record.insert(k, v);
+                                }
+                            }
+                        }
+                        for (v1, v2) in unifiers {
+                            self.unify(&v1, &v2)?;
+                        }
+                    }
+                    (
                         None
                         | Some(Tcg {
                             ty: None | Some(Ty::Var(_)),
