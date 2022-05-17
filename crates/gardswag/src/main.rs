@@ -1,3 +1,4 @@
+use gardswag_typesys::CollectContext as TyCollectCtx;
 use std::path::PathBuf;
 use tracing::{debug, trace};
 
@@ -25,7 +26,7 @@ struct Args {
     mode: Mode,
 }
 
-fn mk_env_std(ctx: &mut gardswag_tysy_collect::Context) -> gardswag_typesys::Scheme {
+fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
     use gardswag_core::{ty::Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
@@ -86,8 +87,7 @@ fn mk_env_std(ctx: &mut gardswag_tysy_collect::Context) -> gardswag_typesys::Sch
 
 fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typesys::Scheme)> {
     let parsed = gardswag_syntax::parse(dat)?;
-
-    let mut ctx = gardswag_tysy_collect::Context::default();
+    let mut ctx = TyCollectCtx::default();
 
     let env = infer::Env {
         vars: [("std".to_string(), mk_env_std(&mut ctx))]
@@ -102,7 +102,7 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     for v in &ctx.constraints {
         trace!("\t{:?}", v);
     }
-    let mut ctx2 = gardswag_typesys::Context::default();
+    let mut ctx2 = gardswag_typesys::constraint::Context::default();
     ctx2.solve(ctx)
         .map_err(|(offset, e)| anyhow::anyhow!("@{}: {}", offset, e))?;
     ctx2.self_resolve()?;

@@ -8,7 +8,6 @@ license = "Apache-2.0"
 [dependencies]
 enum_dispatch = "0.3"
 gardswag-core.path = "../gardswag-core"
-gardswag-tysy-collect.path = "../gardswag-tysy-collect"
 thiserror = "1.0"
 tracing = "0.1"
 

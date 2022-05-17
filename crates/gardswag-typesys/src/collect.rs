@@ -1,15 +1,4 @@
-#![forbid(
-    trivial_casts,
-    unconditional_recursion,
-    unsafe_code,
-    unused_must_use,
-    clippy::as_conversions,
-    clippy::cast_ptr_alignment
-)]
-#![deny(unused_variables)]
-
-pub use gardswag_core::{ty::Scheme, Substitutable, Ty, TyLit, TyVar};
-
+use gardswag_core::{Substitutable, Ty, TyVar};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -159,12 +148,12 @@ impl Substitutable for Tcgk {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Context {
+pub struct CollectContext {
     fresh_tyvars: core::ops::RangeFrom<usize>,
     pub constraints: Vec<(usize, Constraint)>,
 }
 
-impl Default for Context {
+impl Default for CollectContext {
     fn default() -> Self {
         Self {
             fresh_tyvars: 0..,
@@ -220,7 +209,7 @@ impl Substitutable for Constraint {
     }
 }
 
-impl gardswag_core::ty::Context for Context {
+impl gardswag_core::ty::Context for CollectContext {
     fn fresh_tyvar(&mut self) -> TyVar {
         self.fresh_tyvars.next().unwrap()
     }
@@ -256,7 +245,7 @@ impl gardswag_core::ty::Context for Context {
     }
 }
 
-impl Context {
+impl CollectContext {
     #[inline]
     pub fn peek_next_tyvar(&self) -> TyVar {
         self.fresh_tyvars.start
