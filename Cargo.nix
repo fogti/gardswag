@@ -49,16 +49,6 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
-    "gardswag-core" = rec {
-      packageId = "gardswag-core";
-      build = internal.buildRustCrateWithFeatures {
-        packageId = "gardswag-core";
-      };
-
-      # Debug support which might change between releases.
-      # File a bug if you depend on any for non-debug work!
-      debug = internal.debugCrate { inherit packageId; };
-    };
     "gardswag-syntax" = rec {
       packageId = "gardswag-syntax";
       build = internal.buildRustCrateWithFeatures {
@@ -79,10 +69,10 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
-    "gardswag-tysy-collect" = rec {
-      packageId = "gardswag-tysy-collect";
+    "gardswag-varstack" = rec {
+      packageId = "gardswag-varstack";
       build = internal.buildRustCrateWithFeatures {
-        packageId = "gardswag-tysy-collect";
+        packageId = "gardswag-varstack";
       };
 
       # Debug support which might change between releases.
@@ -545,10 +535,6 @@ rec {
             features = [ "derive" ];
           }
           {
-            name = "gardswag-core";
-            packageId = "gardswag-core";
-          }
-          {
             name = "gardswag-syntax";
             packageId = "gardswag-syntax";
           }
@@ -557,8 +543,8 @@ rec {
             packageId = "gardswag-typesys";
           }
           {
-            name = "gardswag-tysy-collect";
-            packageId = "gardswag-tysy-collect";
+            name = "gardswag-varstack";
+            packageId = "gardswag-varstack";
           }
           {
             name = "serde";
@@ -590,32 +576,6 @@ rec {
           {
             name = "proptest";
             packageId = "proptest";
-          }
-        ];
-
-      };
-      "gardswag-core" = rec {
-        crateName = "gardswag-core";
-        version = "0.1.0";
-        edition = "2021";
-        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-core; };
-        dependencies = [
-          {
-            name = "enum_dispatch";
-            packageId = "enum_dispatch";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror";
-          }
-          {
-            name = "tracing";
-            packageId = "tracing";
           }
         ];
 
@@ -667,14 +627,6 @@ rec {
             packageId = "enum_dispatch";
           }
           {
-            name = "gardswag-core";
-            packageId = "gardswag-core";
-          }
-          {
-            name = "gardswag-tysy-collect";
-            packageId = "gardswag-tysy-collect";
-          }
-          {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];
@@ -690,22 +642,11 @@ rec {
         ];
 
       };
-      "gardswag-tysy-collect" = rec {
-        crateName = "gardswag-tysy-collect";
+      "gardswag-varstack" = rec {
+        crateName = "gardswag-varstack";
         version = "0.1.0";
         edition = "2021";
-        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-tysy-collect; };
-        dependencies = [
-          {
-            name = "gardswag-core";
-            packageId = "gardswag-core";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
-          }
-        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-varstack; };
 
       };
       "getrandom" = rec {
