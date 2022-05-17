@@ -1,6 +1,5 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 725
 expression: "parse(r#\"\n                \"{\n                  let a = 1;\n                  std.stdio.write(\"{a}\\n\");\n                  a\n                }\"\n            \"#).unwrap()"
 ---
 stmts: []
@@ -39,9 +38,7 @@ term:
                                         prim:
                                           offset: 67
                                           inner:
-                                            Identifier:
-                                              offset: 67
-                                              inner: std
+                                            Identifier: std
                                         key:
                                           offset: 71
                                           inner: stdio
@@ -59,16 +56,12 @@ term:
                                         term:
                                           offset: 85
                                           inner:
-                                            Identifier:
-                                              offset: 85
-                                              inner: a
+                                            Identifier: a
                                   - offset: 87
                                     inner:
                                       PureString: "\n"
                     term:
                       offset: 111
                       inner:
-                        Identifier:
-                          offset: 111
-                          inner: a
+                        Identifier: a
 

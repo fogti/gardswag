@@ -14,30 +14,22 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
           offset: 31
           inner:
             Fix:
-              arg:
-                offset: 25
-                inner: fib
+              arg: fib
               body:
                 offset: 31
                 inner:
                   Lambda:
-                    arg:
-                      offset: 31
-                      inner: x
+                    arg: x
                     body:
                       offset: 34
                       inner:
                         Lambda:
-                          arg:
-                            offset: 34
-                            inner: y
+                          arg: y
                           body:
                             offset: 37
                             inner:
                               Lambda:
-                                arg:
-                                  offset: 37
-                                  inner: n
+                                arg: n
                                 body:
                                   offset: 40
                                   inner:
@@ -65,24 +57,18 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                               prim:
                                                                 offset: 116
                                                                 inner:
-                                                                  Identifier:
-                                                                    offset: 116
-                                                                    inner: std
+                                                                  Identifier: std
                                                               key:
                                                                 offset: 120
                                                                 inner: plus
                                                         arg:
                                                           offset: 125
                                                           inner:
-                                                            Identifier:
-                                                              offset: 125
-                                                              inner: x
+                                                            Identifier: x
                                                   arg:
                                                     offset: 127
                                                     inner:
-                                                      Identifier:
-                                                        offset: 127
-                                                        inner: y
+                                                      Identifier: y
                                             rest:
                                               stmts: []
                                               term:
@@ -104,18 +90,14 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                       prim:
                                                                         offset: 152
                                                                         inner:
-                                                                          Identifier:
-                                                                            offset: 152
-                                                                            inner: std
+                                                                          Identifier: std
                                                                       key:
                                                                         offset: 156
                                                                         inner: leq
                                                                 arg:
                                                                   offset: 160
                                                                   inner:
-                                                                    Identifier:
-                                                                      offset: 160
-                                                                      inner: n
+                                                                    Identifier: n
                                                           arg:
                                                             offset: 162
                                                             inner:
@@ -125,9 +107,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                       term:
                                                         offset: 187
                                                         inner:
-                                                          Identifier:
-                                                            offset: 187
-                                                            inner: z
+                                                          Identifier: z
                                                     or_else:
                                                       stmts: []
                                                       term:
@@ -145,21 +125,15 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                         prim:
                                                                           offset: 213
                                                                           inner:
-                                                                            Identifier:
-                                                                              offset: 213
-                                                                              inner: fib
+                                                                            Identifier: fib
                                                                         arg:
                                                                           offset: 217
                                                                           inner:
-                                                                            Identifier:
-                                                                              offset: 217
-                                                                              inner: y
+                                                                            Identifier: y
                                                                   arg:
                                                                     offset: 219
                                                                     inner:
-                                                                      Identifier:
-                                                                        offset: 219
-                                                                        inner: z
+                                                                      Identifier: z
                                                             arg:
                                                               offset: 225
                                                               inner:
@@ -175,18 +149,14 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                               prim:
                                                                                 offset: 222
                                                                                 inner:
-                                                                                  Identifier:
-                                                                                    offset: 222
-                                                                                    inner: std
+                                                                                  Identifier: std
                                                                               key:
                                                                                 offset: 226
                                                                                 inner: minus
                                                                         arg:
                                                                           offset: 232
                                                                           inner:
-                                                                            Identifier:
-                                                                              offset: 232
-                                                                              inner: n
+                                                                            Identifier: n
                                                                   arg:
                                                                     offset: 234
                                                                     inner:
@@ -196,9 +166,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
           term:
             offset: 274
             inner:
-              Identifier:
-                offset: 274
-                inner: fib
+              Identifier: fib
 - forall: []
   ty:
     Arrow:

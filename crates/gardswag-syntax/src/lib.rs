@@ -48,13 +48,6 @@ impl Block {
             .chain(self.term.as_ref().into_iter().map(|a| &**a))
             .any(|i| i.inner.is_var_accessed(v))
     }
-
-    pub fn replace_var(&mut self, v: &str, rpm: &ExprKind) -> bool {
-        self.stmts
-            .iter_mut()
-            .chain(self.term.as_mut().into_iter().map(|a| &mut **a))
-            .all(|i| i.inner.replace_var(v, rpm))
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -73,32 +66,51 @@ pub enum ExprKind {
     },
 
     Lambda {
-        arg: Identifier,
+        arg: String,
         body: Box<Expr>,
     },
     Call {
         prim: Box<Expr>,
         arg: Box<Expr>,
     },
+
+    // fixpoint operator
+    Fix {
+        arg: String,
+        body: Box<Expr>,
+    },
+
+    // record stuff
+    // - introduction
+    Record(BTreeMap<String, Expr>),
+    // - elimination
     Dot {
         prim: Box<Expr>,
         key: Identifier,
     },
+    // - transformation
     Update {
         orig: Box<Expr>,
         ovrd: Box<Expr>,
     },
 
-    // fixpoint operator
-    Fix {
-        arg: Identifier,
-        body: Box<Expr>,
+    // discriminated/tagged union stuff
+    // - introduction
+    Tagged {
+        key: String,
+        value: Box<Expr>,
+    },
+
+    // R & DU - elimination
+    Match {
+        inp: Box<Expr>,
+        cases: Vec<Case>,
     },
 
     FormatString(Vec<Expr>),
-    Record(BTreeMap<String, Expr>),
 
-    Identifier(Identifier),
+    // literal stuff
+    Identifier(String),
     Boolean(bool),
     Integer(i32),
     PureString(String),
@@ -112,11 +124,13 @@ impl ExprKind {
             Self::If { .. } => "if",
             Self::Lambda { .. } => "lambda",
             Self::Call { .. } => "call",
+            Self::Record(_) => "record",
             Self::Dot { .. } => "dot",
             Self::Update { .. } => "update",
+            Self::Tagged { .. } => "tagged",
+            Self::Match { .. } => "match",
             Self::Fix { .. } => "fix",
             Self::FormatString(_) => "fmtstr",
-            Self::Record(_) => "record",
             Self::Identifier(_) => "ident",
             Self::Boolean(_) => "lit.bool",
             Self::Integer(_) => "lit.int",
@@ -141,82 +155,61 @@ impl ExprKind {
                     || or_else.is_var_accessed(v)
             }
             Self::Lambda { arg, body } | Self::Fix { arg, body } => {
-                arg.inner != v && body.inner.is_var_accessed(v)
+                arg != v && body.inner.is_var_accessed(v)
             }
             Self::Call { prim, arg } => {
                 prim.inner.is_var_accessed(v) || arg.inner.is_var_accessed(v)
             }
+            Self::Record(rcd) => rcd.values().any(|i| i.inner.is_var_accessed(v)),
             Self::Dot { prim, .. } => prim.inner.is_var_accessed(v),
             Self::Update { orig, ovrd } => {
                 orig.inner.is_var_accessed(v) || ovrd.inner.is_var_accessed(v)
             }
+            Self::Tagged { value, .. } => value.inner.is_var_accessed(v),
+            Self::Match { inp, cases } => {
+                inp.inner.is_var_accessed(v)
+                    || cases
+                        .iter()
+                        .any(|i| !i.pat.is_var_defined(v) && i.body.inner.is_var_accessed(v))
+            }
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
-            Self::Record(rcd) => rcd.values().any(|i| i.inner.is_var_accessed(v)),
-            Self::Identifier(id) => id.inner == v,
+            Self::Identifier(id) => id == v,
             Self::Boolean(_) | Self::Integer(_) | Self::PureString(_) => false,
         }
     }
+}
 
-    /// tries to replace all occurences of a variable
-    /// with another expression, fails if `rpm`-interna are captured.
-    pub fn replace_var(&mut self, v: &str, rpm: &ExprKind) -> bool {
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct Case {
+    pub pat: Pattern,
+    pub body: Expr,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub enum Pattern {
+    Identifier(Identifier),
+    Tagged {
+        key: Identifier,
+        value: Box<Pattern>,
+    },
+    Record(Offsetted<BTreeMap<String, Pattern>>),
+}
+
+impl Pattern {
+    /// checks if a variable is defined anywhere in the pattern
+    pub fn is_var_defined(&self, v: &str) -> bool {
         match self {
-            Self::Let { lhs, rhs, rest } => {
-                (if lhs.inner == v {
-                    // variable shadowed
-                    true
-                } else {
-                    // make sure that no variables inside our replacement
-                    // get shadowed
-                    !rpm.is_var_accessed(&lhs.inner) && rest.replace_var(v, rpm)
-                } && rhs.inner.replace_var(v, rpm))
-            }
+            Self::Identifier(x) => x.inner == v,
+            Self::Tagged { value, .. } => value.is_var_defined(v),
+            Self::Record(xs) => xs.inner.values().any(|i| i.is_var_defined(v)),
+        }
+    }
 
-            Self::Block(blk) => blk.replace_var(v, rpm),
-
-            Self::If {
-                cond,
-                then,
-                or_else,
-            } => {
-                cond.inner.replace_var(v, rpm)
-                    && then.replace_var(v, rpm)
-                    && or_else.replace_var(v, rpm)
-            }
-
-            Self::Lambda { arg, body } | Self::Fix { arg, body } => {
-                if arg.inner == v {
-                    // variable shadowed
-                    true
-                } else {
-                    // make sure that no variables inside our replacement
-                    // get shadowed
-                    !rpm.is_var_accessed(&arg.inner) && body.inner.replace_var(v, rpm)
-                }
-            }
-
-            Self::Call { prim, arg } => {
-                prim.inner.replace_var(v, rpm) && arg.inner.replace_var(v, rpm)
-            }
-
-            Self::Dot { prim, .. } => prim.inner.replace_var(v, rpm),
-
-            Self::Update { orig, ovrd } => {
-                orig.inner.replace_var(v, rpm) && ovrd.inner.replace_var(v, rpm)
-            }
-
-            Self::FormatString(exs) => exs.iter_mut().all(|i| i.inner.replace_var(v, rpm)),
-
-            Self::Record(rcd) => rcd.values_mut().all(|i| i.inner.replace_var(v, rpm)),
-
-            Self::Identifier(id) => {
-                if id.inner == v {
-                    *self = rpm.clone();
-                }
-                true
-            }
-
-            Self::Boolean(_) | Self::Integer(_) | Self::PureString(_) => true,
+    pub fn is_wildcard(&self) -> bool {
+        if let Self::Identifier(x) = self {
+            x.inner.is_empty()
+        } else {
+            false
         }
     }
 }
@@ -335,13 +328,172 @@ fn expect_token_exact(
     })
 }
 
+fn handle_wildcard(s: String) -> String {
+    if s == "_" {
+        String::new()
+    } else {
+        s
+    }
+}
+
+enum DotIntermed<T> {
+    Identifier(String),
+    Record(BTreeMap<String, T>),
+    Tagged { key: String, value: T },
+}
+
+impl From<DotIntermed<Expr>> for ExprKind {
+    fn from(x: DotIntermed<Expr>) -> ExprKind {
+        match x {
+            DotIntermed::Identifier(x) => ExprKind::Identifier(x),
+            DotIntermed::Record(rcd) => ExprKind::Record(rcd),
+            DotIntermed::Tagged { key, value } => ExprKind::Tagged {
+                key,
+                value: Box::new(value),
+            },
+        }
+    }
+}
+
+impl From<Offsetted<DotIntermed<Pattern>>> for Pattern {
+    fn from(Offsetted { offset, inner }: Offsetted<DotIntermed<Pattern>>) -> Pattern {
+        match inner {
+            DotIntermed::Identifier(inner) => Pattern::Identifier(Offsetted {
+                offset,
+                inner: handle_wildcard(inner),
+            }),
+            DotIntermed::Record(inner) => Pattern::Record(Offsetted { offset, inner }),
+            DotIntermed::Tagged { key, value } => Pattern::Tagged {
+                key: Offsetted { offset, inner: key },
+                value: Box::new(value),
+            },
+        }
+    }
+}
+
+/// helper function for parsing dot terms, e.g. records and variants
+/// * record: ` .{ key1: value1; key2: value2; } `
+/// * tagged: `.key value1`
+fn parse_dot_helper<'a, T, F>(
+    super_offset: usize,
+    lxr: &mut PeekLexer<'a>,
+    f: F,
+) -> ParseResult<T, ErrorKind>
+where
+    F: Fn(&mut PeekLexer<'a>) -> ParseResult<T, ErrorKind>,
+    T: From<Offsetted<DotIntermed<T>>>,
+{
+    use lex::{Token, TokenKind as Tk};
+    enum CaseTy {
+        Record,
+        Tag(String),
+    }
+    let Offsetted { inner, offset } = xtry!(expect_token_noeof(
+        super_offset,
+        lxr,
+        |Token { inner, offset }| match inner {
+            Tk::LcBracket => Ok(Offsetted {
+                inner: CaseTy::Record,
+                offset
+            }),
+            Tk::Identifier(x) => Ok(Offsetted {
+                inner: CaseTy::Tag(x),
+                offset
+            }),
+            _ => Err(Token { inner, offset }),
+        }
+    ));
+    let intermed = match inner {
+        CaseTy::Record => {
+            let mut rcd = BTreeMap::new();
+            while let Some(Ok(Token {
+                offset,
+                inner: Tk::Identifier(id),
+            })) = lxr.next_if(|i| {
+                matches!(
+                    i,
+                    Ok(Token {
+                        inner: Tk::Identifier(_),
+                        ..
+                    })
+                )
+            }) {
+                let dcd = xtry!(expect_token_noeof(
+                    offset,
+                    lxr,
+                    |lex::Token { inner, offset }| {
+                        match inner {
+                            Tk::EqSym => Ok(true),
+                            Tk::SemiColon => Ok(false),
+                            _ => Err(lex::Token { inner, offset }),
+                        }
+                    }
+                ));
+                let value = if dcd {
+                    let value = xtry!(unexpect_eoe(offset, f(lxr)));
+                    let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
+                    value
+                } else {
+                    (Offsetted {
+                        offset,
+                        inner: DotIntermed::Identifier(id.clone()),
+                    })
+                    .into()
+                };
+                use std::collections::btree_map::Entry;
+                match rcd.entry(id) {
+                    Entry::Vacant(v) => {
+                        v.insert(value);
+                    }
+                    Entry::Occupied(occ) => {
+                        return PErr(Offsetted {
+                            offset,
+                            inner: ErrorKind::DuplicateKey(occ.key().to_string()),
+                        });
+                    }
+                }
+            }
+            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
+            DotIntermed::Record(rcd)
+        }
+        CaseTy::Tag(key) => {
+            let value = xtry!(unexpect_eoe(offset, f(lxr)));
+            DotIntermed::Tagged { key, value }
+        }
+    };
+    POk((Offsetted {
+        offset,
+        inner: intermed,
+    })
+    .into())
+}
+
+fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
+    use lex::TokenKind as Tk;
+    let Offsetted { offset, inner } = xtry!(lxr.next_if(|i| {
+        if let Ok(Offsetted { inner, .. }) = i {
+            matches!(inner, Tk::Identifier(_) | Tk::Dot)
+        } else {
+            true
+        }
+    }));
+    match inner {
+        Tk::Identifier(x) => POk(Pattern::Identifier(Offsetted {
+            offset,
+            inner: handle_wildcard(x),
+        })),
+        Tk::Dot => parse_dot_helper(offset, lxr, parse_pattern),
+        _ => unreachable!(),
+    }
+}
+
 fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
     use lex::{Keyword as Kw, Token, TokenKind as Tk};
     let Token { mut offset, inner } = xtry!(lxr.next_if(|i| {
         if let Ok(Token { inner, .. }) = i {
             !matches!(
                 inner,
-                Tk::RcBracket | Tk::RParen | Tk::SemiColon | Tk::Pipe | Tk::StringEnd
+                Tk::RcBracket | Tk::RParen | Tk::SemiColon | Tk::Pipe | Tk::Case | Tk::StringEnd
             )
         } else {
             true
@@ -379,7 +531,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 rhs = Expr {
                     offset: rhs.offset,
                     inner: ExprKind::Fix {
-                        arg: lhs.clone(),
+                        arg: lhs.inner.clone(),
                         body: Box::new(rhs),
                     },
                 };
@@ -409,20 +561,43 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 or_else,
             })
         }
+        Tk::Keyword(Kw::Match) => {
+            let inp = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+            let mut cases = Vec::new();
+            while let Some(Ok(Token {
+                offset: c_offset,
+                inner: Tk::Case,
+            })) = lxr.next_if(|i| {
+                matches!(
+                    i,
+                    Ok(Token {
+                        inner: Tk::Case,
+                        ..
+                    })
+                )
+            }) {
+                let pat = xtry!(unexpect_eoe(c_offset, parse_pattern(lxr)));
+                let _ = xtry!(expect_token_exact(c_offset, lxr, Tk::CaseThen));
+                let body = xtry!(unexpect_eoe(c_offset, parse_expr_greedy(lxr)));
+                cases.push(Case { pat, body });
+            }
+            if cases.is_empty() {
+                let _ = xtry!(expect_token_exact(offset, lxr, Tk::Case));
+                unreachable!();
+            }
+            Ok(ExprKind::Match {
+                inp: Box::new(inp),
+                cases,
+            })
+        }
         Tk::Lambda(lam) => {
             let expr = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
             Ok(ExprKind::Lambda {
-                arg: Offsetted {
-                    offset,
-                    inner: if lam == "_" { String::new() } else { lam },
-                },
+                arg: handle_wildcard(lam),
                 body: Box::new(expr),
             })
         }
-        Tk::Identifier(id) => {
-            let id = Offsetted { offset, inner: id };
-            Ok(ExprKind::Identifier(id))
-        }
+        Tk::Identifier(id) => Ok(ExprKind::Identifier(id)),
         Tk::Keyword(Kw::False) => Ok(ExprKind::Boolean(false)),
         Tk::Keyword(Kw::True) => Ok(ExprKind::Boolean(true)),
         Tk::Integer(i) => Ok(ExprKind::Integer(i)),
@@ -471,62 +646,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::StringEnd));
             Ok(ExprKind::FormatString(parts))
         }
-        Tk::Dot => {
-            // record: ` .{ key1: value1; key2: value2; } `
-            let mut rcd = BTreeMap::new();
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::LcBracket));
-            while let Some(Ok(Token {
-                offset,
-                inner: Tk::Identifier(id),
-            })) = lxr.next_if(|i| {
-                matches!(
-                    i,
-                    Ok(Token {
-                        inner: Tk::Identifier(_),
-                        ..
-                    })
-                )
-            }) {
-                let dcd = xtry!(expect_token_noeof(
-                    offset,
-                    lxr,
-                    |lex::Token { inner, offset }| {
-                        match inner {
-                            Tk::EqSym => Ok(true),
-                            Tk::SemiColon => Ok(false),
-                            _ => Err(lex::Token { inner, offset }),
-                        }
-                    }
-                ));
-                let expr = if dcd {
-                    let expr = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
-                    let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
-                    expr
-                } else {
-                    Offsetted {
-                        offset,
-                        inner: ExprKind::Identifier(Offsetted {
-                            offset,
-                            inner: id.clone(),
-                        }),
-                    }
-                };
-                use std::collections::btree_map::Entry;
-                match rcd.entry(id) {
-                    Entry::Vacant(v) => {
-                        v.insert(expr);
-                    }
-                    Entry::Occupied(occ) => {
-                        return PErr(Offsetted {
-                            offset,
-                            inner: ErrorKind::DuplicateKey(occ.key().to_string()),
-                        });
-                    }
-                }
-            }
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
-            Ok(ExprKind::Record(rcd))
-        }
+        Tk::Dot => Ok(xtry!(parse_dot_helper(offset, lxr, parse_expr_greedy)).inner),
         _ => {
             return PErr(Offsetted {
                 offset,
@@ -829,6 +949,14 @@ mod tests {
                   c = "now";
                 }
             "#
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn ctrl_match() {
+        insta::assert_yaml_snapshot!(parse(
+            "match .this_is_a_variant 1 | .this_is_a_variant x => std.plus x 1"
         )
         .unwrap());
     }

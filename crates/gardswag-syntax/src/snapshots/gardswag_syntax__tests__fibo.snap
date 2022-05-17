@@ -1,6 +1,5 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 701
 expression: "parse(r#\"\n                let a = 1;\n                let b = 1;\n                let rec fib = \\x \\y \\n {\n                  (* seq: [..., x, y] ++ [z] *)\n                  let z = std.plus x y;\n                  if (std.leq n 0)\n                    { z }\n                    { fib y z (std.minus n 1) }\n                };\n                std.stdio.write \"{fib 1 1 6}\\m\";\n            \"#).unwrap()"
 ---
 stmts: []
@@ -41,30 +40,22 @@ term:
                         offset: 85
                         inner:
                           Fix:
-                            arg:
-                              offset: 79
-                              inner: fib
+                            arg: fib
                             body:
                               offset: 85
                               inner:
                                 Lambda:
-                                  arg:
-                                    offset: 85
-                                    inner: x
+                                  arg: x
                                   body:
                                     offset: 88
                                     inner:
                                       Lambda:
-                                        arg:
-                                          offset: 88
-                                          inner: y
+                                        arg: y
                                         body:
                                           offset: 91
                                           inner:
                                             Lambda:
-                                              arg:
-                                                offset: 91
-                                                inner: n
+                                              arg: n
                                               body:
                                                 offset: 94
                                                 inner:
@@ -92,24 +83,18 @@ term:
                                                                             prim:
                                                                               offset: 170
                                                                               inner:
-                                                                                Identifier:
-                                                                                  offset: 170
-                                                                                  inner: std
+                                                                                Identifier: std
                                                                             key:
                                                                               offset: 174
                                                                               inner: plus
                                                                       arg:
                                                                         offset: 179
                                                                         inner:
-                                                                          Identifier:
-                                                                            offset: 179
-                                                                            inner: x
+                                                                          Identifier: x
                                                                 arg:
                                                                   offset: 181
                                                                   inner:
-                                                                    Identifier:
-                                                                      offset: 181
-                                                                      inner: y
+                                                                    Identifier: y
                                                           rest:
                                                             stmts: []
                                                             term:
@@ -131,18 +116,14 @@ term:
                                                                                     prim:
                                                                                       offset: 206
                                                                                       inner:
-                                                                                        Identifier:
-                                                                                          offset: 206
-                                                                                          inner: std
+                                                                                        Identifier: std
                                                                                     key:
                                                                                       offset: 210
                                                                                       inner: leq
                                                                               arg:
                                                                                 offset: 214
                                                                                 inner:
-                                                                                  Identifier:
-                                                                                    offset: 214
-                                                                                    inner: n
+                                                                                  Identifier: n
                                                                         arg:
                                                                           offset: 216
                                                                           inner:
@@ -152,9 +133,7 @@ term:
                                                                     term:
                                                                       offset: 241
                                                                       inner:
-                                                                        Identifier:
-                                                                          offset: 241
-                                                                          inner: z
+                                                                        Identifier: z
                                                                   or_else:
                                                                     stmts: []
                                                                     term:
@@ -172,21 +151,15 @@ term:
                                                                                       prim:
                                                                                         offset: 267
                                                                                         inner:
-                                                                                          Identifier:
-                                                                                            offset: 267
-                                                                                            inner: fib
+                                                                                          Identifier: fib
                                                                                       arg:
                                                                                         offset: 271
                                                                                         inner:
-                                                                                          Identifier:
-                                                                                            offset: 271
-                                                                                            inner: y
+                                                                                          Identifier: y
                                                                                 arg:
                                                                                   offset: 273
                                                                                   inner:
-                                                                                    Identifier:
-                                                                                      offset: 273
-                                                                                      inner: z
+                                                                                    Identifier: z
                                                                           arg:
                                                                             offset: 279
                                                                             inner:
@@ -202,18 +175,14 @@ term:
                                                                                             prim:
                                                                                               offset: 276
                                                                                               inner:
-                                                                                                Identifier:
-                                                                                                  offset: 276
-                                                                                                  inner: std
+                                                                                                Identifier: std
                                                                                             key:
                                                                                               offset: 280
                                                                                               inner: minus
                                                                                       arg:
                                                                                         offset: 286
                                                                                         inner:
-                                                                                          Identifier:
-                                                                                            offset: 286
-                                                                                            inner: n
+                                                                                          Identifier: n
                                                                                 arg:
                                                                                   offset: 288
                                                                                   inner:
@@ -234,9 +203,7 @@ term:
                                             prim:
                                               offset: 328
                                               inner:
-                                                Identifier:
-                                                  offset: 328
-                                                  inner: std
+                                                Identifier: std
                                             key:
                                               offset: 332
                                               inner: stdio
@@ -266,9 +233,7 @@ term:
                                                               prim:
                                                                 offset: 346
                                                                 inner:
-                                                                  Identifier:
-                                                                    offset: 346
-                                                                    inner: fib
+                                                                  Identifier: fib
                                                               arg:
                                                                 offset: 350
                                                                 inner:

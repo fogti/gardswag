@@ -14,16 +14,12 @@ expression: x
           offset: 29
           inner:
             Fix:
-              arg:
-                offset: 25
-                inner: f
+              arg: f
               body:
                 offset: 29
                 inner:
                   Lambda:
-                    arg:
-                      offset: 29
-                      inner: a
+                    arg: a
                     body:
                       offset: 32
                       inner:
@@ -43,18 +39,14 @@ expression: x
                                             prim:
                                               offset: 36
                                               inner:
-                                                Identifier:
-                                                  offset: 36
-                                                  inner: std
+                                                Identifier: std
                                             key:
                                               offset: 40
                                               inner: eq
                                       arg:
                                         offset: 43
                                         inner:
-                                          Identifier:
-                                            offset: 43
-                                            inner: a
+                                          Identifier: a
                                 arg:
                                   offset: 45
                                   inner:
@@ -74,9 +66,7 @@ expression: x
                                   prim:
                                     offset: 56
                                     inner:
-                                      Identifier:
-                                        offset: 56
-                                        inner: f
+                                      Identifier: f
                                   arg:
                                     offset: 58
                                     inner:
@@ -90,9 +80,7 @@ expression: x
                 prim:
                   offset: 79
                   inner:
-                    Identifier:
-                      offset: 79
-                      inner: f
+                    Identifier: f
                 arg:
                   offset: 81
                   inner:

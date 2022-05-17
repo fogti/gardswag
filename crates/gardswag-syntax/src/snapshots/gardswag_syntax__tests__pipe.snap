@@ -1,6 +1,5 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 790
 expression: "parse(r#\"\n                let id = \\x x |> \\y y;\n                \\z (id z |> \\m std.plus m 1 |> \\m std.minus m 2)\n            \"#).unwrap()"
 ---
 stmts: []
@@ -19,37 +18,27 @@ term:
               offset: 34
               inner:
                 Lambda:
-                  arg:
-                    offset: 34
-                    inner: y
+                  arg: y
                   body:
                     offset: 37
                     inner:
-                      Identifier:
-                        offset: 37
-                        inner: y
+                      Identifier: y
             arg:
               offset: 26
               inner:
                 Lambda:
-                  arg:
-                    offset: 26
-                    inner: x
+                  arg: x
                   body:
                     offset: 29
                     inner:
-                      Identifier:
-                        offset: 29
-                        inner: x
+                      Identifier: x
       rest:
         stmts: []
         term:
           offset: 56
           inner:
             Lambda:
-              arg:
-                offset: 56
-                inner: z
+              arg: z
               body:
                 offset: 84
                 inner:
@@ -66,9 +55,7 @@ term:
                                   offset: 87
                                   inner:
                                     Lambda:
-                                      arg:
-                                        offset: 87
-                                        inner: m
+                                      arg: m
                                       body:
                                         offset: 93
                                         inner:
@@ -76,18 +63,14 @@ term:
                                             prim:
                                               offset: 90
                                               inner:
-                                                Identifier:
-                                                  offset: 90
-                                                  inner: std
+                                                Identifier: std
                                             key:
                                               offset: 94
                                               inner: minus
                                 arg:
                                   offset: 100
                                   inner:
-                                    Identifier:
-                                      offset: 100
-                                      inner: m
+                                    Identifier: m
                           arg:
                             offset: 102
                             inner:
@@ -108,9 +91,7 @@ term:
                                         offset: 68
                                         inner:
                                           Lambda:
-                                            arg:
-                                              offset: 68
-                                              inner: m
+                                            arg: m
                                             body:
                                               offset: 74
                                               inner:
@@ -118,18 +99,14 @@ term:
                                                   prim:
                                                     offset: 71
                                                     inner:
-                                                      Identifier:
-                                                        offset: 71
-                                                        inner: std
+                                                      Identifier: std
                                                   key:
                                                     offset: 75
                                                     inner: plus
                                       arg:
                                         offset: 80
                                         inner:
-                                          Identifier:
-                                            offset: 80
-                                            inner: m
+                                          Identifier: m
                                 arg:
                                   offset: 82
                                   inner:
@@ -141,13 +118,9 @@ term:
                                 prim:
                                   offset: 60
                                   inner:
-                                    Identifier:
-                                      offset: 60
-                                      inner: id
+                                    Identifier: id
                                 arg:
                                   offset: 63
                                   inner:
-                                    Identifier:
-                                      offset: 63
-                                      inner: z
+                                    Identifier: z
 

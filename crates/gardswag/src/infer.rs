@@ -86,9 +86,9 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
         Ek::Lambda { arg, body } => {
             let mut env2 = env.clone();
             let tv = Ty::Var(ctx.fresh_tyvar());
-            if !arg.inner.is_empty() {
+            if !arg.is_empty() {
                 env2.vars.insert(
-                    arg.inner.clone(),
+                    arg.clone(),
                     tysy::Scheme {
                         forall: Default::default(),
                         ty: tv.clone(),
@@ -102,9 +102,9 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
         Ek::Fix { arg, body } => {
             let mut env2 = env.clone();
             let tv = Ty::Var(ctx.fresh_tyvar());
-            if !arg.inner.is_empty() {
+            if !arg.is_empty() {
                 env2.vars.insert(
-                    arg.inner.clone(),
+                    arg.clone(),
                     tysy::Scheme {
                         forall: Default::default(),
                         ty: tv.clone(),
@@ -128,6 +128,16 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
                 Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
             );
             Ok(tv)
+        }
+
+        Ek::Record(rcd) => {
+            let mut m = BTreeMap::default();
+            let env = env.clone();
+            for (k, v) in rcd {
+                let t = infer(&env, ctx, v)?;
+                m.insert(k.clone(), t);
+            }
+            Ok(Ty::Record(m))
         }
 
         Ek::Dot { prim, key } => {
@@ -180,6 +190,9 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
             Ok(Ty::Var(tvout))
         }
 
+        Ek::Tagged { .. } => unimplemented!(),
+        Ek::Match { .. } => unimplemented!(),
+
         Ek::FormatString(fsexs) => {
             let env = env.clone();
             for i in fsexs {
@@ -200,21 +213,14 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
             Ok(Ty::Literal(TyLit::String))
         }
 
-        Ek::Record(rcd) => {
-            let mut m = BTreeMap::default();
-            let env = env.clone();
-            for (k, v) in rcd {
-                let t = infer(&env, ctx, v)?;
-                m.insert(k.clone(), t);
-            }
-            Ok(Ty::Record(m))
-        }
-
         Ek::Identifier(id) => {
-            if let Some(x) = env.vars.get(&id.inner) {
+            if let Some(x) = env.vars.get(id) {
                 Ok(x.instantiate(ctx))
             } else {
-                Err(Error::UndefVar(id.clone()))
+                Err(Error::UndefVar(synt::Offsetted {
+                    offset: expr.offset,
+                    inner: id.clone(),
+                }))
             }
         }
         Ek::Boolean(_) => Ok(Ty::Literal(TyLit::Bool)),

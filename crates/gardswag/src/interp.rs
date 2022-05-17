@@ -120,14 +120,14 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
         Ek::Lambda { arg, body } => {
             let mut stacksave = std::collections::BTreeMap::new();
             for (k, v) in stack.iter() {
-                if stacksave.contains_key(k) || k == arg.inner || !body.inner.is_var_accessed(k) {
+                if stacksave.contains_key(k) || k == arg || !body.inner.is_var_accessed(k) {
                     continue;
                 }
                 stacksave.insert(k.to_string(), v.clone());
             }
 
             Value::Lambda {
-                argname: &arg.inner,
+                argname: arg,
                 f: body,
                 stacksave,
             }
@@ -201,9 +201,9 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
             body,
             &VarStack {
                 parent: Some(stack),
-                name: &arg.inner,
+                name: arg,
                 value: Value::FixLambda {
-                    argname: &arg.inner,
+                    argname: arg,
                     f: body,
                 },
             },
@@ -250,8 +250,10 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 v => panic!("invoked record update (rhs) on non-record {:?}", v),
             }
         }
+        Ek::Tagged { .. } => unimplemented!(),
+        Ek::Match { .. } => unimplemented!(),
         Ek::Identifier(id) => {
-            let r = stack.find(&id.inner).unwrap().clone();
+            let r = stack.find(id).unwrap().clone();
             if let Value::FixLambda { argname, f } = r {
                 run(
                     f,

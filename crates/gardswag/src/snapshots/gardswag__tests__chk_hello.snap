@@ -17,9 +17,7 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                       prim:
                         offset: 0
                         inner:
-                          Identifier:
-                            offset: 0
-                            inner: std
+                          Identifier: std
                       key:
                         offset: 4
                         inner: stdio

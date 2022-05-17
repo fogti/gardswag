@@ -25,17 +25,22 @@ impl<T: fmt::Debug> fmt::Debug for Offsetted<T> {
     }
 }
 
-impl From<Offsetted<crate::lex::ErrorKind>> for Offsetted<crate::ErrorKind> {
-    #[inline]
-    fn from(
-        Offsetted { offset, inner }: Offsetted<crate::lex::ErrorKind>,
-    ) -> Offsetted<crate::ErrorKind> {
-        Self {
-            offset,
-            inner: inner.into(),
+macro_rules! impl_inner_tr {
+    ($from:ty, $to:ty) => {
+        impl From<Offsetted<$from>> for Offsetted<$to> {
+            #[inline]
+            fn from(Offsetted { offset, inner }: Offsetted<$from>) -> Self {
+                Self {
+                    offset,
+                    inner: inner.into(),
+                }
+            }
         }
-    }
+    };
 }
+
+impl_inner_tr!(crate::lex::ErrorKind, crate::ErrorKind);
+impl_inner_tr!(crate::DotIntermed<crate::Expr>, crate::ExprKind);
 
 impl<T, E> From<Offsetted<Result<T, E>>> for Result<Offsetted<T>, Offsetted<E>> {
     #[inline]

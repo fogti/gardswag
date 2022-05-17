@@ -1,0 +1,2 @@
+match .this_is_a_variant 1
+  | .this_is_a_variant x => std.plus x 1

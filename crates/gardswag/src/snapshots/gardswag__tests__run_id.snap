@@ -14,15 +14,11 @@ expression: x
           offset: 26
           inner:
             Lambda:
-              arg:
-                offset: 26
-                inner: x
+              arg: x
               body:
                 offset: 29
                 inner:
-                  Identifier:
-                    offset: 29
-                    inner: x
+                  Identifier: x
         rest:
           stmts: []
           term:
@@ -32,9 +28,7 @@ expression: x
                 prim:
                   offset: 48
                   inner:
-                    Identifier:
-                      offset: 48
-                      inner: id
+                    Identifier: id
                 arg:
                   offset: 51
                   inner:

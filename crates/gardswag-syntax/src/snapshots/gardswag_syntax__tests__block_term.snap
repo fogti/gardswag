@@ -1,13 +1,10 @@
 ---
 source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 498
 expression: "parse(\"{ a }\").unwrap()"
 ---
 stmts: []
 term:
   offset: 2
   inner:
-    Identifier:
-      offset: 2
-      inner: a
+    Identifier: a
 

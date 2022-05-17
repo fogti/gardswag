@@ -60,6 +60,8 @@ pub enum TokenKind {
     EqSym,
     Dot,
     SemiColon,
+    Case,
+    CaseThen,
     Pipe,
     Update,
 
@@ -107,6 +109,7 @@ keywords! {
     False => "_0",
     If => "if",
     Let => "let",
+    Match => "match",
     Rec => "rec",
     True => "_1",
 }
@@ -313,7 +316,14 @@ impl Iterator for Lexer<'_> {
                             self.lvl.push(LvlKind::Quotes);
                             Ok(TokenKind::StringStart)
                         }
-                        '=' => Ok(Tk::EqSym),
+                        '=' => {
+                            if self.inp.starts_with('>') {
+                                self.consume(1);
+                                Ok(Tk::CaseThen)
+                            } else {
+                                Ok(Tk::EqSym)
+                            }
+                        }
                         '.' => Ok(Tk::Dot),
                         ';' => Ok(Tk::SemiColon),
                         '|' => {
@@ -321,7 +331,12 @@ impl Iterator for Lexer<'_> {
                                 self.consume(1);
                                 Ok(Tk::Pipe)
                             } else {
-                                Err(ErrorKind::UnhandledChar(c))
+                                match self.inp.chars().next() {
+                                    None => Ok(()),
+                                    Some(c) if c.is_whitespace() || c == '.' => Ok(()),
+                                    _ => Err(ErrorKind::UnhandledChar(c)),
+                                }
+                                .map(|()| Tk::Case)
                             }
                         }
                         '/' => {

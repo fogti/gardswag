@@ -7,9 +7,7 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
     offset: 17
     inner:
       Lambda:
-        arg:
-          offset: 17
-          inner: x
+        arg: x
         body:
           offset: 36
           inner:
@@ -21,15 +19,11 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                 offset: 45
                 inner:
                   Lambda:
-                    arg:
-                      offset: 45
-                      inner: y
+                    arg: y
                     body:
                       offset: 48
                       inner:
-                        Identifier:
-                          offset: 48
-                          inner: y
+                        Identifier: y
               rest:
                 stmts: []
                 term:
@@ -39,15 +33,11 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                       id:
                         offset: 88
                         inner:
-                          Identifier:
-                            offset: 88
-                            inner: id
+                          Identifier: id
                       x:
                         offset: 110
                         inner:
-                          Identifier:
-                            offset: 110
-                            inner: x
+                          Identifier: x
                       y:
                         offset: 135
                         inner:
@@ -59,9 +49,7 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                                   term:
                                     offset: 137
                                     inner:
-                                      Identifier:
-                                        offset: 137
-                                        inner: x
+                                      Identifier: x
 - forall:
     - 2
     - 4

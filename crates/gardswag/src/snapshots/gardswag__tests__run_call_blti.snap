@@ -18,9 +18,7 @@ expression: x
                     prim:
                       offset: 17
                       inner:
-                        Identifier:
-                          offset: 17
-                          inner: std
+                        Identifier: std
                     key:
                       offset: 21
                       inner: plus
