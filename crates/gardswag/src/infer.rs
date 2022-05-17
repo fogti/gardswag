@@ -1,9 +1,7 @@
 use gardswag_syntax as synt;
-use gardswag_typesys as tysy;
+use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
+use gardswag_typesys::{self as tysy, Substitutable, Ty, TyLit, TyVar};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-
-use gardswag_core::{ty::Context as _, Substitutable, Ty, TyLit, TyVar};
-use gardswag_typesys::{CollectContext, TyConstraintGroup as Tcg, TyConstraintGroupKind as Tcgk};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -32,7 +30,11 @@ impl Substitutable for Env {
     }
 }
 
-pub fn infer_block(env: &Env, ctx: &mut CollectContext, blk: &synt::Block) -> Result<Ty, Error> {
+pub fn infer_block(
+    env: &Env,
+    ctx: &mut tysy::CollectContext,
+    blk: &synt::Block,
+) -> Result<Ty, Error> {
     let mut ret = Ty::Literal(TyLit::Unit);
     for i in &blk.stmts {
         let _ = infer(env, ctx, i)?;
@@ -43,7 +45,7 @@ pub fn infer_block(env: &Env, ctx: &mut CollectContext, blk: &synt::Block) -> Re
     Ok(ret)
 }
 
-fn maybe_new_tyvar(offset: usize, t: Ty, ctx: &mut CollectContext) -> TyVar {
+fn maybe_new_tyvar(offset: usize, t: Ty, ctx: &mut tysy::CollectContext) -> TyVar {
     match t {
         Ty::Var(x) => x,
         _ => {
@@ -54,7 +56,7 @@ fn maybe_new_tyvar(offset: usize, t: Ty, ctx: &mut CollectContext) -> TyVar {
     }
 }
 
-fn infer(env: &Env, ctx: &mut CollectContext, expr: &synt::Expr) -> Result<Ty, Error> {
+fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result<Ty, Error> {
     use synt::ExprKind as Ek;
     match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {

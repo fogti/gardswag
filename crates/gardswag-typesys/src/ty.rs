@@ -3,6 +3,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// atomic base types
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum TyLit {
     Unit,
@@ -23,17 +24,6 @@ impl fmt::Display for TyLit {
 }
 
 pub type TyVar = usize;
-
-pub trait Context {
-    /// creates a fresh type variable
-    fn fresh_tyvar(&mut self) -> TyVar;
-
-    /// duplicates type variables, including their constraints
-    fn dup_tyvars<I: Iterator<Item = TyVar>>(&mut self, tvs: I) -> BTreeMap<TyVar, TyVar>;
-
-    /// registers a unification
-    fn unify(&mut self, offset: usize, a: Ty, b: Ty);
-}
 
 #[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Ty {
@@ -167,10 +157,7 @@ impl Ty {
 }
 
 impl Scheme {
-    pub fn instantiate<C>(&self, outerctx: &mut C) -> Ty
-    where
-        C: Context,
-    {
+    pub fn instantiate(&self, outerctx: &mut crate::CollectContext) -> Ty {
         let mut t2 = self.ty.clone();
         let m = outerctx.dup_tyvars(self.forall.iter().copied());
         t2.apply(&|i| m.get(i).map(|&j| Ty::Var(j)));

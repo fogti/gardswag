@@ -1,19 +1,7 @@
-#![forbid(
-    trivial_casts,
-    unconditional_recursion,
-    unsafe_code,
-    unused_must_use,
-    clippy::as_conversions,
-    clippy::cast_ptr_alignment
-)]
-#![deny(unused_variables)]
-
-pub mod ty;
-pub use ty::{Ty, TyLit, TyVar};
-
 use core::cmp;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+/// trait which handles dealing with placeholder variables
 #[enum_dispatch::enum_dispatch]
 pub trait Substitutable {
     type In: cmp::Eq + cmp::Ord;

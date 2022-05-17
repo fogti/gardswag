@@ -8,10 +8,16 @@
 )]
 #![deny(unused_variables)]
 
-pub use gardswag_core::{ty::Scheme, Substitutable, Ty, TyLit, TyVar};
+/// base type definitions
+mod ty;
+pub use ty::{Scheme, Ty, TyLit, TyVar};
 
-/// type constraint solver
-pub mod constraint;
+mod substitutable;
+pub use substitutable::Substitutable;
 
+/// type constraint data structures
 mod collect;
-pub use collect::*;
+pub use collect::Context as CollectContext;
+
+/// type constraint solver + data structures
+pub mod constraint;

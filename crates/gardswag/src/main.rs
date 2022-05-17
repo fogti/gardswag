@@ -27,7 +27,7 @@ struct Args {
 }
 
 fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
-    use gardswag_core::{ty::Scheme as TyScheme, Ty, TyLit};
+    use gardswag_typesys::{Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
         (int) => {{
@@ -63,7 +63,6 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
         }};
     }
 
-    use gardswag_core::ty::Context as _;
     let tyvars: Vec<usize> = (0..2).map(|_| ctx.fresh_tyvar()).collect();
     let gtv = |i| Ty::Var(tyvars[i]);
 
@@ -110,7 +109,7 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     use gardswag_typesys::Substitutable;
     t.apply(&|&i| ctx2.on_apply(i));
     //let tg = t.generalize(&env);
-    let tg = gardswag_core::ty::Scheme {
+    let tg = gardswag_typesys::Scheme {
         forall: {
             let mut tfv = Default::default();
             t.fv(&mut tfv, true);

@@ -1,4 +1,4 @@
-use gardswag_core::{Substitutable, Ty, TyVar};
+use crate::{Substitutable, Ty, TyVar};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -148,21 +148,6 @@ impl Substitutable for Tcgk {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CollectContext {
-    fresh_tyvars: core::ops::RangeFrom<usize>,
-    pub constraints: Vec<(usize, Constraint)>,
-}
-
-impl Default for CollectContext {
-    fn default() -> Self {
-        Self {
-            fresh_tyvars: 0..,
-            constraints: Default::default(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Constraint {
     Unify(Ty, Ty),
     Bind(TyVar, Tcg),
@@ -209,12 +194,31 @@ impl Substitutable for Constraint {
     }
 }
 
-impl gardswag_core::ty::Context for CollectContext {
-    fn fresh_tyvar(&mut self) -> TyVar {
+/// type constraints collector
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Context {
+    fresh_tyvars: core::ops::RangeFrom<usize>,
+    pub constraints: Vec<(usize, Constraint)>,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Self {
+            fresh_tyvars: 0..,
+            constraints: Default::default(),
+        }
+    }
+}
+
+impl Context {
+    pub fn fresh_tyvar(&mut self) -> TyVar {
         self.fresh_tyvars.next().unwrap()
     }
 
-    fn dup_tyvars<I: Iterator<Item = TyVar>>(&mut self, tvs: I) -> BTreeMap<TyVar, TyVar> {
+    pub(crate) fn dup_tyvars<I>(&mut self, tvs: I) -> BTreeMap<TyVar, TyVar>
+    where
+        I: Iterator<Item = TyVar>,
+    {
         let ret: BTreeMap<_, _> = tvs
             .map(|i| {
                 let j = self.fresh_tyvar();
@@ -240,12 +244,10 @@ impl gardswag_core::ty::Context for CollectContext {
         ret
     }
 
-    fn unify(&mut self, offset: usize, a: Ty, b: Ty) {
+    pub fn unify(&mut self, offset: usize, a: Ty, b: Ty) {
         self.constraints.push((offset, Constraint::Unify(a, b)));
     }
-}
 
-impl CollectContext {
     #[inline]
     pub fn peek_next_tyvar(&self) -> TyVar {
         self.fresh_tyvars.start

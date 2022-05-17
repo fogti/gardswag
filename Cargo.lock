@@ -158,7 +158,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "gardswag-core",
  "gardswag-syntax",
  "gardswag-typesys",
  "gardswag-varstack",
@@ -169,16 +168,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "gardswag-core"
-version = "0.1.0"
-dependencies = [
- "enum_dispatch",
- "serde",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -198,7 +187,6 @@ name = "gardswag-typesys"
 version = "0.1.0"
 dependencies = [
  "enum_dispatch",
- "gardswag-core",
  "serde",
  "thiserror",
  "tracing",

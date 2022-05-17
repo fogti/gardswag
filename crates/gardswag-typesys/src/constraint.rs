@@ -1,5 +1,12 @@
-use crate::collect::{TyConstraintGroup as Tcg, TyConstraintGroupKind as Tcgk};
-use gardswag_core::{Substitutable, Ty, TyVar};
+use crate::{Substitutable, Ty, TyVar};
+use core::fmt;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+
+pub use crate::collect::{
+    Constraint, TyConstraintGroup as TyGroup, TyConstraintGroupKind as TyGroupKind,
+};
+use TyGroupKind as Tcgk;
 
 #[derive(Debug, thiserror::Error)]
 pub enum UnifyError {
@@ -68,7 +75,7 @@ impl Context {
             }
             (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
                 *a,
-                Tcg {
+                TyGroup {
                     ty: Some(t.clone()),
                     ..Default::default()
                 },
@@ -82,12 +89,7 @@ impl Context {
     }
 }
 
-use core::fmt;
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
-
-pub type Tcgs = BTreeMap<TyConstraintGroupId, Tcg>;
-pub type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;
+type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(transparent)]
@@ -130,7 +132,7 @@ where
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Context {
-    pub g: Tcgs,
+    pub g: BTreeMap<TyConstraintGroupId, TyGroup>,
     pub m: Tvs,
     pub tycg_cnt: core::ops::RangeFrom<usize>,
 }
@@ -221,11 +223,11 @@ impl Context {
                         self.g.get(self.m.get(ovrd).unwrap()),
                     ) {
                         (
-                            Some(Tcg {
+                            Some(TyGroup {
                                 ty: Some(Ty::Record(rcm_orig)),
                                 ..
                             }),
-                            Some(Tcg {
+                            Some(TyGroup {
                                 ty: Some(Ty::Record(rcm_ovrd)),
                                 ..
                             }),
@@ -246,7 +248,7 @@ impl Context {
                             g.ty = Some(rcm_ty);
                         }
                         (
-                            Some(Tcg {
+                            Some(TyGroup {
                                 ty: Some(ty_orig @ Ty::Literal(_) | ty_orig @ Ty::Arrow(_, _)),
                                 ..
                             }),
@@ -256,7 +258,7 @@ impl Context {
                         }
                         (
                             _,
-                            Some(Tcg {
+                            Some(TyGroup {
                                 ty: Some(ty_ovrd @ Ty::Literal(_) | ty_ovrd @ Ty::Arrow(_, _)),
                                 ..
                             }),
@@ -265,7 +267,7 @@ impl Context {
                         }
                         (
                             _,
-                            Some(Tcg {
+                            Some(TyGroup {
                                 ty: Some(Ty::Record(rcm_ovrd)),
                                 ..
                             }),
@@ -288,7 +290,7 @@ impl Context {
                         }
                         (
                             None
-                            | Some(Tcg {
+                            | Some(TyGroup {
                                 ty: None | Some(Ty::Var(_)),
                                 ..
                             }),
@@ -297,7 +299,7 @@ impl Context {
                         | (
                             _,
                             None
-                            | Some(Tcg {
+                            | Some(TyGroup {
                                 ty: None | Some(Ty::Var(_)),
                                 ..
                             }),
@@ -490,7 +492,7 @@ impl Context {
                     }
                 })?;
 
-                Tcg {
+                TyGroup {
                     ty,
                     oneof,
                     listeners,
@@ -577,7 +579,7 @@ impl Context {
         Ok(())
     }
 
-    fn bind(&mut self, v: TyVar, tcg: Tcg) -> Result<(), UnifyError> {
+    fn bind(&mut self, v: TyVar, tcg: TyGroup) -> Result<(), UnifyError> {
         if let Some(t) = tcg.resolved() {
             if let Ty::Var(y) = t {
                 let tcgid = match (self.m.get(&v), self.m.get(y)) {
@@ -623,14 +625,10 @@ impl Context {
         }
     }
 
-    pub fn solve(
-        &mut self,
-        constrs: crate::collect::CollectContext,
-    ) -> Result<(), (usize, UnifyError)> {
+    pub fn solve(&mut self, constrs: crate::collect::Context) -> Result<(), (usize, UnifyError)> {
         use core::mem::take;
         let mut constraints = constrs.constraints;
         for (offset, constr) in take(&mut constraints) {
-            use crate::collect::Constraint;
             let tmp = match constr {
                 Constraint::Unify(a, b) => self.unify(&a, &b),
                 Constraint::Bind(tv, cg) => self.bind(tv, cg),
