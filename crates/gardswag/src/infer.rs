@@ -3,7 +3,7 @@ use gardswag_typesys as tysy;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use gardswag_core::{ty::Context as _, Substitutable, Ty, TyLit, TyVar};
-use gardswag_tysy_collect::Context;
+use gardswag_tysy_collect::{Context, TyConstraintGroup as Tcg, TyConstraintGroupKind as Tcgk};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -135,10 +135,13 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
             ctx.bind(
                 expr.offset,
                 tvinp,
-                tysy::TyConstraintGroup {
-                    partial_record: [(key.inner.to_string(), tvout.clone())]
-                        .into_iter()
-                        .collect(),
+                Tcg {
+                    kind: Some(Tcgk::Record {
+                        partial: [(key.inner.to_string(), tvout.clone())]
+                            .into_iter()
+                            .collect(),
+                        update_info: None,
+                    }),
                     ..Default::default()
                 },
             );
@@ -151,8 +154,12 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
             let tvout = ctx.fresh_tyvar();
             let tvorig = maybe_new_tyvar(expr.offset, t_orig, ctx);
             let tvovrd = maybe_new_tyvar(expr.offset, t_ovrd, ctx);
-            let tcg_listen = tysy::TyConstraintGroup {
+            let tcg_listen = Tcg {
                 listeners: [tvout].into_iter().collect(),
+                kind: Some(Tcgk::Record {
+                    partial: Default::default(),
+                    update_info: None,
+                }),
                 ..Default::default()
             };
             ctx.bind(expr.offset, tvorig, tcg_listen.clone());
@@ -160,8 +167,11 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
             ctx.bind(
                 expr.offset,
                 tvout,
-                tysy::TyConstraintGroup {
-                    record_update_info: Some((tvorig, tvovrd)),
+                Tcg {
+                    kind: Some(Tcgk::Record {
+                        partial: Default::default(),
+                        update_info: Some((tvorig, tvovrd)),
+                    }),
                     ..Default::default()
                 },
             );
@@ -176,7 +186,7 @@ fn infer(env: &Env, ctx: &mut Context, expr: &synt::Expr) -> Result<Ty, Error> {
                 ctx.bind(
                     i.offset,
                     tv,
-                    tysy::TyConstraintGroup {
+                    Tcg {
                         oneof: [TyLit::Unit, TyLit::Bool, TyLit::Int, TyLit::String]
                             .into_iter()
                             .map(Ty::Literal)

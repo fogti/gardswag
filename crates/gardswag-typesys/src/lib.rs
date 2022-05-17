@@ -9,7 +9,7 @@
 #![deny(unused_variables)]
 
 pub use gardswag_core::{ty::Scheme, Substitutable, Ty, TyLit, TyVar};
-pub use gardswag_tysy_collect::TyConstraintGroup;
+use gardswag_tysy_collect::{TyConstraintGroup as Tcg, TyConstraintGroupKind as Tcgk};
 
 #[derive(Debug, thiserror::Error)]
 pub enum UnifyError {
@@ -78,7 +78,7 @@ impl Context {
             }
             (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
                 *a,
-                TyConstraintGroup {
+                Tcg {
                     ty: Some(t.clone()),
                     ..Default::default()
                 },
@@ -96,7 +96,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub type Tcgs = BTreeMap<TyConstraintGroupId, TyConstraintGroup>;
+pub type Tcgs = BTreeMap<TyConstraintGroupId, Tcg>;
 pub type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
@@ -116,8 +116,7 @@ impl fmt::Display for TyConstraintGroupId {
     }
 }
 
-use TyConstraintGroup as Tcg;
-
+/// get lowest ty variable with same cgid (used for normalization)
 fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
     if let Some(&x) = m.get(&tv) {
         // check if any tv with the same *x has a lower id
@@ -125,6 +124,18 @@ fn lowest_tvi_for_cg(m: &Tvs, tv: TyVar) -> TyVar {
         return *m.iter().find(|(_, &v)| v == x).unwrap().0;
     }
     tv
+}
+
+/// the option merge pattern, used when merging constraint groups
+fn opt_merge<T, E, F>(a: Option<T>, b: Option<T>, f: F) -> Result<Option<T>, E>
+where
+    F: FnOnce(T, T) -> Result<T, E>,
+{
+    Ok(match (a, b) {
+        (Some(a), Some(b)) => Some(f(a, b)?),
+        (Some(x), None) | (None, Some(x)) => Some(x),
+        (None, None) => None,
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -209,93 +220,99 @@ impl Context {
             // buffer notifications to prevent unnecessary infinite loops
             let mut modified = false;
 
-            if let Some((orig, ovrd)) = g.record_update_info {
-                match (
-                    self.g.get(self.m.get(&orig).unwrap()),
-                    self.g.get(self.m.get(&ovrd).unwrap()),
-                ) {
-                    (
-                        Some(Tcg {
-                            ty: Some(Ty::Record(rcm_orig)),
-                            ..
-                        }),
-                        Some(Tcg {
-                            ty: Some(Ty::Record(rcm_ovrd)),
-                            ..
-                        }),
-                    ) => {
-                        let mut rcm = rcm_ovrd.clone();
-                        for (k, v) in rcm_orig {
-                            if rcm.contains_key(k) {
-                                continue;
-                            }
-                            rcm.insert(k.clone(), v.clone());
-                        }
-                        let rcm_ty = Ty::Record(rcm);
-                        if let Some(ty) = &g.ty {
-                            self.unify(&rcm_ty, ty)?;
-                        }
-                        modified = true;
-                        g.ty = Some(rcm_ty);
-                        g.record_update_info = None;
-                    }
-                    (
-                        Some(Tcg {
-                            ty: Some(ty_orig @ Ty::Literal(_) | ty_orig @ Ty::Arrow(_, _)),
-                            ..
-                        }),
-                        _,
-                    ) => {
-                        return Err(UnifyError::NotARecord(ty_orig.clone()));
-                    }
-                    (
-                        _,
-                        Some(Tcg {
-                            ty: Some(ty_ovrd @ Ty::Literal(_) | ty_ovrd @ Ty::Arrow(_, _)),
-                            ..
-                        }),
-                    ) => {
-                        return Err(UnifyError::NotARecord(ty_ovrd.clone()));
-                    }
-                    (
-                        _,
-                        Some(Tcg {
-                            ty: Some(Ty::Record(rcm_ovrd)),
-                            ..
-                        }),
-                    ) if !g.partial_record.is_empty() => {
-                        // if an item is present in the override, we can already propagate it
-                        let mut unifiers = Vec::new();
-                        for (k, v) in core::mem::take(&mut g.partial_record) {
-                            match rcm_ovrd.get(&k).cloned() {
-                                Some(v2) => {
-                                    unifiers.push((v, v2));
+            if let Some(Tcgk::Record {
+                update_info,
+                partial,
+            }) = &mut g.kind
+            {
+                if let Some((orig, ovrd)) = update_info {
+                    match (
+                        self.g.get(self.m.get(orig).unwrap()),
+                        self.g.get(self.m.get(ovrd).unwrap()),
+                    ) {
+                        (
+                            Some(Tcg {
+                                ty: Some(Ty::Record(rcm_orig)),
+                                ..
+                            }),
+                            Some(Tcg {
+                                ty: Some(Ty::Record(rcm_ovrd)),
+                                ..
+                            }),
+                        ) => {
+                            let mut rcm = rcm_ovrd.clone();
+                            for (k, v) in rcm_orig {
+                                if rcm.contains_key(k) {
+                                    continue;
                                 }
-                                None => {
-                                    g.partial_record.insert(k, v);
+                                rcm.insert(k.clone(), v.clone());
+                            }
+                            let rcm_ty = Ty::Record(rcm);
+                            if let Some(ty) = &g.ty {
+                                self.unify(&rcm_ty, ty)?;
+                            }
+                            modified = true;
+                            *update_info = None;
+                            g.ty = Some(rcm_ty);
+                        }
+                        (
+                            Some(Tcg {
+                                ty: Some(ty_orig @ Ty::Literal(_) | ty_orig @ Ty::Arrow(_, _)),
+                                ..
+                            }),
+                            _,
+                        ) => {
+                            return Err(UnifyError::NotARecord(ty_orig.clone()));
+                        }
+                        (
+                            _,
+                            Some(Tcg {
+                                ty: Some(ty_ovrd @ Ty::Literal(_) | ty_ovrd @ Ty::Arrow(_, _)),
+                                ..
+                            }),
+                        ) => {
+                            return Err(UnifyError::NotARecord(ty_ovrd.clone()));
+                        }
+                        (
+                            _,
+                            Some(Tcg {
+                                ty: Some(Ty::Record(rcm_ovrd)),
+                                ..
+                            }),
+                        ) => {
+                            // if an item is present in the override, we can already propagate it
+                            let mut unifiers = Vec::new();
+                            for (k, v) in core::mem::take(partial) {
+                                match rcm_ovrd.get(&k).cloned() {
+                                    Some(v2) => {
+                                        unifiers.push((v, v2));
+                                    }
+                                    None => {
+                                        partial.insert(k, v);
+                                    }
                                 }
                             }
+                            for (v1, v2) in unifiers {
+                                self.unify(&v1, &v2)?;
+                            }
                         }
-                        for (v1, v2) in unifiers {
-                            self.unify(&v1, &v2)?;
-                        }
+                        (
+                            None
+                            | Some(Tcg {
+                                ty: None | Some(Ty::Var(_)),
+                                ..
+                            }),
+                            _,
+                        )
+                        | (
+                            _,
+                            None
+                            | Some(Tcg {
+                                ty: None | Some(Ty::Var(_)),
+                                ..
+                            }),
+                        ) => {}
                     }
-                    (
-                        None
-                        | Some(Tcg {
-                            ty: None | Some(Ty::Var(_)),
-                            ..
-                        }),
-                        _,
-                    )
-                    | (
-                        _,
-                        None
-                        | Some(Tcg {
-                            ty: None | Some(Ty::Var(_)),
-                            ..
-                        }),
-                    ) => {}
                 }
             }
 
@@ -325,9 +342,9 @@ impl Context {
                     }
                 }
 
-                if !g.partial_record.is_empty() {
+                if let Some(Tcgk::Record { partial, .. }) = &mut g.kind {
                     if let Ty::Record(rcm) = &ty {
-                        for (key, value) in core::mem::take(&mut g.partial_record) {
+                        for (key, value) in core::mem::take(partial) {
                             if let Some(got_valty) = rcm.get(&key) {
                                 self.unify(got_valty, &value)?;
                             } else {
@@ -438,42 +455,56 @@ impl Context {
                 lhs.oneof.clear();
                 rhs.oneof.clear();
 
-                let mut partial_record = lhs.partial_record.clone();
+                let kind = opt_merge(lhs.kind, rhs.kind, |lhs, rhs| match (lhs, rhs) {
+                    (
+                        Tcgk::Record {
+                            partial: lhs_partial,
+                            update_info: lhs_update_info,
+                        },
+                        Tcgk::Record {
+                            partial: rhs_partial,
+                            update_info: rhs_update_info,
+                        },
+                    ) => {
+                        let mut partial = lhs_partial;
 
-                if partial_record.is_empty() {
-                    partial_record = rhs.partial_record.clone();
-                } else {
-                    for (key, value) in rhs.partial_record {
-                        use std::collections::btree_map::Entry;
-                        match partial_record.entry(key) {
-                            Entry::Occupied(mut occ) => {
-                                self.unify(occ.get(), &value)?;
-                                occ.get_mut().apply(&|&i| self.on_apply(i));
-                            }
-                            Entry::Vacant(vac) => {
-                                vac.insert(value);
+                        if partial.is_empty() {
+                            partial = rhs_partial;
+                        } else {
+                            for (key, value) in rhs_partial {
+                                use std::collections::btree_map::Entry;
+                                match partial.entry(key) {
+                                    Entry::Occupied(mut occ) => {
+                                        self.unify(occ.get(), &value)?;
+                                        occ.get_mut().apply(&|&i| self.on_apply(i));
+                                    }
+                                    Entry::Vacant(vac) => {
+                                        vac.insert(value);
+                                    }
+                                }
                             }
                         }
-                    }
-                }
 
-                let record_update_info = match (lhs.record_update_info, rhs.record_update_info) {
-                    (None, None) => None,
-                    (Some(x), None) | (None, Some(x)) => Some(x),
-                    (Some((w, x)), Some((y, z))) => {
-                        use Ty::Var;
-                        self.unify(&Var(w), &Var(y))?;
-                        self.unify(&Var(x), &Var(z))?;
-                        Some((lowest_tvi_for_cg(&self.m, w), lowest_tvi_for_cg(&self.m, x)))
+                        let update_info =
+                            opt_merge(lhs_update_info, rhs_update_info, |(w, x), (y, z)| {
+                                use Ty::Var;
+                                self.unify(&Var(w), &Var(y))?;
+                                self.unify(&Var(x), &Var(z))?;
+                                Ok((lowest_tvi_for_cg(&self.m, w), lowest_tvi_for_cg(&self.m, x)))
+                            })?;
+
+                        Ok(Tcgk::Record {
+                            partial,
+                            update_info,
+                        })
                     }
-                };
+                })?;
 
                 Tcg {
                     ty,
                     oneof,
-                    partial_record,
                     listeners,
-                    record_update_info,
+                    kind,
                 }
             }
             (_, _) => {
@@ -516,9 +547,9 @@ impl Context {
                         }
                     }
                 }
-                if !g.partial_record.is_empty() {
+                if let Some(Tcgk::Record { partial, .. }) = &mut g.kind {
                     if let Ty::Record(rcm) = &t {
-                        for (key, value) in core::mem::take(&mut g.partial_record) {
+                        for (key, value) in core::mem::take(partial) {
                             if let Some(got_valty) = rcm.get(&key) {
                                 self.unify(got_valty, &value)?;
                             } else {

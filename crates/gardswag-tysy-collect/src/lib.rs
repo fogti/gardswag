@@ -24,29 +24,36 @@ pub struct TyConstraintGroup {
     /// must not contain any type variables
     pub oneof: Vec<Ty>,
 
-    /// type should be a record with specific fields
-    pub partial_record: BTreeMap<String, Ty>,
-
     /// when this cg is updated, the specified tyvars get informed
     /// (this is used to forward one-way type information)
     pub listeners: BTreeSet<TyVar>,
 
-    /// the current type is the result of applying (orig // ovrd).
-    /// which means that the resulting type is a copy of ovrd,
-    /// plus any field present in orig but not in ovrd.
-    pub record_update_info: Option<(TyVar, TyVar)>,
+    pub kind: Option<TyConstraintGroupKind>,
 }
 
 use TyConstraintGroup as Tcg;
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub enum TyConstraintGroupKind {
+    /// type should be a record
+    Record {
+        /// with at least some specific fields
+        partial: BTreeMap<String, Ty>,
+
+        /// the current type is the result of applying (orig // ovrd).
+        /// which means that the resulting type is a copy of ovrd,
+        /// plus any field present in orig but not in ovrd.
+        update_info: Option<(TyVar, TyVar)>,
+    },
+}
+
+use TyConstraintGroupKind as Tcgk;
 
 impl Tcg {
     /// checks if the TyCG is resolved, and returns the concrete type if yes
     pub fn resolved(&self) -> Option<&Ty> {
         let ret = self.ty.as_ref()?;
-        if self.oneof.is_empty()
-            && self.partial_record.is_empty()
-            && self.record_update_info.is_none()
-        {
+        if self.oneof.is_empty() && self.kind.is_none() {
             Some(ret)
         } else {
             None
@@ -63,20 +70,13 @@ impl Substitutable for Tcg {
             x.fv(accu, do_add);
         }
         self.oneof.fv(accu, do_add);
-        self.partial_record.fv(accu, do_add);
         if do_add {
             accu.extend(self.listeners.iter().copied());
         } else {
             accu.retain(|i| !self.listeners.contains(i));
         }
-        if let Some((a, b)) = self.record_update_info {
-            if do_add {
-                accu.insert(a);
-                accu.insert(b);
-            } else {
-                accu.remove(&a);
-                accu.remove(&b);
-            }
+        if let Some(x) = &self.kind {
+            x.fv(accu, do_add);
         }
     }
 
@@ -88,7 +88,6 @@ impl Substitutable for Tcg {
             ty.apply(f);
         }
         self.oneof.apply(f);
-        self.partial_record.apply(f);
         let f2 = move |i: &TyVar| {
             // this is annoyingly fragile
             if let Some(Ty::Var(x)) = f(i) {
@@ -98,12 +97,62 @@ impl Substitutable for Tcg {
             }
         };
         self.listeners.apply(&f2);
-        if let Some((a, b)) = &mut self.record_update_info {
-            if let Some(x) = f2(a) {
-                *a = x;
+        if let Some(x) = &mut self.kind {
+            x.apply(f);
+        }
+    }
+}
+
+impl Substitutable for Tcgk {
+    type In = TyVar;
+    type Out = Ty;
+
+    fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
+        match self {
+            Tcgk::Record {
+                partial,
+                update_info,
+            } => {
+                partial.fv(accu, do_add);
+                if let Some((a, b)) = update_info {
+                    if do_add {
+                        accu.insert(*a);
+                        accu.insert(*b);
+                    } else {
+                        accu.remove(a);
+                        accu.remove(b);
+                    }
+                }
             }
-            if let Some(x) = f2(b) {
-                *b = x;
+        }
+    }
+
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&TyVar) -> Option<Ty>,
+    {
+        let f2 = move |i: &TyVar| {
+            // this is annoyingly fragile
+            if let Some(Ty::Var(x)) = f(i) {
+                Some(x)
+            } else {
+                None
+            }
+        };
+        match self {
+            Tcgk::Record {
+                partial,
+                update_info,
+            } => {
+                partial.apply(f);
+                if let Some((a, b)) = update_info {
+                    if let Some(x) = f2(a) {
+                        *a = x;
+                    }
+                    if let Some(x) = f2(b) {
+                        *b = x;
+                    }
+                }
             }
         }
     }
