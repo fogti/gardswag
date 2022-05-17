@@ -1,9 +1,25 @@
+#![forbid(
+    trivial_casts,
+    unconditional_recursion,
+    unsafe_code,
+    unused_must_use,
+    clippy::as_conversions,
+    clippy::cast_ptr_alignment
+)]
+#![deny(unused_variables)]
+
 use core::fmt;
 
 pub struct VarStack<'a, V> {
     pub parent: Option<&'a VarStack<'a, V>>,
     pub name: &'a str,
     pub value: V,
+}
+
+impl<V: fmt::Debug> fmt::Debug for VarStack<'_, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
 }
 
 impl<'a, V> VarStack<'a, V> {
@@ -31,11 +47,5 @@ impl<'a, V> Iterator for Iter<'a, V> {
         let inner = self.inner.take()?;
         self.inner = inner.parent;
         Some((inner.name, &inner.value))
-    }
-}
-
-impl<V: fmt::Debug> fmt::Debug for VarStack<'_, V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map().entries(self.iter()).finish()
     }
 }

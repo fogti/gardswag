@@ -162,6 +162,7 @@ dependencies = [
  "gardswag-syntax",
  "gardswag-typesys",
  "gardswag-tysy-collect",
+ "gardswag-varstack",
  "insta",
  "proptest",
  "serde",
@@ -212,6 +213,10 @@ dependencies = [
  "gardswag-core",
  "serde",
 ]
+
+[[package]]
+name = "gardswag-varstack"
+version = "0.1.0"
 
 [[package]]
 name = "getrandom"

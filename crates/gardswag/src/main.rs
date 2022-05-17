@@ -133,7 +133,7 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
 fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
     use interp::{Builtin as Bi, Value as Val};
 
-    let stack = gardswag_core::VarStack {
+    let stack = gardswag_varstack::VarStack {
         parent: None,
         name: "std",
         value: Val::Record(

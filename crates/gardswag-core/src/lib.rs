@@ -8,9 +8,6 @@
 )]
 #![deny(unused_variables)]
 
-mod varstack;
-pub use varstack::{Iter as VarStackIter, VarStack};
-
 pub mod ty;
 pub use ty::{Ty, TyLit, TyVar};
 
