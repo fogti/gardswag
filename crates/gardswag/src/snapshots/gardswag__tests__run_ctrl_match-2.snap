@@ -1,0 +1,6 @@
+---
+source: crates/gardswag/src/main.rs
+expression: main_interp(&x.0)
+---
+Integer: 2
+

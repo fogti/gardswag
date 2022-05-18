@@ -953,14 +953,6 @@ mod tests {
         .unwrap());
     }
 
-    #[test]
-    fn ctrl_match() {
-        insta::assert_yaml_snapshot!(parse(
-            "match .this_is_a_variant 1 | .this_is_a_variant x => std.plus x 1"
-        )
-        .unwrap());
-    }
-
     proptest::proptest! {
         #![proptest_config(proptest::test_runner::Config::with_cases(4096))]
 

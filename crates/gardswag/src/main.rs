@@ -148,13 +148,13 @@ fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
                     Val::Record(
                         [("write", Bi::StdioWrite.into())]
                             .into_iter()
-                            .map(|(i, j)| (i.to_string(), j))
+                            .map(|(i, j)| (i, j))
                             .collect(),
                     ),
                 ),
             ]
             .into_iter()
-            .map(|(i, j)| (i.to_string(), j))
+            .map(|(i, j)| (i, j))
             .collect(),
         ),
     };
@@ -365,13 +365,25 @@ mod tests {
         });
     }
 
+    #[test]
+    fn run_ctrl_match() {
+        tracing::subscriber::with_default(dflsubscr(), || {
+            let x = main_check(
+                "match .this_is_a_variant 1 | .this_is_a_variant x => std.plus x 1",
+            )
+            .unwrap();
+            insta::assert_yaml_snapshot!(x);
+            insta::assert_yaml_snapshot!(main_interp(&x.0));
+        });
+    }
+
     proptest::proptest! {
         #![proptest_config(proptest::test_runner::Config::with_cases(8192))]
 
         #[test]
         fn doesnt_crash(s in "[ -~]+") {
             if let Ok(x) = main_check(&s) {
-                main_interp(&x.0);
+                let _ = main_interp(&x.0);
             }
         }
     }

@@ -1,4 +1,4 @@
-use gardswag_syntax::{Block, Expr};
+use gardswag_syntax::{self as synt, Block, Expr};
 use gardswag_varstack::VarStack;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -24,13 +24,19 @@ impl Builtin {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[must_use = "the interpreter shouldn't discard values"]
 pub enum Value<'a> {
     Unit,
     Boolean(bool),
     Integer(i32),
     PureString(String),
 
-    Record(BTreeMap<String, Value<'a>>),
+    Record(BTreeMap<&'a str, Value<'a>>),
+
+    Tagged {
+        key: &'a str,
+        value: Box<Value<'a>>,
+    },
 
     Builtin {
         f: Builtin,
@@ -67,25 +73,63 @@ pub fn run_block<'a, 's>(blk: &'a Block, stack: &'s VarStack<'s, Value<'a>>) -> 
     }
 }
 
-fn run_stacksave<'a, 's, 's3, I>(
+fn run_stacksave<'a, 's, 's3, I, S>(
     expr: &'a Expr,
     stack: &'s VarStack<'s, Value<'a>>,
     mut stacksave: I,
 ) -> Value<'a>
 where
-    I: Iterator<Item = (String, Value<'a>)>,
+    I: Iterator<Item = (S, Value<'a>)>,
+    S: AsRef<str>,
 {
     match stacksave.next() {
         Some((name, value)) => run_stacksave(
             expr,
             &VarStack {
                 parent: Some(stack),
-                name: &name,
+                name: name.as_ref(),
                 value,
             },
             stacksave,
         ),
         None => run(expr, stack),
+    }
+}
+
+/// this function has a difficult signature,
+/// because we really want to avoid all unnecessary allocations,
+/// because it otherwise would be prohibitively costly...
+fn run_pat<'a, 'b>(
+    coll: &mut BTreeMap<&'a str, &'b Value<'a>>,
+    pat: &'a synt::Pattern,
+    inp: &'b Value<'a>,
+) -> Option<()> {
+    tracing::trace!("pat {:?}", pat);
+
+    use synt::Pattern;
+
+    match pat {
+        Pattern::Identifier(i) => {
+            coll.insert(&*i.inner, inp);
+            Some(())
+        }
+        Pattern::Tagged { key, value } => match inp {
+            Value::Tagged {
+                key: got_key,
+                value: got_value,
+            } if key.inner == *got_key => run_pat(coll, value, got_value),
+            _ => None,
+        },
+        Pattern::Record(synt::Offsetted { inner: rcpat, .. }) => match inp {
+            Value::Record(rcm) if rcpat.len() <= rcm.len() => {
+                for (key, value) in rcpat {
+                    let got_value = rcm.get(&**key)?;
+                    run_pat(coll, value, got_value)?;
+                }
+                Some(())
+            }
+            _ => None,
+        },
     }
 }
 
@@ -193,7 +237,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
         }
         Ek::Dot { prim, key } => match run(prim, stack) {
             Value::Record(mut rcm) => rcm
-                .remove(&key.inner)
+                .remove(&*key.inner)
                 .expect("unable to find key in record"),
             x => panic!("called .{} on non-record {:?}", key.inner, x),
         },
@@ -225,7 +269,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
         Ek::Record(rcde) => {
             let mut rcd = BTreeMap::new();
             for (k, v) in rcde {
-                rcd.insert(k.clone(), run(v, stack));
+                rcd.insert(&**k, run(v, stack));
             }
             Value::Record(rcd)
         }
@@ -250,8 +294,26 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 v => panic!("invoked record update (rhs) on non-record {:?}", v),
             }
         }
-        Ek::Tagged { .. } => unimplemented!(),
-        Ek::Match { .. } => unimplemented!(),
+        Ek::Tagged { key, value } => Value::Tagged {
+            key: &*key,
+            value: Box::new(run(value, stack)),
+        },
+        Ek::Match { inp, cases } => {
+            let v_inp = run(inp, stack);
+            let mut res = None;
+            for i in cases {
+                let mut coll = Default::default();
+                if let Some(()) = run_pat(&mut coll, &i.pat, &v_inp) {
+                    res = Some(run_stacksave(
+                        &i.body,
+                        stack,
+                        coll.into_iter().map(|(key, value)| (key, value.clone())),
+                    ));
+                    break;
+                }
+            }
+            res.expect("disformed match")
+        }
         Ek::Identifier(id) => {
             let r = stack.find(id).unwrap().clone();
             if let Value::FixLambda { argname, f } = r {
