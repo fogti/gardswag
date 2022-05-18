@@ -1,0 +1,133 @@
+This file contains a list of the gardswag syntax elements,
+and their expected semantics.
+
+The language is strongly typed, but uses type inference and
+let-polymorphism to work around the roughest edges.
+It currently offers no way to explicitly specify types,
+but this might change in the future
+(e.g. when a case is found where the type inference makes
+ type checking too loose and causes the type check phase
+ to take way too much time, or yield slightly "off" types)
+
+The language is currently evaluated strictly (non-lazy), but this
+might change in the future when deemed necessary.
+
+This overview is not perfect, it is probably a good idea to also look at the
+examples in the `docs/examples` folder, and the other files and subdirectories
+of the `docs` folder. The test suite of `gardswag` and `gardswag-syntax`
+might also be of interest.
+
+
+comments: (* this is a comment (* they can be nested *) yeah *)
+
+primitive values:
+  * bool: _0 _1
+  * int, e.g. 0 1 100
+  * string, e.g. "hello"
+
+composite values:
+  * tags (constitute discriminated/tagged unions): .<key> <expr>
+  * records: .{ <key> = <value>; <inherited_key>; <key2> = <value2>; (* ... *) }
+    (if the [= <value>] part is omitted, it is assumed to be [= <key>],
+     which is roughly equivalent to `inherit <key>;` in Nix)
+
+scope access: <ident>
+  <ident> is an identifier, which e.g. can also appear on the lhs of a let-binding.
+  duplicates the value associated to <ident>
+  (this is an implementation detail, unnecessary duplications might be
+   omitted in the future)
+  and evaluates to this value.
+  e.g.
+  ```
+    let x = 1; x
+  ```
+  evaluates to `1`
+
+string interpolation:
+  "a{std.plus 1 3}b{(* even comments work here (* can still be nested *) *)"5"}"
+  (evaluates to "a4b5")
+
+application: <expr> <expr>
+  evaluates the first expression (should be a lambda or builtin),
+  then applies it to the second expression
+
+lambdas: \<argname> <expr>
+  evaluates to lambda, which, when applies to an argument,
+  gets replaced by its body where the identifier <argname> inside the body
+  is replaced with the given value
+
+let-bindings: let [rec] <name> = <expr>; <body>
+  <name> is an identifier.
+  <expr> is an expression.
+  <body> is an implicit block.
+  binds the value of <expr> to <name>, which is then available inside <body>
+  rec makes it possible to use <name> inside <expr> for recursion, but
+  might introduce infinite loops if misused.
+
+explicit blocks: { [<stmt>;]* [<expr>] }
+  (e.g. the <body> part of a let-binding is an implicit block)
+  the <stmt> statements are just expressions whose value is discarded
+  (useful for side-effects), they are separated and terminated by semicolons.
+  the <expr> part is optional (it is the result value of the block),
+  if omitted, the returned value is ´()`
+  (unit type, inhabitated by the one value `()`)
+
+if-else expression: if <cond> <then> [<else>]
+  <cond> is an expression, should evaluate to a boolean.
+  <then> and <else> are implicit blocks
+  (if [<else>] is omitted, `{}` is assumed)
+
+function pipeline: <expr> |> <expr2> (desugars to <expr2> (<expr>))
+  can be chained further (left-associative),
+    e.g. <e1> |> <e2> |> <e3> |> <e4>
+    desugars to <e4> (<e3> (<e2> (<e1>)))
+
+record merge: <record a> // <record b>
+  extends <record b> with all pairs from <record a> which have keys which aren't
+  present in <record b>
+  e.g.
+  ```
+    .{
+      a = 1;
+      b = "what";
+      c = .{};
+    } // .{
+      b = 50;
+      c = "now";
+    }
+  ```
+  evaluates to
+  ```
+    .{
+      a = 1;
+      b = 50;
+      c = "now";
+    }
+  ```
+
+record dot access: <record>.<key>
+  expects <record> to be a record and then access field <key>
+  and evaluate to its value.
+  this can be chained, e.g. <record>.<key1>.<key2> ...
+  (obviously left-associative)
+
+match expression: match <inp> [| <pattern> => <body>]+
+  <inp> is an expression.
+  <pattern> is a pattern.
+  e.g.
+  ```
+    match .var 1 | .var x => std.plus x 1
+  ```
+  evaluates to `2`
+
+  >>
+  patterns (used in match expressions, but these aren't expressions):
+    case tagged : .<tagged> <pattern2>
+    case record : .{ <key> = <pattern2>; <implicit extracted key>; (* ... *) }
+    case catchall/wildcard : <ident>
+    (currently, there is no way to specify is a match should be exact
+     or partial, so exact is assumed when no wildcard for a pattern position
+     is given, and partial is assumed when a wildcard is given)
+    <tagged>, <key> and <ident> are identifiers.
+    <pattern2> are patterns.
+  <<

@@ -6,25 +6,16 @@ the feasibility of type checking and byte code caching.
 
 (examples are inside `docs/examples`)
 
+(rough language reference)[docs/language_gardswag.txt]
+
 ## Types
 
-This version does not support plugins, but instead
-supports sockets.
+This version does not support plugins,
+but instead might support sockets in the future (tbd).
 
 * `bool`
 * `int`
 * `string`
-* `socket`
-
-## Syntax
-
-```
-function call:    FUNCTION_NAME(ARGUMENTS...)
-method call:      OBJECT.METHOD(ARGUMENTS...)
-```
-
-## Standard library
-
-* `std.stdio :: socket`
-* `std.tycast :: A -> B`
-* `std.tyeq :: A -> B -> bool`
+* `socket` (tbd)
+* tagged unions (create a tagged values using `.<tagname> <expr>`)
+* records (create using `.{ <key> = <value>; <inherit_key>; }`)
