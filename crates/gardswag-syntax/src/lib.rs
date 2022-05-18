@@ -111,6 +111,7 @@ pub enum ExprKind {
 
     // literal stuff
     Identifier(String),
+    Unit,
     Boolean(bool),
     Integer(i32),
     PureString(String),
@@ -132,6 +133,7 @@ impl ExprKind {
             Self::Fix { .. } => "fix",
             Self::FormatString(_) => "fmtstr",
             Self::Identifier(_) => "ident",
+            Self::Unit => "lit.unit",
             Self::Boolean(_) => "lit.bool",
             Self::Integer(_) => "lit.int",
             Self::PureString(_) => "lit.str",
@@ -174,7 +176,7 @@ impl ExprKind {
             }
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
             Self::Identifier(id) => id == v,
-            Self::Boolean(_) | Self::Integer(_) | Self::PureString(_) => false,
+            Self::Unit | Self::Boolean(_) | Self::Integer(_) | Self::PureString(_) => false,
         }
     }
 }
@@ -187,6 +189,7 @@ pub struct Case {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum Pattern {
+    Unit,
     Identifier(Identifier),
     Tagged {
         key: Identifier,
@@ -199,6 +202,7 @@ impl Pattern {
     /// checks if a variable is defined anywhere in the pattern
     pub fn is_var_defined(&self, v: &str) -> bool {
         match self {
+            Self::Unit => false,
             Self::Identifier(x) => x.inner == v,
             Self::Tagged { value, .. } => value.is_var_defined(v),
             Self::Record(xs) => xs.inner.values().any(|i| i.is_var_defined(v)),
@@ -472,7 +476,7 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
     use lex::TokenKind as Tk;
     let Offsetted { offset, inner } = xtry!(lxr.next_if(|i| {
         if let Ok(Offsetted { inner, .. }) = i {
-            matches!(inner, Tk::Identifier(_) | Tk::Dot)
+            matches!(inner, Tk::Identifier(_) | Tk::Dot | Tk::LParen)
         } else {
             true
         }
@@ -483,6 +487,26 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
             inner: handle_wildcard(x),
         })),
         Tk::Dot => parse_dot_helper(offset, lxr, parse_pattern),
+        Tk::LParen => POk(
+            if lxr
+                .next_if(|i| {
+                    matches!(
+                        i,
+                        Ok(lex::Token {
+                            inner: Tk::RParen,
+                            ..
+                        })
+                    )
+                })
+                .is_some()
+            {
+                Pattern::Unit
+            } else {
+                let inner = xtry!(unexpect_eoe(offset, parse_pattern(lxr)));
+                let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
+                inner
+            },
+        ),
         _ => unreachable!(),
     }
 }
@@ -606,15 +630,30 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
             Ok(ExprKind::Block(block))
         }
-        Tk::LParen => {
-            let Offsetted {
-                inner,
-                offset: new_offset,
-            } = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
-            offset = new_offset;
-            Ok(inner)
-        }
+        Tk::LParen => Ok(
+            if lxr
+                .next_if(|i| {
+                    matches!(
+                        i,
+                        Ok(Token {
+                            inner: Tk::RParen,
+                            ..
+                        })
+                    )
+                })
+                .is_some()
+            {
+                ExprKind::Unit
+            } else {
+                let Offsetted {
+                    inner,
+                    offset: new_offset,
+                } = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+                let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
+                offset = new_offset;
+                inner
+            },
+        ),
         Tk::StringStart => {
             // handle format strings
             let mut parts = Vec::new();

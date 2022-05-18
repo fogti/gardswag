@@ -130,6 +130,10 @@ fn run_pat<'a, 'b>(
             }
             _ => None,
         },
+        Pattern::Unit => match inp {
+            Value::Unit => Some(()),
+            _ => panic!("match on unit got unexpected value {:?}", inp),
+        },
     }
 }
 
@@ -329,6 +333,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 r
             }
         }
+        Ek::Unit => Value::Unit,
         Ek::Boolean(b) => Value::Boolean(*b),
         Ek::Integer(i) => Value::Integer(*i),
         Ek::PureString(s) => Value::PureString(s.clone()),

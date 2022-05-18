@@ -98,6 +98,7 @@ struct PatNode<'a> {
 enum PatNodeKind<'a> {
     TaggedUnion(BTreeMap<&'a str, PatNode<'a>>),
     Record(BTreeMap<&'a str, PatNode<'a>>),
+    Unit,
 }
 
 impl<'a> PatNode<'a> {
@@ -146,6 +147,7 @@ impl<'a> PatNodeKind<'a> {
                     }
                 }
             }
+            (PatNodeKind::Unit, PatNodeKind::Unit) => {}
             (a, b) => {
                 return Err(PatternError::KindMismatchMerge {
                     lhs: format!("{:?}", a),
@@ -165,36 +167,37 @@ fn patterns2nodetree<'a, I: Iterator<Item = (usize, &'a synt::Pattern)>>(
     use PatNodeKind as Pnk;
 
     // build case tree, first detect type
-    let (main_offset, mut ret) = match pats.next().unwrap() {
-        (offset, Pat::Identifier(_)) => {
-            if let Some((offset, i)) = pats.next() {
-                return Err(Error::Pattern(Offsetted {
-                    offset,
-                    inner: PatternError::Unreachable(i.clone()),
-                }));
-            }
-            return Ok(PatNode {
-                offset,
-                kind: None,
-                wildcard_witn: true,
-            });
-        }
-        (offset, Pat::Tagged { key, value }) => (
+    let (main_offset, mut ret) = {
+        let (offset, pat) = pats.next().unwrap();
+        (
             offset,
-            PatNodeKind::TaggedUnion(
-                once((&*key.inner, patterns2nodetree(once((offset, &**value)))?)).collect(),
-            ),
-        ),
-        (offset, Pat::Record(rcd)) => (
-            offset,
-            PatNodeKind::Record({
-                let mut rcpat = BTreeMap::default();
-                for (key, value) in &rcd.inner {
-                    rcpat.insert(&**key, patterns2nodetree(once((offset, &*value)))?);
+            match pat {
+                Pat::Identifier(_) => {
+                    if let Some((offset, i)) = pats.next() {
+                        return Err(Error::Pattern(Offsetted {
+                            offset,
+                            inner: PatternError::Unreachable(i.clone()),
+                        }));
+                    }
+                    return Ok(PatNode {
+                        offset,
+                        kind: None,
+                        wildcard_witn: true,
+                    });
                 }
-                rcpat
-            }),
-        ),
+                Pat::Tagged { key, value } => PatNodeKind::TaggedUnion(
+                    once((&*key.inner, patterns2nodetree(once((offset, &**value)))?)).collect(),
+                ),
+                Pat::Record(rcd) => PatNodeKind::Record({
+                    let mut rcpat = BTreeMap::default();
+                    for (key, value) in &rcd.inner {
+                        rcpat.insert(&**key, patterns2nodetree(once((offset, &*value)))?);
+                    }
+                    rcpat
+                }),
+                Pat::Unit => PatNodeKind::Unit,
+            },
+        )
     };
 
     let mut wildcard_witn = false;
@@ -314,6 +317,13 @@ fn infer_pat(
                     MaybeWldc::Normal(inp) => ctx.unify(offset, inp, Ty::Record(pre)),
                 }
             }
+            Pnk::Unit => {
+                let inp = match inptv.clone() {
+                    MaybeWldc::Wildcard(inptv) => Ty::Var(inptv),
+                    MaybeWldc::Normal(inp) => inp,
+                };
+                ctx.unify(offset, inp, Ty::Literal(TyLit::Unit));
+            }
         }
         match inptv {
             MaybeWldc::Normal(inp) => inp,
@@ -331,10 +341,10 @@ fn infer_case_pat(
     pat: &synt::Pattern,
 ) -> Result<Ty, PatternError> {
     use synt::Pattern;
-    let ttv = ctx.fresh_tyvar();
     match pat {
         Pattern::Identifier(x) => {
             use std::collections::btree_map::Entry;
+            let ttv = ctx.fresh_tyvar();
             match env.entry(x.inner.to_string()) {
                 Entry::Vacant(vac) => {
                     vac.insert((x.offset, Ty::Var(ttv)));
@@ -347,8 +357,10 @@ fn infer_case_pat(
                     });
                 }
             }
+            Ok(Ty::Var(ttv))
         }
         Pattern::Tagged { key, value } => {
+            let ttv = ctx.fresh_tyvar();
             let t_value = infer_case_pat(env, ctx, &*value)?;
             ctx.bind(
                 key.offset,
@@ -360,8 +372,10 @@ fn infer_case_pat(
                     ..Tcg::default()
                 },
             );
+            Ok(Ty::Var(ttv))
         }
         Pattern::Record(rcd) => {
+            let ttv = ctx.fresh_tyvar();
             let mut rcm = BTreeMap::default();
             for (key, value) in &rcd.inner {
                 let t_value = infer_case_pat(env, ctx, value)?;
@@ -378,9 +392,10 @@ fn infer_case_pat(
                     ..Tcg::default()
                 },
             );
+            Ok(Ty::Var(ttv))
         }
+        Pattern::Unit => Ok(Ty::Literal(TyLit::Unit)),
     }
-    Ok(Ty::Var(ttv))
 }
 
 fn infer_match(
@@ -605,6 +620,7 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
                 }))
             }
         }
+        Ek::Unit => Ok(Ty::Literal(TyLit::Unit)),
         Ek::Boolean(_) => Ok(Ty::Literal(TyLit::Bool)),
         Ek::Integer(_) => Ok(Ty::Literal(TyLit::Int)),
         Ek::PureString(_) => Ok(Ty::Literal(TyLit::String)),

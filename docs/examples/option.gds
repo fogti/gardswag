@@ -1,0 +1,7 @@
+let option = .{
+  none = .None ();
+  some = \x .Some x;
+  map = \f \m match m | .None () => .None () | .Some x => .Some (f x);
+  bind = \f \m match m | .None () => .None () | .Some x => f x;
+};
+option.map (\x (std.plus x 1)) (option.some 1)

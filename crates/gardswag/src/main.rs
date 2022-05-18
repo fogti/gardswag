@@ -368,10 +368,8 @@ mod tests {
     #[test]
     fn run_ctrl_match() {
         tracing::subscriber::with_default(dflsubscr(), || {
-            let x = main_check(
-                "match .this_is_a_variant 1 | .this_is_a_variant x => std.plus x 1",
-            )
-            .unwrap();
+            let x = main_check("match .this_is_a_variant 1 | .this_is_a_variant x => std.plus x 1")
+                .unwrap();
             insta::assert_yaml_snapshot!(x);
             insta::assert_yaml_snapshot!(main_interp(&x.0));
         });
