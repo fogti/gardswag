@@ -16,6 +16,8 @@ pub enum UnifyError {
     Override { v: TyVar, t1: Ty, t2: Ty },
     #[error("unification of {t1:?} = {t2:?} failed")]
     Mismatch { t1: Ty, t2: Ty },
+    #[error("unification of {c1:?} = {c2:?} failed")]
+    MismatchConstrGroupKind { c1: Tcgk, c2: Tcgk },
 
     #[error("got infinite constraint group while merging $c{c1:?} with $c{c2:?}")]
     InfiniteConstraintGroup {
@@ -23,8 +25,8 @@ pub enum UnifyError {
         c2: TyConstraintGroupId,
     },
 
-    #[error("partial-record constraint failed while merging container type {container:?} and value type {value:} at key {key:?}")]
-    PartialRecord {
+    #[error("partial row constraint failed while merging container type {container:?} and value type {value:} at key {key:?}")]
+    Partial {
         key: String,
         value: Ty,
         container: Ty,
@@ -38,6 +40,9 @@ pub enum UnifyError {
 
     #[error("expected record, got {0:?}")]
     NotARecord(Ty),
+
+    #[error("expected tagged union, got {0:?}")]
+    NotATaggedUnion(Ty),
 }
 
 impl Context {
@@ -66,6 +71,16 @@ impl Context {
             (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
                 for (k, v1) in rc1 {
                     let v2 = rc2.get(k).ok_or_else(|| UnifyError::Mismatch {
+                        t1: a.clone(),
+                        t2: b.clone(),
+                    })?;
+                    self.unify(v1, v2)?;
+                }
+                Ok(())
+            }
+            (Ty::TaggedUnion(tu1), Ty::TaggedUnion(tu2)) if tu1.len() == tu2.len() => {
+                for (k, v1) in tu1 {
+                    let v2 = tu2.get(k).ok_or_else(|| UnifyError::Mismatch {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
@@ -188,6 +203,46 @@ impl Context {
         Ok(())
     }
 
+    fn unify_cgk_and_ty(&mut self, tcgk: &mut Tcgk, ty: &Ty) -> Result<(), UnifyError> {
+        match tcgk {
+            Tcgk::Record { partial, .. } => {
+                if let Ty::Record(rcm) = ty {
+                    for (key, value) in core::mem::take(partial) {
+                        if let Some(got_valty) = rcm.get(&key) {
+                            self.unify(got_valty, &value)?;
+                        } else {
+                            return Err(UnifyError::Partial {
+                                key,
+                                value,
+                                container: ty.clone(),
+                            });
+                        }
+                    }
+                } else if !matches!(ty, Ty::Var(_)) {
+                    return Err(UnifyError::NotARecord(ty.clone()));
+                }
+            }
+            Tcgk::TaggedUnion { partial, .. } => {
+                if let Ty::TaggedUnion(tum) = ty {
+                    for (key, value) in core::mem::take(partial) {
+                        if let Some(got_valty) = tum.get(&key) {
+                            self.unify(got_valty, &value)?;
+                        } else {
+                            return Err(UnifyError::Partial {
+                                key,
+                                value,
+                                container: ty.clone(),
+                            });
+                        }
+                    }
+                } else if !matches!(ty, Ty::Var(_)) {
+                    return Err(UnifyError::NotATaggedUnion(ty.clone()));
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn notify_cgs(&mut self, mut cgs: BTreeSet<TyConstraintGroupId>) -> Result<(), UnifyError> {
         loop {
             let cg = {
@@ -249,7 +304,12 @@ impl Context {
                         }
                         (
                             Some(TyGroup {
-                                ty: Some(ty_orig @ Ty::Literal(_) | ty_orig @ Ty::Arrow(_, _)),
+                                ty:
+                                    Some(
+                                        ty_orig @ Ty::Literal(_)
+                                        | ty_orig @ Ty::Arrow(_, _)
+                                        | ty_orig @ Ty::TaggedUnion(_),
+                                    ),
                                 ..
                             }),
                             _,
@@ -259,7 +319,12 @@ impl Context {
                         (
                             _,
                             Some(TyGroup {
-                                ty: Some(ty_ovrd @ Ty::Literal(_) | ty_ovrd @ Ty::Arrow(_, _)),
+                                ty:
+                                    Some(
+                                        ty_ovrd @ Ty::Literal(_)
+                                        | ty_ovrd @ Ty::Arrow(_, _)
+                                        | ty_ovrd @ Ty::TaggedUnion(_),
+                                    ),
                                 ..
                             }),
                         ) => {
@@ -334,22 +399,8 @@ impl Context {
                     }
                 }
 
-                if let Some(Tcgk::Record { partial, .. }) = &mut g.kind {
-                    if let Ty::Record(rcm) = &ty {
-                        for (key, value) in core::mem::take(partial) {
-                            if let Some(got_valty) = rcm.get(&key) {
-                                self.unify(got_valty, &value)?;
-                            } else {
-                                return Err(UnifyError::PartialRecord {
-                                    key,
-                                    value,
-                                    container: ty.clone(),
-                                });
-                            }
-                        }
-                    } else {
-                        return Err(UnifyError::NotARecord(ty.clone()));
-                    }
+                if let Some(tcgk) = &mut g.kind {
+                    self.unify_cgk_and_ty(tcgk, ty)?;
                 }
             }
 
@@ -490,6 +541,36 @@ impl Context {
                             update_info,
                         })
                     }
+                    (
+                        Tcgk::TaggedUnion {
+                            partial: lhs_partial,
+                        },
+                        Tcgk::TaggedUnion {
+                            partial: rhs_partial,
+                        },
+                    ) => {
+                        let mut partial = lhs_partial;
+
+                        if partial.is_empty() {
+                            partial = rhs_partial;
+                        } else {
+                            for (key, value) in rhs_partial {
+                                use std::collections::btree_map::Entry;
+                                match partial.entry(key) {
+                                    Entry::Occupied(mut occ) => {
+                                        self.unify(occ.get(), &value)?;
+                                        occ.get_mut().apply(&|&i| self.on_apply(i));
+                                    }
+                                    Entry::Vacant(vac) => {
+                                        vac.insert(value);
+                                    }
+                                }
+                            }
+                        }
+
+                        Ok(Tcgk::TaggedUnion { partial })
+                    }
+                    (lhs, rhs) => Err(UnifyError::MismatchConstrGroupKind { c1: lhs, c2: rhs }),
                 })?;
 
                 TyGroup {
@@ -539,22 +620,8 @@ impl Context {
                         }
                     }
                 }
-                if let Some(Tcgk::Record { partial, .. }) = &mut g.kind {
-                    if let Ty::Record(rcm) = &t {
-                        for (key, value) in core::mem::take(partial) {
-                            if let Some(got_valty) = rcm.get(&key) {
-                                self.unify(got_valty, &value)?;
-                            } else {
-                                return Err(UnifyError::PartialRecord {
-                                    key: key.clone(),
-                                    value: value.clone(),
-                                    container: t.clone(),
-                                });
-                            }
-                        }
-                    } else if !matches!(t, Ty::Var(_)) {
-                        return Err(UnifyError::NotARecord(t.clone()));
-                    }
+                if let Some(tcgk) = &mut g.kind {
+                    self.unify_cgk_and_ty(tcgk, t)?;
                 }
                 if let Some(old) = &g.ty {
                     self.unify(old, t)?;

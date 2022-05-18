@@ -34,6 +34,12 @@ pub enum TyConstraintGroupKind {
         /// plus any field present in orig but not in ovrd.
         update_info: Option<(TyVar, TyVar)>,
     },
+
+    /// type should be a discriminated/tagged union
+    TaggedUnion {
+        /// with at least some specific fields
+        partial: BTreeMap<String, Ty>,
+    },
 }
 
 use TyConstraintGroupKind as Tcgk;
@@ -113,6 +119,9 @@ impl Substitutable for Tcgk {
                     }
                 }
             }
+            Tcgk::TaggedUnion { partial } => {
+                partial.fv(accu, do_add);
+            }
         }
     }
 
@@ -142,6 +151,9 @@ impl Substitutable for Tcgk {
                         *b = x;
                     }
                 }
+            }
+            Tcgk::TaggedUnion { partial } => {
+                partial.apply(f);
             }
         }
     }

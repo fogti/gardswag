@@ -34,6 +34,8 @@ pub enum Ty {
     Arrow(Box<Ty>, Box<Ty>),
 
     Record(BTreeMap<String, Ty>),
+
+    TaggedUnion(BTreeMap<String, Ty>),
 }
 
 impl fmt::Display for Ty {
@@ -50,6 +52,7 @@ impl fmt::Display for Ty {
                 write!(f, " -> {}", b)
             }
             Ty::Record(m) => write!(f, "{:?}", m),
+            Ty::TaggedUnion(m) => write!(f, "any{:?}", m),
         }
     }
 }
@@ -68,17 +71,16 @@ impl Substitutable for Ty {
         match self {
             Ty::Literal(_) => {}
             Ty::Var(tv) => {
-                if do_add {
-                    accu.insert(*tv);
-                } else {
-                    accu.remove(tv);
-                }
+                tv.fv(accu, do_add);
             }
             Ty::Arrow(arg, ret) => {
                 arg.fv(accu, do_add);
                 ret.fv(accu, do_add);
             }
             Ty::Record(rcm) => {
+                rcm.values().for_each(|i| i.fv(accu, do_add));
+            }
+            Ty::TaggedUnion(rcm) => {
                 rcm.values().for_each(|i| i.fv(accu, do_add));
             }
         }
@@ -100,6 +102,9 @@ impl Substitutable for Ty {
                 ret.apply(f);
             }
             Ty::Record(rcm) => {
+                rcm.values_mut().for_each(|i| i.apply(f));
+            }
+            Ty::TaggedUnion(rcm) => {
                 rcm.values_mut().for_each(|i| i.apply(f));
             }
         }
