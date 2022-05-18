@@ -8,6 +8,23 @@ the feasibility of type checking and byte code caching.
 
 (rough language reference)[docs/language_gardswag.txt]
 
+## Running the interpreter
+
+The interpreter (and the rest of the code base) is written in [Rust](https://www.rust-lang.org/),
+and can be built using `cargo`, e.g.
+```
+RUST_LOG=debug cargo run --bin gardswag -- --file docs/examples/fibo.gds --mode run
+```
+
+Using the `--mode` argument it is possible to switch between
+* `check`, which runs just the parser + type checker
+* `run`, which then also (tries to) execute the code
+
+It uses the `tracing` library for logging of debugging information,
+which is useful in case that tpye checking goes wrong or such.
+The reported information can be adjusted using the `RUST_LOG`
+environment variable.
+
 ## Types
 
 This version does not support plugins,
