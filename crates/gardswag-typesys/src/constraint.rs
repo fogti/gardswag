@@ -45,67 +45,6 @@ pub enum UnifyError {
     NotATaggedUnion(Ty),
 }
 
-impl Context {
-    pub fn on_apply(&self, i: TyVar) -> Option<Ty> {
-        let cgid = *self.m.get(&i)?;
-        let j = lowest_tvi_for_cg(&self.m, i);
-        let ret = self.g.get(&cgid).and_then(|k| k.ty.clone()).map(|mut k| {
-            k.apply(&|&l| self.on_apply(l));
-            k
-        });
-        //tracing::trace!(%i, %j, ?ret, "on_apply");
-        Some(if let Some(x) = ret { x } else { Ty::Var(j) })
-    }
-
-    pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
-        //tracing::trace!(%a, %b, ?self, "unify");
-        // self clutters the output too much
-        tracing::trace!(%a, %b, "unify");
-        match (a, b) {
-            (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
-                self.unify(l1, l2)?;
-                let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
-                rx1.apply(&|&i| self.on_apply(i));
-                rx2.apply(&|&i| self.on_apply(i));
-                self.unify(&rx1, &rx2)?;
-                Ok(())
-            }
-            (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
-                for (k, v1) in rc1 {
-                    let v2 = rc2.get(k).ok_or_else(|| UnifyError::Mismatch {
-                        t1: a.clone(),
-                        t2: b.clone(),
-                    })?;
-                    self.unify(v1, v2)?;
-                }
-                Ok(())
-            }
-            (Ty::TaggedUnion(tu1), Ty::TaggedUnion(tu2)) if tu1.len() == tu2.len() => {
-                for (k, v1) in tu1 {
-                    let v2 = tu2.get(k).ok_or_else(|| UnifyError::Mismatch {
-                        t1: a.clone(),
-                        t2: b.clone(),
-                    })?;
-                    self.unify(v1, v2)?;
-                }
-                Ok(())
-            }
-            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
-                *a,
-                TyGroup {
-                    ty: Some(t.clone()),
-                    ..Default::default()
-                },
-            ),
-            (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
-            (_, _) => Err(UnifyError::Mismatch {
-                t1: a.clone(),
-                t2: b.clone(),
-            }),
-        }
-    }
-}
-
 type Tvs = BTreeMap<TyVar, TyConstraintGroupId>;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
@@ -182,6 +121,65 @@ impl Context {
                 break Ok(());
             }
             self.g = newg;
+        }
+    }
+
+    pub fn on_apply(&self, i: TyVar) -> Option<Ty> {
+        let cgid = *self.m.get(&i)?;
+        let j = lowest_tvi_for_cg(&self.m, i);
+        let ret = self.g.get(&cgid).and_then(|k| k.ty.clone()).map(|mut k| {
+            k.apply(&|&l| self.on_apply(l));
+            k
+        });
+        //tracing::trace!(%i, %j, ?ret, "on_apply");
+        Some(if let Some(x) = ret { x } else { Ty::Var(j) })
+    }
+
+    fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
+        //tracing::trace!(%a, %b, ?self, "unify");
+        // self clutters the output too much
+        tracing::trace!(%a, %b, "unify");
+        match (a, b) {
+            (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
+                self.unify(l1, l2)?;
+                let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
+                rx1.apply(&|&i| self.on_apply(i));
+                rx2.apply(&|&i| self.on_apply(i));
+                self.unify(&rx1, &rx2)?;
+                Ok(())
+            }
+            (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
+                for (k, v1) in rc1 {
+                    let v2 = rc2.get(k).ok_or_else(|| UnifyError::Mismatch {
+                        t1: a.clone(),
+                        t2: b.clone(),
+                    })?;
+                    self.unify(v1, v2)?;
+                }
+                Ok(())
+            }
+            (Ty::TaggedUnion(tu1), Ty::TaggedUnion(tu2)) if tu1.len() == tu2.len() => {
+                for (k, v1) in tu1 {
+                    let v2 = tu2.get(k).ok_or_else(|| UnifyError::Mismatch {
+                        t1: a.clone(),
+                        t2: b.clone(),
+                    })?;
+                    self.unify(v1, v2)?;
+                }
+                Ok(())
+            }
+            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
+                *a,
+                TyGroup {
+                    ty: Some(t.clone()),
+                    ..Default::default()
+                },
+            ),
+            (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
+            (_, _) => Err(UnifyError::Mismatch {
+                t1: a.clone(),
+                t2: b.clone(),
+            }),
         }
     }
 
