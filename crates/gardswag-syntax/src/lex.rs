@@ -108,6 +108,7 @@ macro_rules! keywords {
 keywords! {
     False => "_0",
     If => "if",
+    Inject => "__inject",
     Let => "let",
     Match => "match",
     Rec => "rec",
@@ -326,6 +327,7 @@ impl Iterator for Lexer<'_> {
                         }
                         '.' => Ok(Tk::Dot),
                         ';' => Ok(Tk::SemiColon),
+                        '↢' /* U+21A2 */ | '↩' /* U+21A9 */ => Ok(Tk::Keyword(Keyword::Inject)),
                         '|' => {
                             if self.inp.starts_with('>') {
                                 self.consume(1);
