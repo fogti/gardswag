@@ -96,9 +96,8 @@ pub enum ExprKind {
 
     // discriminated/tagged union stuff
     // - introduction
-    Tagged {
+    Tagger {
         key: String,
-        value: Box<Expr>,
     },
 
     // R & DU - elimination
@@ -128,7 +127,7 @@ impl ExprKind {
             Self::Record(_) => "record",
             Self::Dot { .. } => "dot",
             Self::Update { .. } => "update",
-            Self::Tagged { .. } => "tagged",
+            Self::Tagger { .. } => "tagger",
             Self::Match { .. } => "match",
             Self::Fix { .. } => "fix",
             Self::FormatString(_) => "fmtstr",
@@ -167,7 +166,6 @@ impl ExprKind {
             Self::Update { orig, ovrd } => {
                 orig.inner.is_var_accessed(v) || ovrd.inner.is_var_accessed(v)
             }
-            Self::Tagged { value, .. } => value.inner.is_var_accessed(v),
             Self::Match { inp, cases } => {
                 inp.inner.is_var_accessed(v)
                     || cases
@@ -176,7 +174,11 @@ impl ExprKind {
             }
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
             Self::Identifier(id) => id == v,
-            Self::Unit | Self::Boolean(_) | Self::Integer(_) | Self::PureString(_) => false,
+            Self::Tagger { key: _ }
+            | Self::Unit
+            | Self::Boolean(_)
+            | Self::Integer(_)
+            | Self::PureString(_) => false,
         }
     }
 }
@@ -473,7 +475,7 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
                 key: Offsetted { offset, inner: key },
                 value: Box::new(value),
             })
-        },
+        }
         Tk::LParen => POk(
             if lxr
                 .next_if(|i| {
@@ -602,7 +604,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             })
         }
         Tk::Lambda(lam) => {
-            let expr = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
+            let expr = xtry!(unexpect_eoe(offset, parse_expr_calls(lxr)));
             Ok(ExprKind::Lambda {
                 arg: handle_wildcard(lam),
                 body: Box::new(expr),
@@ -672,24 +674,22 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::StringEnd));
             Ok(ExprKind::FormatString(parts))
         }
-        Tk::Dot => {
-            match try_parse_record(offset, lxr, &parse_expr_greedy) {
-                PNone => {
-                    let Offsetted { inner: key, offset } = xtry!(expect_token_noeof(
-                        offset,
-                        lxr,
-                        |Offsetted { inner, offset }| match inner {
-                            Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
-                            _ => Err(Offsetted { inner, offset }),
-                        }
-                    ));
-                    let value = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
-                    Ok(ExprKind::Tagged { key, value: Box::new(value) })
-                }
-                PErr(e) => return PErr(e),
-                POk(y) => Ok(y.inner),
+        Tk::Dot => match try_parse_record(offset, lxr, &parse_expr_greedy) {
+            PNone => {
+                let key = xtry!(expect_token_noeof(
+                    offset,
+                    lxr,
+                    |Offsetted { inner, offset }| match inner {
+                        Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
+                        _ => Err(Offsetted { inner, offset }),
+                    }
+                ))
+                .inner;
+                Ok(ExprKind::Tagger { key })
             }
-        }
+            PErr(e) => return PErr(e),
+            POk(y) => Ok(y.inner),
+        },
         _ => {
             return PErr(Offsetted {
                 offset,

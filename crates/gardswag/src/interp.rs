@@ -33,6 +33,10 @@ pub enum Value<'a> {
 
     Record(BTreeMap<&'a str, Value<'a>>),
 
+    Tagger {
+        key: &'a str,
+    },
+
     Tagged {
         key: &'a str,
         value: Box<Value<'a>>,
@@ -236,6 +240,10 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                     },
                     stacksave.into_iter(),
                 ),
+                Value::Tagger { key } => Value::Tagged {
+                    key,
+                    value: Box::new(v_arg),
+                },
                 f => panic!("called non-callable {:?} with argument {:?}", f, v_arg),
             }
         }
@@ -298,10 +306,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 v => panic!("invoked record update (rhs) on non-record {:?}", v),
             }
         }
-        Ek::Tagged { key, value } => Value::Tagged {
-            key: &*key,
-            value: Box::new(run(value, stack)),
-        },
+        Ek::Tagger { key } => Value::Tagger { key: &*key },
         Ek::Match { inp, cases } => {
             let v_inp = run(inp, stack);
             let mut res = None;

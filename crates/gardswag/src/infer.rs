@@ -604,20 +604,24 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
             Ok(Ty::Var(tvout))
         }
 
-        Ek::Tagged { key, value } => {
-            let tinp = infer(env, ctx, value)?;
+        Ek::Tagger { key } => {
+            // .<tag> :: 't -> any.partial{<tag>: 't}
+            let tvinp = ctx.fresh_tyvar();
             let tvout = ctx.fresh_tyvar();
             ctx.bind(
                 expr.offset,
                 tvout,
                 Tcg {
                     kind: Some(Tcgk::TaggedUnion {
-                        partial: [(key.to_string(), tinp)].into_iter().collect(),
+                        partial: [(key.to_string(), Ty::Var(tvinp))].into_iter().collect(),
                     }),
                     ..Default::default()
                 },
             );
-            Ok(Ty::Var(tvout))
+            Ok(Ty::Arrow(
+                Box::new(Ty::Var(tvinp)),
+                Box::new(Ty::Var(tvout)),
+            ))
         }
         Ek::Match { inp, cases } => infer_match(env, ctx, &*inp, &cases[..]),
 

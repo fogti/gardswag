@@ -10,9 +10,13 @@ expression: x
         inp:
           offset: 6
           inner:
-            Tagged:
-              key: this_is_a_variant
-              value:
+            Call:
+              prim:
+                offset: 6
+                inner:
+                  Tagger:
+                    key: this_is_a_variant
+              arg:
                 offset: 25
                 inner:
                   Integer: 1

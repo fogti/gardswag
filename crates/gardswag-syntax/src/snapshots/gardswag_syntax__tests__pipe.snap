@@ -46,17 +46,17 @@ term:
                     prim:
                       offset: 87
                       inner:
-                        Call:
-                          prim:
-                            offset: 87
+                        Lambda:
+                          arg: m
+                          body:
+                            offset: 93
                             inner:
                               Call:
                                 prim:
-                                  offset: 87
+                                  offset: 93
                                   inner:
-                                    Lambda:
-                                      arg: m
-                                      body:
+                                    Call:
+                                      prim:
                                         offset: 93
                                         inner:
                                           Dot:
@@ -67,14 +67,14 @@ term:
                                             key:
                                               offset: 94
                                               inner: minus
+                                      arg:
+                                        offset: 100
+                                        inner:
+                                          Identifier: m
                                 arg:
-                                  offset: 100
+                                  offset: 102
                                   inner:
-                                    Identifier: m
-                          arg:
-                            offset: 102
-                            inner:
-                              Integer: 2
+                                    Integer: 2
                     arg:
                       offset: 65
                       inner:
@@ -82,17 +82,17 @@ term:
                           prim:
                             offset: 68
                             inner:
-                              Call:
-                                prim:
-                                  offset: 68
+                              Lambda:
+                                arg: m
+                                body:
+                                  offset: 74
                                   inner:
                                     Call:
                                       prim:
-                                        offset: 68
+                                        offset: 74
                                         inner:
-                                          Lambda:
-                                            arg: m
-                                            body:
+                                          Call:
+                                            prim:
                                               offset: 74
                                               inner:
                                                 Dot:
@@ -103,14 +103,14 @@ term:
                                                   key:
                                                     offset: 75
                                                     inner: plus
+                                            arg:
+                                              offset: 80
+                                              inner:
+                                                Identifier: m
                                       arg:
-                                        offset: 80
+                                        offset: 82
                                         inner:
-                                          Identifier: m
-                                arg:
-                                  offset: 82
-                                  inner:
-                                    Integer: 1
+                                          Integer: 1
                           arg:
                             offset: 60
                             inner:
