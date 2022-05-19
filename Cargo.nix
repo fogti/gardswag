@@ -432,6 +432,54 @@ rec {
           "windows-console-colors" = [ "ansi-parsing" "winapi-util" ];
         };
       };
+      "crossbeam-channel" = rec {
+        crateName = "crossbeam-channel";
+        version = "0.5.4";
+        edition = "2018";
+        sha256 = "0lvcpv6hg1g1r6aamiq9b4958p4hjy8dsqzrnmj6hp36zgappajs";
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "crossbeam-utils";
+            packageId = "crossbeam-utils";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "crossbeam-utils" = [ "dep:crossbeam-utils" ];
+          "default" = [ "std" ];
+          "std" = [ "crossbeam-utils/std" ];
+        };
+        resolvedDefaultFeatures = [ "crossbeam-utils" "default" "std" ];
+      };
+      "crossbeam-utils" = rec {
+        crateName = "crossbeam-utils";
+        version = "0.8.8";
+        edition = "2018";
+        sha256 = "0f6b3xrbyc3yx0qa1digmy48mxmh58359kv34qy6ws5p433j9w8b";
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "lazy_static";
+            packageId = "lazy_static";
+            optional = true;
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "lazy_static" = [ "dep:lazy_static" ];
+          "loom" = [ "dep:loom" ];
+          "std" = [ "lazy_static" ];
+        };
+        resolvedDefaultFeatures = [ "default" "lazy_static" "std" ];
+      };
       "encode_unicode" = rec {
         crateName = "encode_unicode";
         version = "0.3.6";
@@ -533,6 +581,14 @@ rec {
             name = "clap";
             packageId = "clap";
             features = [ "derive" ];
+          }
+          {
+            name = "crossbeam-channel";
+            packageId = "crossbeam-channel";
+          }
+          {
+            name = "crossbeam-utils";
+            packageId = "crossbeam-utils";
           }
           {
             name = "gardswag-syntax";

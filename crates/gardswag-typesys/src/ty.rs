@@ -16,9 +16,9 @@ impl fmt::Display for TyLit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Unit => "()",
-            Self::Bool => "bool",
-            Self::Int => "int",
-            Self::String => "str",
+            Self::Bool => "Bool",
+            Self::Int => "Int",
+            Self::String => "Str",
         })
     }
 }
@@ -32,6 +32,10 @@ pub enum Ty {
     Var(TyVar),
 
     Arrow(Box<Ty>, Box<Ty>),
+
+    ChanSend(Box<Ty>),
+
+    ChanRecv(Box<Ty>),
 
     Record(BTreeMap<String, Ty>),
 
@@ -50,6 +54,16 @@ impl fmt::Display for Ty {
                     write!(f, "{}", a)
                 }?;
                 write!(f, " -> {}", b)
+            }
+            Ty::ChanSend(x) => {
+                write!(f, "Chan:send(")?;
+                <Ty as fmt::Display>::fmt(x, f)?;
+                write!(f, ")")
+            }
+            Ty::ChanRecv(x) => {
+                write!(f, "Chan:recv(")?;
+                <Ty as fmt::Display>::fmt(x, f)?;
+                write!(f, ")")
             }
             Ty::Record(m) => f.debug_map().entries(m.iter()).finish(),
             Ty::TaggedUnion(m) => {
@@ -83,6 +97,8 @@ impl Substitutable for Ty {
                 arg.fv(accu, do_add);
                 ret.fv(accu, do_add);
             }
+            Ty::ChanSend(x) => x.fv(accu, do_add),
+            Ty::ChanRecv(x) => x.fv(accu, do_add),
             Ty::Record(rcm) => {
                 rcm.values().for_each(|i| i.fv(accu, do_add));
             }
@@ -107,6 +123,8 @@ impl Substitutable for Ty {
                 arg.apply(f);
                 ret.apply(f);
             }
+            Ty::ChanSend(x) => x.apply(f),
+            Ty::ChanRecv(x) => x.apply(f),
             Ty::Record(rcm) => {
                 rcm.values_mut().for_each(|i| i.apply(f));
             }

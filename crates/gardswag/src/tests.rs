@@ -6,6 +6,14 @@ fn dflsubscr() -> impl tracing::subscriber::Subscriber {
         .finish()
 }
 
+macro_rules! assert_interp {
+    ($x:expr) => {{
+        let result = crossbeam_utils::thread::scope(|s| main_interp(s, $x))
+            .expect("unable to join threads");
+        insta::assert_debug_snapshot!(result);
+    }}
+}
+
 #[test]
 fn chk_hello() {
     insta::assert_yaml_snapshot!(main_check(r#"std.stdio.write("Hello world!\n");"#).unwrap());
@@ -46,7 +54,7 @@ fn run_fibo0() {
             "#,
         )
         .unwrap();
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -66,7 +74,7 @@ fn run_fibo1() {
             "#,
         )
         .unwrap();
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -87,7 +95,7 @@ fn run_fibo() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -120,7 +128,7 @@ fn run_id() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -134,7 +142,7 @@ fn run_call_blti() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -149,7 +157,7 @@ fn run_fix() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -170,7 +178,7 @@ fn run_update() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -187,7 +195,7 @@ fn run_ctrl_match() {
         let x = main_check("match .this_is_a_variant 1 | .this_is_a_variant x => std.plus x 1")
             .unwrap();
         insta::assert_yaml_snapshot!(x);
-        insta::assert_yaml_snapshot!(main_interp(&x.0));
+        assert_interp!(&x.0);
     });
 }
 
@@ -197,7 +205,8 @@ proptest::proptest! {
     #[test]
     fn doesnt_crash(s in "[ -~]+") {
         if let Ok(x) = main_check(&s) {
-            let _ = main_interp(&x.0);
+            let _ = crossbeam_utils::thread::scope(|s| main_interp(s, &x.0))
+                .expect("unable to join threads");
         }
     }
 }

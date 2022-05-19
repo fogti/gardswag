@@ -65,8 +65,23 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
             ].into_iter().collect())
         }};
     }
+    macro_rules! ttu {
+        ($($key:ident: $value:expr),* $(,)?) => {{
+            Ty::TaggedUnion([
+                $((stringify!($key).to_string(), $value)),*
+            ].into_iter().collect())
+        }}
+    }
+    macro_rules! tch {
+        (send: $value:expr) => {{
+            Ty::ChanSend(Box::new($value))
+        }};
+        (recv: $value:expr) => {{
+            Ty::ChanRecv(Box::new($value))
+        }};
+    }
 
-    let tyvars: Vec<usize> = (0..2).map(|_| ctx.fresh_tyvar()).collect();
+    let tyvars: Vec<usize> = (0..5).map(|_| ctx.fresh_tyvar()).collect();
     let gtv = |i| Ty::Var(tyvars[i]);
 
     let ty = tr!({
@@ -76,6 +91,13 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
         eq: ta!(gtv(0) => gtv(1) => tl!(bool)),
         leq: ta!(tl!(int) => tl!(int) => tl!(bool)),
         not: ta!(tl!(bool) => tl!(bool)),
+        spawn_thread: ta!(ta!(tl!(()) => tl!(())) => tl!(())),
+        make_chan: ta!(tl!(()) => tr!({
+            send: tch!(send: gtv(2)),
+            recv: tch!(recv: gtv(2)),
+        })),
+        chan_send: ta!(gtv(3) => tch!(send: gtv(3)) => tl!(bool)),
+        chan_recv: ta!(tch!(recv: gtv(4)) => ttu!(None: tl!(()), Some: gtv(4))),
         stdio: tr!({
             write: ta!(tl!(str) => tl!(())),
         }),
@@ -139,10 +161,13 @@ fn main_check(
     Ok((parsed, tgx))
 }
 
-fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
+fn main_interp<'a: 'envout + 'envin, 'envout, 'envin>(
+    s: &'envout crossbeam_utils::thread::Scope<'envin>,
+    parsed: &'a gardswag_syntax::Block,
+) -> interp::Value<'a> {
     use interp::{Builtin as Bi, Value as Val};
 
-    let stack = gardswag_varstack::VarStack {
+    let stack: gardswag_varstack::VarStack<'a, Val<'a>> = gardswag_varstack::VarStack {
         parent: None,
         name: "std",
         value: Val::Record(
@@ -153,23 +178,21 @@ fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {
                 ("eq", Bi::Eq.into()),
                 ("leq", Bi::Leq.into()),
                 ("not", Bi::Not.into()),
+                ("spawn_thread", Bi::SpawnThread.into()),
+                ("make_chan", Bi::MakeChan.into()),
+                ("chan_send", Bi::ChanSend.into()),
+                ("chan_recv", Bi::ChanRecv.into()),
                 (
                     "stdio",
-                    Val::Record(
-                        [("write", Bi::StdioWrite.into())]
-                            .into_iter()
-                            .map(|(i, j)| (i, j))
-                            .collect(),
-                    ),
+                    Val::Record([("write", Bi::StdioWrite.into())].into_iter().collect()),
                 ),
             ]
             .into_iter()
-            .map(|(i, j)| (i, j))
             .collect(),
         ),
     };
 
-    interp::run_block(parsed, &stack)
+    interp::run_block(interp::Env { thscope: s }, parsed, &stack)
 }
 
 fn main() {
@@ -186,6 +209,7 @@ fn main() {
         return;
     }
 
-    let result = main_interp(&parsed);
+    let result = crossbeam_utils::thread::scope(|s| main_interp(s, &parsed))
+        .expect("unable to join threads");
     println!("result: {:?}", result);
 }

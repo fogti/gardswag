@@ -1,3 +1,4 @@
+use crossbeam_utils::thread;
 use gardswag_syntax::{self as synt, Block, Expr};
 use gardswag_varstack::VarStack;
 use serde::Serialize;
@@ -11,6 +12,10 @@ pub enum Builtin {
     Eq,
     Leq,
     Not,
+    SpawnThread,
+    MakeChan,
+    ChanSend,
+    ChanRecv,
     StdioWrite,
 }
 
@@ -18,13 +23,16 @@ impl Builtin {
     fn argc(self) -> usize {
         match self {
             Self::Plus | Self::Minus | Self::Mult | Self::Eq | Self::Leq => 2,
-            Self::Not | Self::StdioWrite => 1,
+            Self::Not | Self::SpawnThread | Self::StdioWrite => 1,
+            Self::MakeChan => 1,
+            Self::ChanSend => 2,
+            Self::ChanRecv => 1,
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
-#[must_use = "the interpreter shouldn't discard values"]
+#[derive(Clone, Debug)]
+#[must_use = "the interpreter shouldn't blindly discard values"]
 pub enum Value<'a> {
     Unit,
     Boolean(bool),
@@ -55,9 +63,48 @@ pub enum Value<'a> {
         argname: &'a str,
         f: &'a Expr,
     },
+
+    ChanSend(crossbeam_channel::Sender<Value<'a>>),
+    ChanRecv(crossbeam_channel::Receiver<Value<'a>>),
 }
 
-impl From<Builtin> for Value<'static> {
+impl<'a> core::cmp::PartialEq for Value<'a> {
+    fn eq(&self, oth: &Self) -> bool {
+        use Value as V;
+        match (self, oth) {
+            (V::Unit, V::Unit) => true,
+            (V::Boolean(a), V::Boolean(b)) => a == b,
+            (V::Integer(a), V::Integer(b)) => a == b,
+            (V::PureString(a), V::PureString(b)) => a == b,
+            (V::Record(a), V::Record(b)) => a == b,
+            (V::Tagger { key: a }, V::Tagger { key: b }) => a == b,
+            (V::Tagged { key: ka, value: va }, V::Tagged { key: kb, value: vb }) => {
+                ka == kb && va == vb
+            }
+            (V::Builtin { f: fa, args: aa }, V::Builtin { f: fb, args: ab }) => {
+                fa == fb && aa == ab
+            }
+            (
+                V::Lambda {
+                    argname: aa,
+                    f: fa,
+                    stacksave: sa,
+                },
+                V::Lambda {
+                    argname: ab,
+                    f: fb,
+                    stacksave: sb,
+                },
+            ) => aa == ab && fa == fb && sa == sb,
+            (V::FixLambda { argname: aa, f: fa }, V::FixLambda { argname: ab, f: fb }) => {
+                aa == ab && fa == fb
+            }
+            (_, _) => false,
+        }
+    }
+}
+
+impl<'a> From<Builtin> for Value<'a> {
     fn from(x: Builtin) -> Self {
         Value::Builtin {
             f: x,
@@ -66,18 +113,28 @@ impl From<Builtin> for Value<'static> {
     }
 }
 
-pub fn run_block<'a, 's>(blk: &'a Block, stack: &'s VarStack<'s, Value<'a>>) -> Value<'a> {
+#[derive(Clone, Copy)]
+pub struct Env<'envout, 'envin> {
+    pub thscope: &'envout thread::Scope<'envin>,
+}
+
+pub fn run_block<'a: 'envout + 'envin, 'envout, 'envin, 's>(
+    env: Env<'envout, 'envin>,
+    blk: &'a Block,
+    stack: &'s VarStack<'s, Value<'a>>,
+) -> Value<'a> {
     for i in &blk.stmts {
-        let _ = run(i, stack);
+        let _ = run(env, i, stack);
     }
     if let Some(i) = &blk.term {
-        run(i, stack)
+        run(env, i, stack)
     } else {
         Value::Unit
     }
 }
 
-fn run_stacksave<'a, 's, 's3, I, S>(
+fn run_stacksave<'a: 'envout + 'envin, 'envout, 'envin, 's, 's3, I, S>(
+    env: Env<'envout, 'envin>,
     expr: &'a Expr,
     stack: &'s VarStack<'s, Value<'a>>,
     mut stacksave: I,
@@ -88,6 +145,7 @@ where
 {
     match stacksave.next() {
         Some((name, value)) => run_stacksave(
+            env,
             expr,
             &VarStack {
                 parent: Some(stack),
@@ -96,7 +154,7 @@ where
             },
             stacksave,
         ),
-        None => run(expr, stack),
+        None => run(env, expr, stack),
     }
 }
 
@@ -141,14 +199,19 @@ fn run_pat<'a, 'b>(
     }
 }
 
-pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<'a> {
+pub fn run<'a: 'envout + 'envin, 'envout, 'envin, 's>(
+    env: Env<'envout, 'envin>,
+    expr: &'a Expr,
+    stack: &'s VarStack<'s, Value<'a>>,
+) -> Value<'a> {
     tracing::debug!("expr@{} : {}", expr.offset, expr.inner.typ());
     tracing::trace!("stack={:?}", stack);
     use gardswag_syntax::ExprKind as Ek;
     let res = match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {
-            let v_rhs = run(rhs, stack);
+            let v_rhs = run(env, rhs, stack);
             run_block(
+                env,
                 rest,
                 &VarStack {
                     parent: Some(stack),
@@ -157,17 +220,17 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 },
             )
         }
-        Ek::Block(blk) => run_block(blk, stack),
+        Ek::Block(blk) => run_block(env, blk, stack),
         Ek::If {
             cond,
             then,
             or_else,
         } => {
-            let v_cond = match run(cond, stack) {
+            let v_cond = match run(env, cond, stack) {
                 Value::Boolean(x) => x,
                 x => panic!("invalid if condition: {:?}", x),
             };
-            run_block(if v_cond { then } else { or_else }, stack)
+            run_block(env, if v_cond { then } else { or_else }, stack)
         }
         Ek::Lambda { arg, body } => {
             let mut stacksave = std::collections::BTreeMap::new();
@@ -185,8 +248,8 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
             }
         }
         Ek::Call { prim, arg } => {
-            let v_arg = run(arg, stack);
-            let v_prim = run(prim, stack);
+            let v_arg = run(env, arg, stack);
+            let v_prim = run(env, prim, stack);
             match v_prim {
                 Value::Builtin { f, mut args } => {
                     args.push(v_arg);
@@ -217,6 +280,77 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                                 Value::Boolean(b) => Value::Boolean(!*b),
                                 a => panic!("std.not called with {:?}", a),
                             },
+                            Bi::SpawnThread => {
+                                let arg = args.pop().unwrap();
+                                match arg {
+                                    Value::Lambda {
+                                        argname,
+                                        f,
+                                        stacksave,
+                                    } => {
+                                        env.thscope.spawn(move |thscope| {
+                                            // luckily, we can rely on stacksave here
+                                            match run_stacksave(
+                                                Env { thscope },
+                                                f,
+                                                &VarStack {
+                                                    parent: None,
+                                                    name: argname,
+                                                    value: Value::Unit,
+                                                },
+                                                stacksave.into_iter(),
+                                            ) {
+                                                Value::Unit => {}
+                                                x => panic!(
+                                                    "std.spawn_thread worker lambda returned {:?}",
+                                                    x
+                                                ),
+                                            }
+                                        });
+                                        Value::Unit
+                                    }
+                                    x => panic!("std.spawn_thread called with {:?}", x),
+                                }
+                            }
+                            Bi::MakeChan => match args.get(0).unwrap() {
+                                Value::Unit => {
+                                    let (s, r) = crossbeam_channel::unbounded();
+                                    Value::Record(
+                                        [
+                                            ("send", Value::ChanSend(s)),
+                                            ("recv", Value::ChanRecv(r)),
+                                        ]
+                                        .into_iter()
+                                        .collect(),
+                                    )
+                                }
+                                x => panic!("std.make_chan called with {:?}", x),
+                            },
+                            Bi::ChanSend => {
+                                let chans = args.pop().unwrap();
+                                let value = args.pop().unwrap();
+                                assert!(args.is_empty());
+                                match chans {
+                                    Value::ChanSend(s) => match s.send(value) {
+                                        Ok(()) => Value::Boolean(true),
+                                        Err(_) => Value::Boolean(false),
+                                    },
+                                    x => panic!("std.chan_send called with {:?} (2nd argument)", x),
+                                }
+                            }
+                            Bi::ChanRecv => match args.get(0).unwrap() {
+                                Value::ChanRecv(r) => match r.recv() {
+                                    Ok(x) => Value::Tagged {
+                                        key: "Some",
+                                        value: Box::new(x),
+                                    },
+                                    Err(_) => Value::Tagged {
+                                        key: "None",
+                                        value: Box::new(Value::Unit),
+                                    },
+                                },
+                                x => panic!("std.chan_recv called with {:?}", x),
+                            },
                             Bi::StdioWrite => {
                                 match args.get(0).unwrap() {
                                     Value::PureString(s) => print!("{}", s),
@@ -232,6 +366,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                     f,
                     stacksave,
                 } => run_stacksave(
+                    env,
                     f,
                     &VarStack {
                         parent: Some(stack),
@@ -247,13 +382,14 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
                 f => panic!("called non-callable {:?} with argument {:?}", f, v_arg),
             }
         }
-        Ek::Dot { prim, key } => match run(prim, stack) {
+        Ek::Dot { prim, key } => match run(env, prim, stack) {
             Value::Record(mut rcm) => rcm
                 .remove(&*key.inner)
                 .expect("unable to find key in record"),
             x => panic!("called .{} on non-record {:?}", key.inner, x),
         },
         Ek::Fix { arg, body } => run(
+            env,
             body,
             &VarStack {
                 parent: Some(stack),
@@ -268,7 +404,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
             let mut r = String::new();
             for i in fsts {
                 use core::fmt::Write;
-                match run(i, stack) {
+                match run(env, i, stack) {
                     Value::PureString(s) => r += &s,
                     Value::Integer(i) => write!(&mut r, "{}", i).unwrap(),
                     Value::Boolean(b) => write!(&mut r, "_{}", if b { '1' } else { '0' }).unwrap(),
@@ -281,13 +417,13 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
         Ek::Record(rcde) => {
             let mut rcd = BTreeMap::new();
             for (k, v) in rcde {
-                rcd.insert(&**k, run(v, stack));
+                rcd.insert(&**k, run(env, v, stack));
             }
             Value::Record(rcd)
         }
         Ek::Update { orig, ovrd } => {
-            let v_orig = run(orig, stack);
-            match run(ovrd, stack) {
+            let v_orig = run(env, orig, stack);
+            match run(env, ovrd, stack) {
                 Value::Record(mut rcd) => {
                     match v_orig {
                         Value::Record(rcd_pull) => {
@@ -308,12 +444,13 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
         }
         Ek::Tagger { key } => Value::Tagger { key: &*key },
         Ek::Match { inp, cases } => {
-            let v_inp = run(inp, stack);
+            let v_inp = run(env, inp, stack);
             let mut res = None;
             for i in cases {
                 let mut coll = Default::default();
                 if let Some(()) = run_pat(&mut coll, &i.pat, &v_inp) {
                     res = Some(run_stacksave(
+                        env,
                         &i.body,
                         stack,
                         coll.into_iter().map(|(key, value)| (key, value.clone())),
@@ -327,6 +464,7 @@ pub fn run<'a, 's>(expr: &'a Expr, stack: &'s VarStack<'s, Value<'a>>) -> Value<
             let r = stack.find(id).unwrap().clone();
             if let Value::FixLambda { argname, f } = r {
                 run(
+                    env,
                     f,
                     &VarStack {
                         parent: Some(stack),

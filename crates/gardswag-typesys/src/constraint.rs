@@ -293,6 +293,8 @@ impl Context {
                 }
                 Ok(())
             }
+            (Ty::ChanSend(x), Ty::ChanSend(y)) => self.unify(x, y),
+            (Ty::ChanRecv(x), Ty::ChanRecv(y)) => self.unify(x, y),
             (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
                 *a,
                 TyGroup {
@@ -431,9 +433,11 @@ impl Context {
                             Some(TyGroup {
                                 ty:
                                     Some(
-                                        ty_orig @ Ty::Literal(_)
-                                        | ty_orig @ Ty::Arrow(_, _)
-                                        | ty_orig @ Ty::TaggedUnion(_),
+                                        ty_orig @ (Ty::Literal(_)
+                                        | Ty::Arrow(_, _)
+                                        | Ty::TaggedUnion(_)
+                                        | Ty::ChanSend(_)
+                                        | Ty::ChanRecv(_)),
                                     ),
                                 ..
                             }),
@@ -446,9 +450,11 @@ impl Context {
                             Some(TyGroup {
                                 ty:
                                     Some(
-                                        ty_ovrd @ Ty::Literal(_)
-                                        | ty_ovrd @ Ty::Arrow(_, _)
-                                        | ty_ovrd @ Ty::TaggedUnion(_),
+                                        ty_ovrd @ (Ty::Literal(_)
+                                        | Ty::Arrow(_, _)
+                                        | Ty::TaggedUnion(_)
+                                        | Ty::ChanSend(_)
+                                        | Ty::ChanRecv(_)),
                                     ),
                                 ..
                             }),

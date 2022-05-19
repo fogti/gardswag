@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag/src/main.rs
+source: crates/gardswag/src/tests.rs
 expression: "main_check(r#\"\n                \\x\n                let id = \\y y;\n                .{\n                  id;\n                  x;\n                  y = \"{x}\";\n                }\n            \"#).unwrap()"
 ---
 - stmts: []
@@ -51,18 +51,28 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                                     inner:
                                       Identifier: x
 - forall:
-    - 2
-    - 4
+    - ty: ~
+      oneof:
+        - Literal: Unit
+        - Literal: Bool
+        - Literal: Int
+        - Literal: String
+      listeners: []
+      kind: ~
+    - ty: ~
+      oneof: []
+      listeners: []
+      kind: ~
   ty:
     Arrow:
-      - Var: 2
+      - Var: 0
       - Record:
           id:
             Arrow:
-              - Var: 4
-              - Var: 4
+              - Var: 1
+              - Var: 1
           x:
-            Var: 2
+            Var: 0
           y:
             Literal: String
 

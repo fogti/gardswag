@@ -1,13 +1,17 @@
 ---
-source: crates/gardswag/src/main.rs
-assertion_line: 337
-expression: main_interp(&x.0)
+source: crates/gardswag/src/tests.rs
+expression: result
 ---
-Record:
-  a:
-    PureString: what
-  b:
-    PureString: "no"
-  c:
-    Integer: 50
-
+Record(
+    {
+        "a": PureString(
+            "what",
+        ),
+        "b": PureString(
+            "no",
+        ),
+        "c": Integer(
+            50,
+        ),
+    },
+)

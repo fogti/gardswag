@@ -1,7 +1,7 @@
 ---
-source: crates/gardswag/src/main.rs
-assertion_line: 232
-expression: main_interp(&x.0)
+source: crates/gardswag/src/tests.rs
+expression: result
 ---
-Integer: 3
-
+Integer(
+    3,
+)
