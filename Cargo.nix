@@ -181,43 +181,6 @@ rec {
         ];
 
       };
-      "bit-set" = rec {
-        crateName = "bit-set";
-        version = "0.5.2";
-        edition = "2015";
-        sha256 = "1pjrmpsnad5ipwjsv8ppi0qrhqvgpyn3wfbvk7jy8dga6mhf24bf";
-        authors = [
-          "Alexis Beingessner <a.beingessner@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "bit-vec";
-            packageId = "bit-vec";
-            usesDefaultFeatures = false;
-          }
-        ];
-        features = {
-          "default" = [ "std" ];
-          "std" = [ "bit-vec/std" ];
-        };
-        resolvedDefaultFeatures = [ "default" "std" ];
-      };
-      "bit-vec" = rec {
-        crateName = "bit-vec";
-        version = "0.6.3";
-        edition = "2015";
-        sha256 = "1ywqjnv60cdh1slhz67psnp422md6jdliji6alq0gmly2xm9p7rl";
-        authors = [
-          "Alexis Beingessner <a.beingessner@gmail.com>"
-        ];
-        features = {
-          "default" = [ "std" ];
-          "serde" = [ "dep:serde" ];
-          "serde_no_std" = [ "serde/alloc" ];
-          "serde_std" = [ "std" "serde/std" ];
-        };
-        resolvedDefaultFeatures = [ "std" ];
-      };
       "bitflags" = rec {
         crateName = "bitflags";
         version = "1.3.2";
@@ -525,45 +488,6 @@ rec {
         ];
 
       };
-      "fastrand" = rec {
-        crateName = "fastrand";
-        version = "1.7.0";
-        edition = "2018";
-        sha256 = "1pvci54f2cm69ybc308z213xdybgqpvf2pcvq1kch69mwp7g1z63";
-        authors = [
-          "Stjepan Glavina <stjepang@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "instant";
-            packageId = "instant";
-            target = { target, features }: (target."arch" == "wasm32");
-          }
-        ];
-        devDependencies = [
-          {
-            name = "instant";
-            packageId = "instant";
-            target = {target, features}: (target."arch" == "wasm32");
-            features = [ "wasm-bindgen" ];
-          }
-        ];
-
-      };
-      "fnv" = rec {
-        crateName = "fnv";
-        version = "1.0.7";
-        edition = "2015";
-        sha256 = "1hc2mcqha06aibcaza94vbi81j6pr9a1bbxrxjfhc91zin8yr7iz";
-        libPath = "lib.rs";
-        authors = [
-          "Alex Crichton <alex@alexcrichton.com>"
-        ];
-        features = {
-          "default" = [ "std" ];
-        };
-        resolvedDefaultFeatures = [ "default" "std" ];
-      };
       "gardswag" = rec {
         crateName = "gardswag";
         version = "0.1.0";
@@ -632,6 +556,8 @@ rec {
           {
             name = "proptest";
             packageId = "proptest";
+            usesDefaultFeatures = false;
+            features = [ "break-dead-code" "std" ];
           }
         ];
 
@@ -668,6 +594,8 @@ rec {
           {
             name = "proptest";
             packageId = "proptest";
+            usesDefaultFeatures = false;
+            features = [ "break-dead-code" "std" ];
           }
         ];
 
@@ -882,28 +810,6 @@ rec {
           "walkdir" = [ "dep:walkdir" ];
         };
         resolvedDefaultFeatures = [ "colors" "console" "default" ];
-      };
-      "instant" = rec {
-        crateName = "instant";
-        version = "0.1.12";
-        edition = "2018";
-        sha256 = "0b2bx5qdlwayriidhrag8vhy10kdfimfhmb3jnjmsz2h9j1bwnvs";
-        authors = [
-          "sebcrozet <developer@crozet.re>"
-        ];
-        dependencies = [
-          {
-            name = "cfg-if";
-            packageId = "cfg-if";
-          }
-        ];
-        features = {
-          "js-sys" = [ "dep:js-sys" ];
-          "stdweb" = [ "dep:stdweb" ];
-          "wasm-bindgen" = [ "js-sys" "wasm-bindgen_rs" "web-sys" ];
-          "wasm-bindgen_rs" = [ "dep:wasm-bindgen_rs" ];
-          "web-sys" = [ "dep:web-sys" ];
-        };
       };
       "itoa" = rec {
         crateName = "itoa";
@@ -1174,11 +1080,6 @@ rec {
         ];
         dependencies = [
           {
-            name = "bit-set";
-            packageId = "bit-set";
-            optional = true;
-          }
-          {
             name = "bitflags";
             packageId = "bitflags";
           }
@@ -1199,7 +1100,7 @@ rec {
           }
           {
             name = "quick-error";
-            packageId = "quick-error 2.0.1";
+            packageId = "quick-error";
             optional = true;
           }
           {
@@ -1222,17 +1123,6 @@ rec {
             packageId = "regex-syntax";
             optional = true;
           }
-          {
-            name = "rusty-fork";
-            packageId = "rusty-fork";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "tempfile";
-            packageId = "tempfile";
-            optional = true;
-          }
         ];
         features = {
           "bit-set" = [ "dep:bit-set" ];
@@ -1249,20 +1139,9 @@ rec {
           "timeout" = [ "fork" "rusty-fork/timeout" ];
           "x86" = [ "dep:x86" ];
         };
-        resolvedDefaultFeatures = [ "bit-set" "break-dead-code" "default" "fork" "lazy_static" "quick-error" "regex-syntax" "rusty-fork" "std" "tempfile" "timeout" ];
+        resolvedDefaultFeatures = [ "break-dead-code" "lazy_static" "quick-error" "regex-syntax" "std" ];
       };
-      "quick-error 1.2.3" = rec {
-        crateName = "quick-error";
-        version = "1.2.3";
-        edition = "2015";
-        sha256 = "1q6za3v78hsspisc197bg3g7rpc989qycy8ypr8ap8igv10ikl51";
-        authors = [
-          "Paul Colomiets <paul@colomiets.name>"
-          "Colin Kiegel <kiegel@gmx.de>"
-        ];
-
-      };
-      "quick-error 2.0.1" = rec {
+      "quick-error" = rec {
         crateName = "quick-error";
         version = "2.0.1";
         edition = "2018";
@@ -1412,23 +1291,6 @@ rec {
           "serde1" = [ "serde" ];
         };
       };
-      "redox_syscall" = rec {
-        crateName = "redox_syscall";
-        version = "0.2.13";
-        edition = "2018";
-        sha256 = "0hpgwvgjlg1j9z7bjf5y18fkd8ag7y4znhqxg85hnpp5qz25pwk2";
-        libName = "syscall";
-        authors = [
-          "Jeremy Soller <jackpot51@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "bitflags";
-            packageId = "bitflags";
-          }
-        ];
-
-      };
       "regex" = rec {
         crateName = "regex";
         version = "1.5.5";
@@ -1500,58 +1362,6 @@ rec {
           "unicode" = [ "unicode-age" "unicode-bool" "unicode-case" "unicode-gencat" "unicode-perl" "unicode-script" "unicode-segment" ];
         };
         resolvedDefaultFeatures = [ "default" "unicode" "unicode-age" "unicode-bool" "unicode-case" "unicode-gencat" "unicode-perl" "unicode-script" "unicode-segment" ];
-      };
-      "remove_dir_all" = rec {
-        crateName = "remove_dir_all";
-        version = "0.5.3";
-        edition = "2015";
-        sha256 = "1rzqbsgkmr053bxxl04vmvsd1njyz0nxvly97aip6aa2cmb15k9s";
-        authors = [
-          "Aaronepower <theaaronepower@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "winapi";
-            packageId = "winapi";
-            target = { target, features }: (target."windows" or false);
-            features = [ "std" "errhandlingapi" "winerror" "fileapi" "winbase" ];
-          }
-        ];
-
-      };
-      "rusty-fork" = rec {
-        crateName = "rusty-fork";
-        version = "0.3.0";
-        edition = "2018";
-        sha256 = "0kxwq5c480gg6q0j3bg4zzyfh2kwmc3v2ba94jw8ncjc8mpcqgfb";
-        authors = [
-          "Jason Lingle"
-        ];
-        dependencies = [
-          {
-            name = "fnv";
-            packageId = "fnv";
-          }
-          {
-            name = "quick-error";
-            packageId = "quick-error 1.2.3";
-          }
-          {
-            name = "tempfile";
-            packageId = "tempfile";
-          }
-          {
-            name = "wait-timeout";
-            packageId = "wait-timeout";
-            optional = true;
-          }
-        ];
-        features = {
-          "default" = [ "timeout" ];
-          "timeout" = [ "wait-timeout" ];
-          "wait-timeout" = [ "dep:wait-timeout" ];
-        };
-        resolvedDefaultFeatures = [ "timeout" "wait-timeout" ];
       };
       "ryu" = rec {
         crateName = "ryu";
@@ -1787,50 +1597,6 @@ rec {
           "test" = [ "syn-test-suite/all-features" ];
         };
         resolvedDefaultFeatures = [ "clone-impls" "default" "derive" "extra-traits" "full" "parsing" "printing" "proc-macro" "quote" "visit" "visit-mut" ];
-      };
-      "tempfile" = rec {
-        crateName = "tempfile";
-        version = "3.3.0";
-        edition = "2018";
-        sha256 = "1r3rdp66f7w075mz6blh244syr3h0lbm07ippn7xrbgfxbs1xnsw";
-        authors = [
-          "Steven Allen <steven@stebalien.com>"
-          "The Rust Project Developers"
-          "Ashley Mannix <ashleymannix@live.com.au>"
-          "Jason White <jasonaw0@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "cfg-if";
-            packageId = "cfg-if";
-          }
-          {
-            name = "fastrand";
-            packageId = "fastrand";
-          }
-          {
-            name = "libc";
-            packageId = "libc";
-            target = { target, features }: ((target."unix" or false) || (target."os" == "wasi"));
-          }
-          {
-            name = "redox_syscall";
-            packageId = "redox_syscall";
-            target = { target, features }: (target."os" == "redox");
-          }
-          {
-            name = "remove_dir_all";
-            packageId = "remove_dir_all";
-          }
-          {
-            name = "winapi";
-            packageId = "winapi";
-            target = { target, features }: (target."windows" or false);
-            features = [ "fileapi" "handleapi" "winbase" ];
-          }
-        ];
-        features = {
-        };
       };
       "termcolor" = rec {
         crateName = "termcolor";
@@ -2283,24 +2049,6 @@ rec {
         sha256 = "0gs8grwdlgh0xq660d7wr80x14vxbizmd8dbp29p2pdncx8lp1s9";
         authors = [
           "Sergio Benitez <sb@sergio.bz>"
-        ];
-
-      };
-      "wait-timeout" = rec {
-        crateName = "wait-timeout";
-        version = "0.2.0";
-        edition = "2015";
-        crateBin = [];
-        sha256 = "1xpkk0j5l9pfmjfh1pi0i89invlavfrd9av5xp0zhxgb29dhy84z";
-        authors = [
-          "Alex Crichton <alex@alexcrichton.com>"
-        ];
-        dependencies = [
-          {
-            name = "libc";
-            packageId = "libc";
-            target = { target, features }: (target."unix" or false);
-          }
         ];
 
       };

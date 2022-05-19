@@ -26,4 +26,8 @@ features = ["env-filter"]
 
 [dev-dependencies]
 insta = "1.14"
-proptest = "1.0"
+
+[dev-dependencies.proptest]
+version = "1.0"
+default-features = false
+features = ["break-dead-code", "std"]
