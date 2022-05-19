@@ -103,6 +103,24 @@ impl Default for Context {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct SchemeSer {
+    pub forall: Vec<TyGroup>,
+    pub ty: Ty,
+}
+
+impl SchemeSer {
+    pub fn min_unused_tyvar(&self) -> usize {
+        let mut tfv = BTreeSet::default();
+        if let Some(x) = self.forall.len().checked_sub(1) {
+            tfv.insert(x);
+        }
+        self.forall.fv(&mut tfv, true);
+        self.ty.fv(&mut tfv, true);
+        tfv.into_iter().rev().next().map(|x| x + 1).unwrap_or(0)
+    }
+}
+
 impl Context {
     /// resolve the context using itself as far as possible
     pub fn self_resolve(&mut self) -> Result<(), UnifyError> {
@@ -133,6 +151,113 @@ impl Context {
         });
         //tracing::trace!(%i, %j, ?ret, "on_apply");
         Some(if let Some(x) = ret { x } else { Ty::Var(j) })
+    }
+
+    pub fn min_unused_tyvar(&self) -> usize {
+        let mut tfv = BTreeSet::default();
+        if let Some(x) = self.m.keys().last() {
+            tfv.insert(*x);
+        }
+        self.g.fv(&mut tfv, true);
+        tfv.into_iter().rev().next().map(|x| x + 1).unwrap_or(0)
+    }
+
+    /// exports a type scheme into a de/serializable form
+    /// please make sure to only call this after [`self_resolve`](Context::self_resolve)
+    /// and before any subsequent mutating operations
+    pub fn export_scheme(&self, crate::Scheme { forall, mut ty }: crate::Scheme) -> SchemeSer {
+        ty.apply(&|&i| self.on_apply(i));
+
+        // create proper closure of type variables
+        let mut closure = forall;
+
+        loop {
+            let orig_len = closure.len();
+            let mut new_closure = BTreeSet::new();
+            for i in &closure {
+                if let Some(x) = self.m.get(i).and_then(|j| self.g.get(j)) {
+                    assert!(x.resolved().is_none());
+                    x.fv(&mut new_closure, true);
+                }
+            }
+            closure.extend(new_closure);
+            if orig_len == closure.len() {
+                break;
+            }
+        }
+
+        // minimize closure
+        let closure: BTreeSet<_> = closure
+            .into_iter()
+            .map(|i| lowest_tvi_for_cg(&self.m, i))
+            .collect();
+
+        // make sure scheme is honest about it's minimal dependencies,
+        // the `ty.apply` above worked correctly and coalesced the tyvars
+        // and does not contain any external unresolved dependencies.
+        {
+            let mut min_deps = BTreeSet::new();
+            ty.fv(&mut min_deps, true);
+            if let Some(x) = min_deps.difference(&closure).next() {
+                panic!("scheme dependencies are inconsistent or unresolved: {:?} is a tyvar dependency, but not in forall", x);
+            }
+        }
+
+        tracing::debug!(?closure, ?ty, "export_scheme");
+
+        // create mapping (remap forall items to be consecutive)
+        let mut m = BTreeMap::new();
+        let mut forall = Vec::new();
+        for (n, (i, k)) in closure
+            .into_iter()
+            .map(|i| (i, self.m.get(&i).and_then(|j| self.g.get(j).cloned())))
+            .enumerate()
+        {
+            m.insert(i, n);
+            forall.push(k.unwrap_or_default());
+        }
+        tracing::debug!("export_scheme mapping: {:?}", m);
+
+        // apply mapping
+        let my_on_apply = |j: &TyVar| Some(Ty::Var(*m.get(j).unwrap()));
+        for k in &mut forall {
+            k.apply(&my_on_apply);
+        }
+        ty.apply(&my_on_apply);
+
+        SchemeSer { forall, ty }
+    }
+
+    /// imports a (potentially serialized) type scheme
+    pub fn import_scheme(&mut self, SchemeSer { forall, mut ty }: SchemeSer) -> crate::Scheme {
+        let mut m = BTreeMap::new();
+        let mut new_n = self.min_unused_tyvar();
+
+        for (n, i) in forall.into_iter().enumerate() {
+            let tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
+            self.g.insert(tcgid, i);
+            self.m.insert(new_n, tcgid);
+            m.insert(n, new_n);
+            new_n += 1;
+        }
+
+        let my_on_apply = |j: &TyVar| {
+            Some(Ty::Var(*m.get(j).unwrap_or_else(|| {
+                panic!("unknown type variable ${} in SchemeSer", j)
+            })))
+        };
+
+        for i in m.values() {
+            let tcgid = *self.m.get(i).unwrap();
+            self.g.get_mut(&tcgid).unwrap().apply(&my_on_apply);
+        }
+
+        ty.apply(&my_on_apply);
+
+        crate::Scheme {
+            forall: m.values().copied().collect(),
+            ty,
+        }
     }
 
     fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {

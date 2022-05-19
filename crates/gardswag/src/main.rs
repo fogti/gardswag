@@ -87,7 +87,12 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
     }
 }
 
-fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typesys::Scheme)> {
+fn main_check(
+    dat: &str,
+) -> anyhow::Result<(
+    gardswag_syntax::Block,
+    gardswag_typesys::constraint::SchemeSer,
+)> {
     let parsed = gardswag_syntax::parse(dat)?;
     let mut ctx = TyCollectCtx::default();
 
@@ -129,8 +134,9 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     for (k, v) in &ctx2.g {
         trace!("\t${}:\t{:?}", k, v);
     }
-    tracing::info!("=G> {}", tg);
-    Ok((parsed, tg))
+    let tgx = ctx2.export_scheme(tg);
+    tracing::info!("=G> {:#?}", tgx);
+    Ok((parsed, tgx))
 }
 
 fn main_interp(parsed: &gardswag_syntax::Block) -> interp::Value<'_> {

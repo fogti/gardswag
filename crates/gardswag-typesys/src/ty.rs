@@ -42,7 +42,7 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::Literal(lit) => write!(f, "{}", lit),
-            Ty::Var(v) => write!(f, "${:?}", v),
+            Ty::Var(v) => write!(f, "${}", v),
             Ty::Arrow(a, b) => {
                 if matches!(**a, Ty::Arrow(..)) {
                     write!(f, "({})", a)
@@ -51,15 +51,21 @@ impl fmt::Display for Ty {
                 }?;
                 write!(f, " -> {}", b)
             }
-            Ty::Record(m) => write!(f, "{:?}", m),
-            Ty::TaggedUnion(m) => write!(f, "any{:?}", m),
+            Ty::Record(m) => f.debug_map().entries(m.iter()).finish(),
+            Ty::TaggedUnion(m) => {
+                write!(f, "any(")?;
+                f.debug_map().entries(m.iter()).finish()?;
+                write!(f, ")")
+            }
         }
     }
 }
 
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Ty{{{}}}", self)
+        write!(f, "Ty{{")?;
+        <Ty as fmt::Display>::fmt(self, f)?;
+        write!(f, "}}")
     }
 }
 
