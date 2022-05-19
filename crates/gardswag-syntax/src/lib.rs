@@ -7,6 +7,7 @@
     clippy::cast_ptr_alignment
 )]
 #![deny(unused_variables)]
+#![feature(try_trait_v2)]
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -233,22 +234,6 @@ enum ParseResult<T, E> {
 }
 use ParseResult::*;
 
-impl<'a, T, E> ParseResult<T, &'a E> {
-    fn cloned_err(self) -> ParseResult<T, E>
-    where
-        E: Clone,
-    {
-        match self {
-            PNone => PNone,
-            POk(x) => POk(x),
-            PErr(Offsetted { offset, inner }) => PErr(Offsetted {
-                offset,
-                inner: inner.clone(),
-            }),
-        }
-    }
-}
-
 impl<T, E> From<Option<Result<T, Offsetted<E>>>> for ParseResult<T, E> {
     fn from(x: Option<Result<T, Offsetted<E>>>) -> ParseResult<T, E> {
         match x {
@@ -259,45 +244,76 @@ impl<T, E> From<Option<Result<T, Offsetted<E>>>> for ParseResult<T, E> {
     }
 }
 
-impl<'a, T, E> From<Option<&'a Result<T, Offsetted<E>>>> for ParseResult<&'a T, &'a E> {
-    fn from(x: Option<&'a Result<T, Offsetted<E>>>) -> ParseResult<&'a T, &'a E> {
-        match x {
-            None => PNone,
-            Some(Ok(y)) => POk(y),
-            Some(Err(Offsetted { offset, inner })) => PErr(Offsetted {
-                offset: *offset,
-                inner,
+impl<T, E> core::ops::Try for ParseResult<T, E> {
+    type Output = T;
+    type Residual = ParseResult<core::convert::Infallible, E>;
+
+    #[inline]
+    fn from_output(output: T) -> Self {
+        POk(output)
+    }
+
+    #[inline]
+    fn branch(self) -> core::ops::ControlFlow<Self::Residual, T> {
+        use core::ops::ControlFlow::*;
+        match self {
+            PNone => Break(PNone),
+            PErr(e) => Break(PErr(e)),
+            POk(x) => Continue(x),
+        }
+    }
+}
+
+impl<T, E, F: From<E>> core::ops::FromResidual<ParseResult<core::convert::Infallible, E>>
+    for ParseResult<T, F>
+{
+    #[inline]
+    #[track_caller]
+    fn from_residual(residual: ParseResult<core::convert::Infallible, E>) -> Self {
+        match residual {
+            PNone => PNone,
+            POk(x) => match x {},
+            PErr(Offsetted { offset, inner }) => PErr(Offsetted {
+                offset,
+                inner: inner.into(),
             }),
         }
     }
 }
 
-impl<T, E> From<Result<T, Offsetted<E>>> for ParseResult<T, E> {
-    fn from(x: Result<T, Offsetted<E>>) -> ParseResult<T, E> {
-        match x {
-            Ok(y) => POk(y),
-            Err(y) => PErr(y),
+impl<T, E, F: From<E>> core::ops::FromResidual<Result<core::convert::Infallible, Offsetted<E>>>
+    for ParseResult<T, F>
+{
+    #[inline]
+    #[track_caller]
+    fn from_residual(residual: Result<core::convert::Infallible, Offsetted<E>>) -> Self {
+        match residual {
+            Ok(x) => match x {},
+            Err(Offsetted { offset, inner }) => PErr(Offsetted {
+                offset,
+                inner: inner.into(),
+            }),
         }
     }
 }
 
-macro_rules! xtry {
-    ($x:expr) => {{
-        match $x.into() {
-            PNone => return PNone,
-            PErr(Offsetted { offset, inner }) => {
-                return PErr(Offsetted {
-                    offset,
-                    inner: inner.into(),
-                })
-            }
-            POk(x) => x,
+impl<T, E> core::ops::FromResidual<Option<core::convert::Infallible>> for ParseResult<T, E> {
+    #[inline]
+    #[track_caller]
+    fn from_residual(residual: Option<core::convert::Infallible>) -> Self {
+        match residual {
+            None => PNone,
+            Some(x) => match x {},
         }
-    }};
+    }
 }
 
-fn unexpect_eoe<T, E: Into<ErrorKind>>(offset: usize, x: ParseResult<T, E>) -> Result<T, Error> {
-    match x {
+fn unexpect_eoe<X, T, E>(offset: usize, x: X) -> Result<T, Error>
+where
+    X: Into<ParseResult<T, E>>,
+    E: Into<ErrorKind>,
+{
+    match x.into() {
         PNone => Err(Offsetted {
             offset,
             inner: ErrorKind::UnexpectedEoe,
@@ -316,7 +332,7 @@ fn expect_token_noeof<F, R>(super_offset: usize, lxr: &mut PeekLexer<'_>, f: F) 
 where
     F: FnOnce(lex::Token) -> Result<R, lex::Token>,
 {
-    let tok = unexpect_eoe(super_offset, lxr.next().into())?;
+    let tok = unexpect_eoe(super_offset, lxr.next())?;
     f(tok).map_err(|tok| Error {
         offset: super_offset,
         inner: ErrorKind::UnexpectedToken(tok),
@@ -381,7 +397,7 @@ where
 {
     use lex::{Token, TokenKind as Tk};
     let backtrack = lxr.clone();
-    let Offsetted { inner, offset } = xtry!(unexpect_eoe(super_offset, lxr.next().into()));
+    let Offsetted { inner, offset } = unexpect_eoe(super_offset, lxr.next())?;
     if inner != Tk::LcBracket {
         *lxr = backtrack;
         return PNone;
@@ -400,20 +416,14 @@ where
             })
         )
     }) {
-        let dcd = xtry!(expect_token_noeof(
-            offset,
-            lxr,
-            |lex::Token { inner, offset }| {
-                match inner {
-                    Tk::EqSym => Ok(true),
-                    Tk::SemiColon => Ok(false),
-                    _ => Err(lex::Token { inner, offset }),
-                }
-            }
-        ));
+        let dcd = expect_token_noeof(offset, lxr, |lex::Token { inner, offset }| match inner {
+            Tk::EqSym => Ok(true),
+            Tk::SemiColon => Ok(false),
+            _ => Err(lex::Token { inner, offset }),
+        })?;
         let value = if dcd {
-            let value = xtry!(unexpect_eoe(offset, f(lxr)));
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
+            let value = unexpect_eoe(offset, f(lxr))?;
+            let _ = expect_token_exact(offset, lxr, Tk::SemiColon)?;
             value
         } else {
             (Offsetted {
@@ -435,7 +445,7 @@ where
             }
         }
     }
-    let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
+    let _ = expect_token_exact(offset, lxr, Tk::RcBracket)?;
     POk((Offsetted {
         offset,
         inner: DotIntermed::Record(rcd),
@@ -445,7 +455,7 @@ where
 
 fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
     use lex::TokenKind as Tk;
-    let Offsetted { offset, inner } = xtry!(lxr.next());
+    let Offsetted { offset, inner } = lxr.next()??;
     match inner {
         Tk::Identifier(x) => POk(Pattern::Identifier(Offsetted {
             offset,
@@ -456,15 +466,12 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
                 PNone => {}
                 y => return y,
             }
-            let Offsetted { inner: key, offset } = xtry!(expect_token_noeof(
-                offset,
-                lxr,
-                |Offsetted { inner, offset }| match inner {
+            let Offsetted { inner: key, offset } =
+                expect_token_noeof(offset, lxr, |Offsetted { inner, offset }| match inner {
                     Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
                     _ => Err(Offsetted { inner, offset }),
-                }
-            ));
-            let value = xtry!(unexpect_eoe(offset, parse_pattern(lxr)));
+                })?;
+            let value = unexpect_eoe(offset, parse_pattern(lxr))?;
             POk(Pattern::Tagged {
                 key: Offsetted { offset, inner: key },
                 value: Box::new(value),
@@ -485,13 +492,13 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
             {
                 Pattern::Unit
             } else {
-                let inner = xtry!(unexpect_eoe(offset, parse_pattern(lxr)));
-                let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
+                let inner = unexpect_eoe(offset, parse_pattern(lxr))?;
+                let _ = expect_token_exact(offset, lxr, Tk::RParen)?;
                 inner
             },
         ),
         inner => PErr(Error {
-            offset: offset,
+            offset,
             inner: ErrorKind::UnexpectedToken(Offsetted { offset, inner }),
         }),
     }
@@ -499,7 +506,7 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
 
 fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
     use lex::{Keyword as Kw, Token, TokenKind as Tk};
-    let Token { mut offset, inner } = xtry!(lxr.next_if(|i| {
+    let Token { mut offset, inner } = lxr.next_if(|i| {
         if let Ok(Token { inner, .. }) = i {
             !matches!(
                 inner,
@@ -508,7 +515,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
         } else {
             true
         }
-    }));
+    })??;
     let inner = match inner {
         Tk::Keyword(Kw::Let) => {
             let is_rec = if let Some(Ok(Token {
@@ -521,20 +528,20 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             } else {
                 false
             };
-            let lhs = xtry!(expect_token_noeof(offset, lxr, |t| match t {
+            let lhs = expect_token_noeof(offset, lxr, |t| match t {
                 Token {
                     offset,
                     inner: Tk::Identifier(inner),
                 } => Ok(Identifier { offset, inner }),
                 _ => Err(t),
-            }));
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::EqSym));
-            let mut rhs = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
-            let blk_offset = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
+            })?;
+            let _ = expect_token_exact(offset, lxr, Tk::EqSym)?;
+            let mut rhs = unexpect_eoe(offset, parse_expr_greedy(lxr))?;
+            let blk_offset = expect_token_exact(offset, lxr, Tk::SemiColon)?;
             let rest = if lxr.peek().is_none() {
                 Block::default()
             } else {
-                xtry!(parse_block(blk_offset, lxr))
+                parse_block(blk_offset, lxr)?
             };
             if is_rec {
                 // desugar `let rec` to `fix`
@@ -553,8 +560,8 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             })
         }
         Tk::Keyword(Kw::If) => {
-            let cond = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
-            let then = xtry!(parse_block(offset, lxr));
+            let cond = unexpect_eoe(offset, parse_expr(lxr))?;
+            let then = parse_block(offset, lxr)?;
             let or_else = if let Some(Ok(Offsetted {
                 inner: Tk::SemiColon,
                 ..
@@ -563,7 +570,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             {
                 Block::default()
             } else {
-                xtry!(parse_block(offset, lxr))
+                parse_block(offset, lxr)?
             };
             Ok(ExprKind::If {
                 cond: Box::new(cond),
@@ -572,7 +579,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             })
         }
         Tk::Keyword(Kw::Match) => {
-            let inp = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+            let inp = unexpect_eoe(offset, parse_expr_greedy(lxr))?;
             let mut cases = Vec::new();
             while let Some(Ok(Token {
                 offset: c_offset,
@@ -586,13 +593,13 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                     })
                 )
             }) {
-                let pat = xtry!(unexpect_eoe(c_offset, parse_pattern(lxr)));
-                let _ = xtry!(expect_token_exact(c_offset, lxr, Tk::CaseThen));
-                let body = xtry!(unexpect_eoe(c_offset, parse_expr_greedy(lxr)));
+                let pat = unexpect_eoe(c_offset, parse_pattern(lxr))?;
+                let _ = expect_token_exact(c_offset, lxr, Tk::CaseThen)?;
+                let body = unexpect_eoe(c_offset, parse_expr_greedy(lxr))?;
                 cases.push(Case { pat, body });
             }
             if cases.is_empty() {
-                let _ = xtry!(expect_token_exact(offset, lxr, Tk::Case));
+                let _ = expect_token_exact(offset, lxr, Tk::Case)?;
                 unreachable!();
             }
             Ok(ExprKind::Match {
@@ -601,7 +608,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             })
         }
         Tk::Lambda(lam) => {
-            let expr = xtry!(unexpect_eoe(offset, parse_expr_calls(lxr)));
+            let expr = unexpect_eoe(offset, parse_expr_calls(lxr))?;
             Ok(ExprKind::Lambda {
                 arg: handle_wildcard(lam),
                 body: Box::new(expr),
@@ -612,8 +619,8 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
         Tk::Keyword(Kw::True) => Ok(ExprKind::Boolean(true)),
         Tk::Integer(i) => Ok(ExprKind::Integer(i)),
         Tk::LcBracket => {
-            let block = xtry!(parse_block(offset, lxr));
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
+            let block = parse_block(offset, lxr)?;
+            let _ = expect_token_exact(offset, lxr, Tk::RcBracket)?;
             Ok(ExprKind::Block(block))
         }
         Tk::LParen => Ok(
@@ -634,8 +641,8 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                 let Offsetted {
                     inner,
                     offset: new_offset,
-                } = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
-                let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
+                } = unexpect_eoe(offset, parse_expr_greedy(lxr))?;
+                let _ = expect_token_exact(offset, lxr, Tk::RParen)?;
                 offset = new_offset;
                 inner
             },
@@ -668,20 +675,17 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
                     POk(x) => parts.push(x),
                 }
             }
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::StringEnd));
+            let _ = expect_token_exact(offset, lxr, Tk::StringEnd)?;
             Ok(ExprKind::FormatString(parts))
         }
         Tk::Dot => match try_parse_record(offset, lxr, &parse_expr_greedy) {
             PNone => {
-                let key = xtry!(expect_token_noeof(
-                    offset,
-                    lxr,
-                    |Offsetted { inner, offset }| match inner {
+                let key =
+                    expect_token_noeof(offset, lxr, |Offsetted { inner, offset }| match inner {
                         Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
                         _ => Err(Offsetted { inner, offset }),
-                    }
-                ))
-                .inner;
+                    })?
+                    .inner;
                 Ok(ExprKind::Tagger { key })
             }
             PErr(e) => return PErr(e),
@@ -705,13 +709,13 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             {
                 let new_offset = *new_offset;
                 let _ = lxr.next();
-                let key = xtry!(expect_token_noeof(new_offset, lxr, |t| match t {
+                let key = expect_token_noeof(new_offset, lxr, |t| match t {
                     Token {
                         inner: Tk::Identifier(id),
                         offset,
                     } => Ok(Offsetted { offset, inner: id }),
                     _ => Err(t),
-                }));
+                })?;
                 inner = ExprKind::Dot {
                     prim: Box::new(Offsetted { offset, inner }),
                     key,
@@ -725,7 +729,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
 }
 
 fn parse_expr_calls(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
-    let Offsetted { mut inner, offset } = xtry!(parse_expr(lxr));
+    let Offsetted { mut inner, offset } = parse_expr(lxr)?;
     // hanble arguments
     loop {
         let save_lxr = (*lxr).clone();
@@ -752,7 +756,7 @@ fn parse_expr_calls(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
 
 fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
     use lex::TokenKind as Tk;
-    let mut ret = xtry!(parse_expr_calls(lxr));
+    let mut ret = parse_expr_calls(lxr)?;
     // handle pipes and updates
     while let Some(x) = lxr.next_if(|i| {
         matches!(
@@ -763,8 +767,8 @@ fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             }) | Err(_)
         )
     }) {
-        let x = xtry!(x);
-        let expr = xtry!(unexpect_eoe(x.offset, parse_expr_calls(lxr)));
+        let x = x?;
+        let expr = unexpect_eoe(x.offset, parse_expr_calls(lxr))?;
         ret = Offsetted {
             offset: x.offset,
             inner: match x.inner {
@@ -790,7 +794,17 @@ fn parse_block(super_offset: usize, lxr: &mut PeekLexer<'_>) -> Result<Block, Er
     let Offsetted {
         offset: fi_offset,
         inner: fi_inner,
-    } = unexpect_eoe(super_offset, ParseResult::from(lxr.peek()).cloned_err())?;
+    } = unexpect_eoe(
+        super_offset,
+        match lxr.peek() {
+            None => PNone,
+            Some(Ok(y)) => POk(y),
+            Some(Err(Offsetted { offset, inner })) => PErr(Offsetted {
+                offset: *offset,
+                inner: inner.clone(),
+            }),
+        },
+    )?;
     let fi_offset: usize = *fi_offset;
 
     let mut expect_close_brack = false;
