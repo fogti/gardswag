@@ -118,10 +118,10 @@ fn main_check(
     let parsed = gardswag_syntax::parse(dat)?;
     let mut ctx = TyCollectCtx::default();
 
-    let env = infer::Env {
-        vars: [("std".to_string(), mk_env_std(&mut ctx))]
-            .into_iter()
-            .collect(),
+    let env = gardswag_varstack::VarStack {
+        parent: None,
+        name: "std",
+        value: mk_env_std(&mut ctx),
     };
 
     let mut t = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;

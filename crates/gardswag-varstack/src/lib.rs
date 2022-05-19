@@ -7,6 +7,7 @@
     clippy::cast_ptr_alignment
 )]
 #![deny(unused_variables)]
+#![no_std]
 
 use core::fmt;
 

@@ -119,3 +119,11 @@ impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<
         self.values_mut().for_each(|i| i.apply(f));
     }
 }
+
+impl<V: FreeVars> FreeVars for gardswag_varstack::VarStack<'_, V> {
+    type In = V::In;
+
+    fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
+        self.iter().for_each(|(_, i)| i.fv(accu, do_add))
+    }
+}

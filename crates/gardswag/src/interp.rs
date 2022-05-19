@@ -133,7 +133,10 @@ pub fn run_block<'a: 'envout + 'envin, 'envout, 'envin, 's>(
     }
 }
 
-fn run_stacksave<'a: 'envout + 'envin, 'envout, 'envin, 's, 's3, I, S>(
+/// this function has a difficult signature,
+/// because we really want to avoid all unnecessary allocations,
+/// because it otherwise would be prohibitively costly...
+fn run_stacksave<'a: 'envout + 'envin, 'envout, 'envin, 's, I, S>(
     env: Env<'envout, 'envin>,
     expr: &'a Expr,
     stack: &'s VarStack<'s, Value<'a>>,
@@ -158,9 +161,6 @@ where
     }
 }
 
-/// this function has a difficult signature,
-/// because we really want to avoid all unnecessary allocations,
-/// because it otherwise would be prohibitively costly...
 fn run_pat<'a, 'b>(
     coll: &mut BTreeMap<&'a str, &'b Value<'a>>,
     pat: &'a synt::Pattern,

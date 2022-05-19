@@ -166,6 +166,7 @@ dependencies = [
 name = "gardswag-typesys"
 version = "0.1.0"
 dependencies = [
+ "gardswag-varstack",
  "serde",
  "thiserror",
  "tracing",

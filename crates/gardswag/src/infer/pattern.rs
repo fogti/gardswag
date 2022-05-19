@@ -2,6 +2,7 @@ use core::iter::once;
 use gardswag_syntax::{self as synt, Case, Expr, Offsetted, Pattern as Pat};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
 use gardswag_typesys::{self as tysy, CollectContext, Ty, TyLit, TyVar};
+use gardswag_varstack::VarStack;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use super::{infer, maybe_new_tyvar_opt, Env, Error};
@@ -257,7 +258,6 @@ fn cases2nodetree<'a>(cases: &mut [ICase<'a>]) -> Result<PatNode<'a>, Error> {
 }
 
 fn infer_pat(
-    env: &Env,
     ctx: &mut CollectContext,
     inp: Option<Ty>,
     PatNode {
@@ -286,7 +286,7 @@ fn infer_pat(
             Pnk::TaggedUnion(tud) => {
                 let pre = tud
                     .into_iter()
-                    .map(|(key, i)| Ok((key.to_string(), infer_pat(env, ctx, None, i)?)))
+                    .map(|(key, i)| Ok((key.to_string(), infer_pat(ctx, None, i)?)))
                     .collect::<Result<_, _>>()?;
                 match inptv.unwrap() {
                     MaybeWldc::Wildcard(inptv) => {
@@ -309,7 +309,7 @@ fn infer_pat(
             Pnk::Record(rcd) => {
                 let pre = rcd
                     .into_iter()
-                    .map(|(key, i)| Ok((key.to_string(), infer_pat(env, ctx, None, i)?)))
+                    .map(|(key, i)| Ok((key.to_string(), infer_pat(ctx, None, i)?)))
                     .collect::<Result<_, _>>()?;
                 match inptv.unwrap() {
                     MaybeWldc::Wildcard(inptv) => {
@@ -358,8 +358,37 @@ fn infer_pat(
     Ok(ret)
 }
 
+fn infer_w_stack_vars<'a, 's, I>(
+    env: Env<'s>,
+    ctx: &mut CollectContext,
+    body: &'a synt::Expr,
+    resty: TyVar,
+    mut items: I,
+) -> Result<(), Error>
+where
+    I: Iterator<Item = (&'a str, Ty)>,
+{
+    match items.next() {
+        Some((name, ty)) => infer_w_stack_vars(
+            &VarStack {
+                parent: Some(env),
+                name,
+                value: tysy::Scheme {
+                    forall: Default::default(),
+                    ty,
+                },
+            },
+            ctx,
+            body,
+            resty,
+            items,
+        ),
+        None => infer(env, ctx, body, Some(Ty::Var(resty))).map(|_| ()),
+    }
+}
+
 pub fn infer_match(
-    env: &Env,
+    env: Env<'_>,
     ctx: &mut CollectContext,
     inp: &synt::Expr,
     cases: &[Case],
@@ -380,23 +409,21 @@ pub fn infer_match(
     let patnode = cases2nodetree(&mut cases[..])?;
 
     // inspect normalized pattern tree
-    let _ = infer_pat(env, ctx, Some(inp_t), patnode)?;
+    let _ = infer_pat(ctx, Some(inp_t), patnode)?;
 
     // inspect bodies
     let resty = ctx.fresh_tyvar();
     for ICase { vars, body, pat: _ } in cases {
-        let mut env2 = env.clone();
-        for (key, (_, mut ty)) in vars {
-            let ty: &mut Option<Ty> = RefCell::get_mut(Rc::get_mut(&mut ty).unwrap());
-            env2.vars.insert(
-                key.to_string(),
-                tysy::Scheme {
-                    forall: Default::default(),
-                    ty: ty.take().unwrap(),
-                },
-            );
-        }
-        let _ = infer(&env2, ctx, body, Some(Ty::Var(resty)))?;
+        infer_w_stack_vars(
+            env,
+            ctx,
+            body,
+            resty,
+            vars.into_iter().map(|(key, (_, mut ty))| {
+                let ty: &mut Option<Ty> = RefCell::get_mut(Rc::get_mut(&mut ty).unwrap());
+                (key, ty.take().unwrap())
+            }),
+        )?;
     }
     Ok(Ty::Var(resty))
 }

@@ -577,6 +577,10 @@ rec {
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-typesys; };
         dependencies = [
           {
+            name = "gardswag-varstack";
+            packageId = "gardswag-varstack";
+          }
+          {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];

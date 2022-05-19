@@ -1,7 +1,8 @@
 use gardswag_syntax as synt;
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
-use gardswag_typesys::{self as tysy, FreeVars, Ty, TyLit, TyVar};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use gardswag_typesys::{self as tysy, Ty, TyLit, TyVar};
+use gardswag_varstack::VarStack;
+use std::collections::BTreeMap;
 
 mod pattern;
 use self::pattern::{infer_match, PatternError};
@@ -15,21 +16,10 @@ pub enum Error {
     Pattern(synt::Offsetted<PatternError>),
 }
 
-#[derive(Clone, Debug)]
-pub struct Env {
-    pub vars: HashMap<String, tysy::Scheme>,
-}
-
-impl FreeVars for Env {
-    type In = TyVar;
-
-    fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
-        self.vars.fv(accu, do_add);
-    }
-}
+pub type Env<'s> = &'s VarStack<'s, tysy::Scheme>;
 
 pub fn infer_block(
-    env: &Env,
+    env: Env<'_>,
     ctx: &mut tysy::CollectContext,
     super_offset: usize,
     blk: &synt::Block,
@@ -67,7 +57,7 @@ fn maybe_new_tyvar_opt(offset: usize, t: Option<Ty>, ctx: &mut tysy::CollectCont
 }
 
 fn infer(
-    env: &Env,
+    env: Env<'_>,
     ctx: &mut tysy::CollectContext,
     expr: &synt::Expr,
     mut res_ty: Option<Ty>,
@@ -78,10 +68,18 @@ fn infer(
             let lev = ctx.peek_next_tyvar();
             let t1 = infer(env, ctx, rhs, None)?;
             let lev2 = ctx.peek_next_tyvar();
-            let mut env2 = env.clone();
-            let t2 = t1.generalize(&env2, lev..lev2);
-            env2.vars.insert(lhs.inner.clone(), t2);
-            infer_block(&env2, ctx, expr.offset, rest, None)
+            let t2 = t1.generalize(env, lev..lev2);
+            infer_block(
+                &VarStack {
+                    parent: Some(env),
+                    name: &*lhs.inner,
+                    value: t2,
+                },
+                ctx,
+                expr.offset,
+                rest,
+                None,
+            )
         }
         Ek::Block(blk) => infer_block(env, ctx, expr.offset, blk, None),
 
@@ -97,35 +95,36 @@ fn infer(
         }
 
         Ek::Lambda { arg, body } => {
-            let mut env2 = env.clone();
             let tv = Ty::Var(ctx.fresh_tyvar());
-            if !arg.is_empty() {
-                env2.vars.insert(
-                    arg.clone(),
-                    tysy::Scheme {
-                        forall: Default::default(),
-                        ty: tv.clone(),
-                    },
-                );
-            }
-            let x = infer(&env2, ctx, body, None)?;
+            let env2 = VarStack {
+                parent: Some(env),
+                name: arg,
+                value: tysy::Scheme {
+                    forall: Default::default(),
+                    ty: tv.clone(),
+                },
+            };
+            let x = infer(if arg.is_empty() { env } else { &env2 }, ctx, body, None)?;
             Ok(Ty::Arrow(Box::new(tv), Box::new(x)))
         }
 
         Ek::Fix { arg, body } => {
-            let mut env2 = env.clone();
             let tv = Ty::Var(maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx));
-            if !arg.is_empty() {
-                env2.vars.insert(
-                    arg.clone(),
-                    tysy::Scheme {
-                        forall: Default::default(),
-                        ty: tv.clone(),
-                    },
-                );
-            }
+            let env2 = VarStack {
+                parent: Some(env),
+                name: arg,
+                value: tysy::Scheme {
+                    forall: Default::default(),
+                    ty: tv.clone(),
+                },
+            };
             // unify {$tv -> x} & {$tv -> $tv}, inlined
-            let _ = infer(&env2, ctx, body, Some(tv.clone()))?;
+            let _ = infer(
+                if arg.is_empty() { env } else { &env2 },
+                ctx,
+                body,
+                Some(tv.clone()),
+            )?;
             Ok(tv)
         }
 
@@ -247,9 +246,8 @@ fn infer(
         Ek::Match { inp, cases } => infer_match(env, ctx, &*inp, &cases[..]),
 
         Ek::FormatString(fsexs) => {
-            let env = env.clone();
             for i in fsexs {
-                let t = infer(&env, ctx, i, None)?;
+                let t = infer(env, ctx, i, None)?;
                 let tv = maybe_new_tyvar(i.offset, t, ctx);
                 ctx.bind(
                     i.offset,
@@ -267,7 +265,7 @@ fn infer(
         }
 
         Ek::Identifier(id) => {
-            if let Some(x) = env.vars.get(id) {
+            if let Some(x) = env.find(id) {
                 Ok(x.instantiate(ctx))
             } else {
                 Err(Error::UndefVar(synt::Offsetted {
