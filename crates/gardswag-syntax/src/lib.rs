@@ -8,6 +8,7 @@
 )]
 #![deny(unused_variables)]
 #![feature(try_trait_v2)]
+#![feature(try_blocks)]
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -236,11 +237,7 @@ use ParseResult::*;
 
 impl<T, E> From<Option<Result<T, Offsetted<E>>>> for ParseResult<T, E> {
     fn from(x: Option<Result<T, Offsetted<E>>>) -> ParseResult<T, E> {
-        match x {
-            None => PNone,
-            Some(Ok(y)) => POk(y),
-            Some(Err(y)) => PErr(y),
-        }
+        try { x?? }
     }
 }
 
