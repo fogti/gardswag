@@ -38,7 +38,7 @@ pub enum ErrorKind {
     #[error("no lambda argument given")]
     NoLambdaArg,
 
-    #[error("invalid character in lamdba argument")]
+    #[error("invalid character '{0}' in lamdba argument")]
     InvalidLambdaChar(char),
 
     #[error("keyword as lambda argument")]
@@ -283,7 +283,7 @@ impl Iterator for Lexer<'_> {
                     // identifier
                     let s = self.consume_select(|i| i.is_xid_continue());
                     if let Some(fi) = s.chars().next() {
-                        if !fi.is_xid_start() {
+                        if !(matches!(fi, '_') || fi.is_xid_start()) {
                             Err(ErrorKind::InvalidLambdaChar(fi))
                         } else if s.parse::<Keyword>().is_ok() {
                             Err(ErrorKind::KeywordLambda)

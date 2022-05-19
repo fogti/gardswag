@@ -445,13 +445,7 @@ where
 
 fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
     use lex::TokenKind as Tk;
-    let Offsetted { offset, inner } = xtry!(lxr.next_if(|i| {
-        if let Ok(Offsetted { inner, .. }) = i {
-            matches!(inner, Tk::Identifier(_) | Tk::Dot | Tk::LParen)
-        } else {
-            true
-        }
-    }));
+    let Offsetted { offset, inner } = xtry!(lxr.next());
     match inner {
         Tk::Identifier(x) => POk(Pattern::Identifier(Offsetted {
             offset,
@@ -496,7 +490,10 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
                 inner
             },
         ),
-        _ => unreachable!(),
+        inner => PErr(Error {
+            offset: offset,
+            inner: ErrorKind::UnexpectedToken(Offsetted { offset, inner }),
+        }),
     }
 }
 

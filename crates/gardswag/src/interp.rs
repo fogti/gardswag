@@ -295,6 +295,8 @@ pub fn run<'a: 'envout + 'envin, 'envout, 'envin, 's>(
                                                 f,
                                                 &VarStack {
                                                     parent: None,
+                                                    // this may end up as "" (an empty string),
+                                                    // but that shouldn't lead to any misbehavoir
                                                     name: argname,
                                                     value: Value::Unit,
                                                 },
