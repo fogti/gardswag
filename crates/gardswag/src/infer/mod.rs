@@ -131,16 +131,40 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
         }
 
         Ek::Call { prim, arg } => {
-            let t_prim = infer(env, ctx, prim)?;
-            let env2 = env.clone();
-            let tv = Ty::Var(ctx.fresh_tyvar());
-            let t_arg = infer(&env2, ctx, arg)?;
-            ctx.unify(
-                expr.offset,
-                t_prim,
-                Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
-            );
-            Ok(tv)
+            // special-casing here is done in order to avoid some unnecessary
+            // tyvar allocations which otherwise clutter up cg listings
+            Ok(if let Ek::Tagger { key } = &prim.inner {
+                // optimized by 2x unfolding
+                let t_arg = infer(env, ctx, arg)?;
+                let tvout = ctx.fresh_tyvar();
+                ctx.bind(
+                    prim.offset,
+                    tvout,
+                    Tcg {
+                        kind: Some(Tcgk::TaggedUnion {
+                            partial: [(key.to_string(), t_arg)].into_iter().collect(),
+                        }),
+                        ..Default::default()
+                    },
+                );
+                Ty::Var(tvout)
+            } else {
+                let t_prim = infer(env, ctx, prim)?;
+                let t_arg = infer(&env, ctx, arg)?;
+                if let Ty::Arrow(tp_arg, tp_ret) = t_prim {
+                    // optimized by 1x unfolding
+                    ctx.unify(expr.offset, *tp_arg, t_arg);
+                    *tp_ret
+                } else {
+                    let tv = Ty::Var(ctx.fresh_tyvar());
+                    ctx.unify(
+                        expr.offset,
+                        t_prim,
+                        Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
+                    );
+                    tv
+                }
+            })
         }
 
         Ek::Record(rcd) => {
