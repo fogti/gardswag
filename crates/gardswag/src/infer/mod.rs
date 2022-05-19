@@ -1,6 +1,6 @@
 use gardswag_syntax as synt;
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
-use gardswag_typesys::{self as tysy, Substitutable, Ty, TyLit, TyVar};
+use gardswag_typesys::{self as tysy, FreeVars, Ty, TyLit, TyVar};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 mod pattern;
@@ -20,19 +20,11 @@ pub struct Env {
     pub vars: HashMap<String, tysy::Scheme>,
 }
 
-impl Substitutable for Env {
+impl FreeVars for Env {
     type In = TyVar;
-    type Out = Ty;
 
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         self.vars.fv(accu, do_add);
-    }
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&TyVar) -> Option<Ty>,
-    {
-        self.vars.apply(f);
     }
 }
 

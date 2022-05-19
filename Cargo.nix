@@ -458,36 +458,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
-      "enum_dispatch" = rec {
-        crateName = "enum_dispatch";
-        version = "0.3.8";
-        edition = "2018";
-        sha256 = "1jy9j640brwf0g6bq3lx55xs7v2aq5dkbxf1d8k13xkb8zqmkcqf";
-        procMacro = true;
-        authors = [
-          "Anton Lazarev <https://antonok.com>"
-        ];
-        dependencies = [
-          {
-            name = "once_cell";
-            packageId = "once_cell";
-          }
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "syn";
-            packageId = "syn";
-            features = [ "full" ];
-          }
-        ];
-
-      };
       "gardswag" = rec {
         crateName = "gardswag";
         version = "0.1.0";
@@ -606,10 +576,6 @@ rec {
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-typesys; };
         dependencies = [
-          {
-            name = "enum_dispatch";
-            packageId = "enum_dispatch";
-          }
           {
             name = "serde";
             packageId = "serde";

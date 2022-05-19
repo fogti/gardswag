@@ -1,26 +1,31 @@
 use core::cmp;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-/// trait which handles dealing with placeholder variables
-#[enum_dispatch::enum_dispatch]
-pub trait Substitutable {
+/// trait which handles the detection of placeholder variables
+pub trait FreeVars {
     type In: cmp::Eq + cmp::Ord;
-    type Out: std::clone::Clone;
-
     fn fv(&self, accu: &mut BTreeSet<Self::In>, do_add: bool);
+}
+
+/// trait which handles replacing placeholder variables
+pub trait Substitutable: FreeVars {
+    type Out: std::clone::Clone;
 
     fn apply<F>(&mut self, f: &F)
     where
         F: Fn(&Self::In) -> Option<Self::Out>;
 }
 
-impl<V: Substitutable> Substitutable for [V] {
+impl<V: FreeVars> FreeVars for [V] {
     type In = V::In;
-    type Out = V::Out;
 
     fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
         self.iter().for_each(|i| i.fv(accu, do_add))
     }
+}
+
+impl<V: Substitutable> Substitutable for [V] {
+    type Out = V::Out;
 
     fn apply<F>(&mut self, f: &F)
     where
@@ -30,14 +35,17 @@ impl<V: Substitutable> Substitutable for [V] {
     }
 }
 
-impl<V: Substitutable> Substitutable for Vec<V> {
+impl<V: FreeVars> FreeVars for Vec<V> {
     type In = V::In;
-    type Out = V::Out;
 
     #[inline]
     fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
         (**self).fv(accu, do_add)
     }
+}
+
+impl<V: Substitutable> Substitutable for Vec<V> {
+    type Out = V::Out;
 
     #[inline]
     fn apply<F>(&mut self, f: &F)
@@ -48,14 +56,17 @@ impl<V: Substitutable> Substitutable for Vec<V> {
     }
 }
 
-impl<V: Substitutable + cmp::Ord> Substitutable for BTreeSet<V> {
+impl<V: FreeVars + cmp::Ord> FreeVars for BTreeSet<V> {
     type In = V::In;
-    type Out = V::Out;
 
     #[inline]
     fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
         self.iter().for_each(|i| i.fv(accu, do_add))
     }
+}
+
+impl<V: Substitutable + cmp::Ord> Substitutable for BTreeSet<V> {
+    type Out = V::Out;
 
     fn apply<F>(&mut self, f: &F)
     where
@@ -71,13 +82,16 @@ impl<V: Substitutable + cmp::Ord> Substitutable for BTreeSet<V> {
     }
 }
 
-impl<K: cmp::Eq + cmp::Ord, V: Substitutable> Substitutable for BTreeMap<K, V> {
+impl<K: cmp::Eq + cmp::Ord, V: FreeVars> FreeVars for BTreeMap<K, V> {
     type In = V::In;
-    type Out = V::Out;
 
     fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
         self.values().for_each(|i| i.fv(accu, do_add))
     }
+}
+
+impl<K: cmp::Eq + cmp::Ord, V: Substitutable> Substitutable for BTreeMap<K, V> {
+    type Out = V::Out;
 
     fn apply<F>(&mut self, f: &F)
     where
@@ -87,13 +101,16 @@ impl<K: cmp::Eq + cmp::Ord, V: Substitutable> Substitutable for BTreeMap<K, V> {
     }
 }
 
-impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<K, V> {
+impl<K: core::hash::Hash + cmp::Eq, V: FreeVars> FreeVars for HashMap<K, V> {
     type In = V::In;
-    type Out = V::Out;
 
     fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
         self.values().for_each(|i| i.fv(accu, do_add))
     }
+}
+
+impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<K, V> {
+    type Out = V::Out;
 
     fn apply<F>(&mut self, f: &F)
     where

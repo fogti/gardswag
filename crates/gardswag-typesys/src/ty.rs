@@ -1,4 +1,4 @@
-use crate::Substitutable;
+use crate::{FreeVars, Substitutable};
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -83,9 +83,8 @@ impl fmt::Debug for Ty {
     }
 }
 
-impl Substitutable for Ty {
+impl FreeVars for Ty {
     type In = TyVar;
-    type Out = Self;
 
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         match self {
@@ -107,10 +106,14 @@ impl Substitutable for Ty {
             }
         }
     }
+}
+
+impl Substitutable for Ty {
+    type Out = Self;
 
     fn apply<F>(&mut self, f: &F)
     where
-        F: Fn(&Self::In) -> Option<Self::Out>,
+        F: Fn(&TyVar) -> Option<Self>,
     {
         match self {
             Ty::Literal(_) => {}
@@ -135,9 +138,8 @@ impl Substitutable for Ty {
     }
 }
 
-impl Substitutable for TyVar {
+impl FreeVars for TyVar {
     type In = Self;
-    type Out = Self;
 
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         if do_add {
@@ -146,6 +148,10 @@ impl Substitutable for TyVar {
             accu.remove(self);
         }
     }
+}
+
+impl Substitutable for TyVar {
+    type Out = Self;
 
     fn apply<F>(&mut self, f: &F)
     where
@@ -174,7 +180,7 @@ impl Ty {
     /// by recording all inner type variables
     pub fn generalize<E>(self, depenv: &E, rng: core::ops::Range<TyVar>) -> Scheme
     where
-        E: Substitutable<In = TyVar>,
+        E: FreeVars<In = TyVar>,
     {
         let mut forall = rng.collect();
         //self.fv(&mut forall, true);
@@ -195,9 +201,8 @@ impl Scheme {
     }
 }
 
-impl Substitutable for Scheme {
+impl FreeVars for Scheme {
     type In = TyVar;
-    type Out = Ty;
 
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         if do_add {
@@ -213,6 +218,10 @@ impl Substitutable for Scheme {
             self.ty.fv(accu, false);
         }
     }
+}
+
+impl Substitutable for Scheme {
+    type Out = Ty;
 
     fn apply<F>(&mut self, f: &F)
     where

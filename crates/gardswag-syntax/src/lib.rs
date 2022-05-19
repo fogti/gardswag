@@ -491,7 +491,7 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
             },
         ),
         inner => PErr(Error {
-            offset: offset,
+            offset,
             inner: ErrorKind::UnexpectedToken(Offsetted { offset, inner }),
         }),
     }

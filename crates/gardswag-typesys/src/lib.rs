@@ -13,7 +13,7 @@ mod ty;
 pub use ty::{Scheme, Ty, TyLit, TyVar};
 
 mod substitutable;
-pub use substitutable::Substitutable;
+pub use substitutable::{FreeVars, Substitutable};
 
 /// type constraint data structures
 mod collect;

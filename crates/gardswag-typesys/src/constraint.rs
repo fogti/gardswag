@@ -1,4 +1,4 @@
-use crate::{Substitutable, Ty, TyVar};
+use crate::{FreeVars, Substitutable, Ty, TyVar};
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};

@@ -1,4 +1,4 @@
-use crate::{Substitutable, Ty, TyVar};
+use crate::{FreeVars, Substitutable, Ty, TyVar};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -56,9 +56,8 @@ impl Tcg {
     }
 }
 
-impl Substitutable for Tcg {
+impl FreeVars for Tcg {
     type In = TyVar;
-    type Out = Ty;
 
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         if let Some(x) = &self.ty {
@@ -74,6 +73,10 @@ impl Substitutable for Tcg {
             x.fv(accu, do_add);
         }
     }
+}
+
+impl Substitutable for Tcg {
+    type Out = Ty;
 
     fn apply<F>(&mut self, f: &F)
     where
@@ -98,9 +101,8 @@ impl Substitutable for Tcg {
     }
 }
 
-impl Substitutable for Tcgk {
+impl FreeVars for Tcgk {
     type In = TyVar;
-    type Out = Ty;
 
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         match self {
@@ -124,6 +126,10 @@ impl Substitutable for Tcgk {
             }
         }
     }
+}
+
+impl Substitutable for Tcgk {
+    type Out = Ty;
 
     fn apply<F>(&mut self, f: &F)
     where
@@ -165,9 +171,8 @@ pub enum Constraint {
     Bind(TyVar, Tcg),
 }
 
-impl Substitutable for Constraint {
+impl FreeVars for Constraint {
     type In = TyVar;
-    type Out = TyVar;
 
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         match self {
@@ -185,6 +190,10 @@ impl Substitutable for Constraint {
             }
         }
     }
+}
+
+impl Substitutable for Constraint {
+    type Out = TyVar;
 
     fn apply<F>(&mut self, f: &F)
     where

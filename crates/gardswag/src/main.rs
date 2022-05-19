@@ -137,7 +137,7 @@ fn main_check(
     ctx2.self_resolve()?;
     debug!("type constraints, as far as possible, solved");
     // generalize the type
-    use gardswag_typesys::Substitutable;
+    use gardswag_typesys::{FreeVars as _, Substitutable as _};
     t.apply(&|&i| ctx2.on_apply(i));
     //let tg = t.generalize(&env);
     let tg = gardswag_typesys::Scheme {
