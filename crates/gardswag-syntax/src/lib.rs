@@ -343,7 +343,6 @@ fn handle_wildcard(s: String) -> String {
 enum DotIntermed<T> {
     Identifier(String),
     Record(BTreeMap<String, T>),
-    Tagged { key: String, value: T },
 }
 
 impl From<DotIntermed<Expr>> for ExprKind {
@@ -351,10 +350,6 @@ impl From<DotIntermed<Expr>> for ExprKind {
         match x {
             DotIntermed::Identifier(x) => ExprKind::Identifier(x),
             DotIntermed::Record(rcd) => ExprKind::Record(rcd),
-            DotIntermed::Tagged { key, value } => ExprKind::Tagged {
-                key,
-                value: Box::new(value),
-            },
         }
     }
 }
@@ -367,10 +362,6 @@ impl From<Offsetted<DotIntermed<Pattern>>> for Pattern {
                 inner: handle_wildcard(inner),
             }),
             DotIntermed::Record(inner) => Pattern::Record(Offsetted { offset, inner }),
-            DotIntermed::Tagged { key, value } => Pattern::Tagged {
-                key: Offsetted { offset, inner: key },
-                value: Box::new(value),
-            },
         }
     }
 }
@@ -450,39 +441,6 @@ where
     .into())
 }
 
-/// helper function for parsing dot terms, e.g. records and variants
-/// * record: ` .{ key1: value1; key2: value2; } `
-/// * tagged: `.key value1`
-fn parse_dot_helper<'a, T, F>(
-    super_offset: usize,
-    lxr: &mut PeekLexer<'a>,
-    f: F,
-) -> ParseResult<T, ErrorKind>
-where
-    F: Fn(&mut PeekLexer<'a>) -> ParseResult<T, ErrorKind>,
-    T: From<Offsetted<DotIntermed<T>>>,
-{
-    use lex::{Token, TokenKind as Tk};
-    match try_parse_record(super_offset, lxr, &f) {
-        PNone => {}
-        y => return y,
-    }
-    let Offsetted { inner: key, offset } = xtry!(expect_token_noeof(
-        super_offset,
-        lxr,
-        |Token { inner, offset }| match inner {
-            Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
-            _ => Err(Token { inner, offset }),
-        }
-    ));
-    let value = xtry!(unexpect_eoe(offset, f(lxr)));
-    POk((Offsetted {
-        offset,
-        inner: DotIntermed::Tagged { key, value },
-    })
-    .into())
-}
-
 fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
     use lex::TokenKind as Tk;
     let Offsetted { offset, inner } = xtry!(lxr.next_if(|i| {
@@ -497,7 +455,25 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern, ErrorKind> {
             offset,
             inner: handle_wildcard(x),
         })),
-        Tk::Dot => parse_dot_helper(offset, lxr, parse_pattern),
+        Tk::Dot => {
+            match try_parse_record(offset, lxr, parse_pattern) {
+                PNone => {}
+                y => return y,
+            }
+            let Offsetted { inner: key, offset } = xtry!(expect_token_noeof(
+                offset,
+                lxr,
+                |Offsetted { inner, offset }| match inner {
+                    Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
+                    _ => Err(Offsetted { inner, offset }),
+                }
+            ));
+            let value = xtry!(unexpect_eoe(offset, parse_pattern(lxr)));
+            POk(Pattern::Tagged {
+                key: Offsetted { offset, inner: key },
+                value: Box::new(value),
+            })
+        },
         Tk::LParen => POk(
             if lxr
                 .next_if(|i| {
@@ -696,7 +672,24 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr, ErrorKind> {
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::StringEnd));
             Ok(ExprKind::FormatString(parts))
         }
-        Tk::Dot => Ok(xtry!(parse_dot_helper(offset, lxr, parse_expr_greedy)).inner),
+        Tk::Dot => {
+            match try_parse_record(offset, lxr, &parse_expr_greedy) {
+                PNone => {
+                    let Offsetted { inner: key, offset } = xtry!(expect_token_noeof(
+                        offset,
+                        lxr,
+                        |Offsetted { inner, offset }| match inner {
+                            Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
+                            _ => Err(Offsetted { inner, offset }),
+                        }
+                    ));
+                    let value = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+                    Ok(ExprKind::Tagged { key, value: Box::new(value) })
+                }
+                PErr(e) => return PErr(e),
+                POk(y) => Ok(y.inner),
+            }
+        }
         _ => {
             return PErr(Offsetted {
                 offset,
