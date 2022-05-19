@@ -4,10 +4,14 @@ and their expected semantics.
 The language is strongly typed, but uses type inference and
 let-polymorphism to work around the roughest edges.
 It currently offers no way to explicitly specify types,
-but this might change in the future
+but this might change in the future.
 (e.g. when a case is found where the type inference makes
  type checking too loose and causes the type check phase
  to take way too much time, or yield slightly "off" types)
+The type system currently uses structural typing only,
+which should suffice in many cases
+(although it makes type confusion ala.
+  "same name, different meaning" more likely)
 
 The language is currently evaluated strictly (non-lazy), but this
 might change in the future when deemed necessary.
