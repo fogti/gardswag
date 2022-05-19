@@ -364,7 +364,7 @@ pub fn infer_match(
     inp: &synt::Expr,
     cases: &[Case],
 ) -> Result<Ty, Error> {
-    let inp_t = infer(env, ctx, inp)?;
+    let inp_t = infer(env, ctx, inp, None)?;
 
     // build annotatable case list
     let mut cases: Vec<_> = cases
@@ -396,8 +396,7 @@ pub fn infer_match(
                 },
             );
         }
-        let tmpty = infer(&env2, ctx, body)?;
-        ctx.unify(body.offset, Ty::Var(resty), tmpty);
+        let _ = infer(&env2, ctx, body, Some(Ty::Var(resty)))?;
     }
     Ok(Ty::Var(resty))
 }

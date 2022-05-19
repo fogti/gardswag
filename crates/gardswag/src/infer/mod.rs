@@ -39,16 +39,21 @@ impl Substitutable for Env {
 pub fn infer_block(
     env: &Env,
     ctx: &mut tysy::CollectContext,
+    super_offset: usize,
     blk: &synt::Block,
+    res_ty: Option<Ty>,
 ) -> Result<Ty, Error> {
-    let mut ret = Ty::Literal(TyLit::Unit);
     for i in &blk.stmts {
-        let _ = infer(env, ctx, i)?;
+        let _ = infer(env, ctx, i, None)?;
     }
     if let Some(x) = &blk.term {
-        ret = infer(env, ctx, x)?;
+        infer(env, ctx, x, res_ty)
+    } else {
+        if let Some(x) = res_ty {
+            ctx.unify(super_offset, x, Ty::Literal(TyLit::Unit));
+        }
+        Ok(Ty::Literal(TyLit::Unit))
     }
-    Ok(ret)
 }
 
 fn maybe_new_tyvar(offset: usize, t: Ty, ctx: &mut tysy::CollectContext) -> TyVar {
@@ -69,30 +74,33 @@ fn maybe_new_tyvar_opt(offset: usize, t: Option<Ty>, ctx: &mut tysy::CollectCont
     }
 }
 
-fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result<Ty, Error> {
+fn infer(
+    env: &Env,
+    ctx: &mut tysy::CollectContext,
+    expr: &synt::Expr,
+    mut res_ty: Option<Ty>,
+) -> Result<Ty, Error> {
     use synt::ExprKind as Ek;
     let ret = match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {
             let lev = ctx.peek_next_tyvar();
-            let t1 = infer(env, ctx, rhs)?;
+            let t1 = infer(env, ctx, rhs, None)?;
             let lev2 = ctx.peek_next_tyvar();
             let mut env2 = env.clone();
             let t2 = t1.generalize(&env2, lev..lev2);
             env2.vars.insert(lhs.inner.clone(), t2);
-            infer_block(&env2, ctx, rest)
+            infer_block(&env2, ctx, expr.offset, rest, None)
         }
-        Ek::Block(blk) => infer_block(env, ctx, blk),
+        Ek::Block(blk) => infer_block(env, ctx, expr.offset, blk, None),
 
         Ek::If {
             cond,
             then,
             or_else,
         } => {
-            let x_cond = infer(env, ctx, cond)?;
-            let x_then = infer_block(env, ctx, then)?;
-            let x_else = infer_block(env, ctx, or_else)?;
-            ctx.unify(expr.offset, x_cond, Ty::Literal(TyLit::Bool));
-            ctx.unify(expr.offset, x_then.clone(), x_else);
+            let _ = infer(env, ctx, cond, Some(Ty::Literal(TyLit::Bool)))?;
+            let x_then = infer_block(env, ctx, expr.offset, then, res_ty.take())?;
+            let _ = infer_block(env, ctx, expr.offset, or_else, Some(x_then.clone()))?;
             Ok(x_then)
         }
 
@@ -108,13 +116,13 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
                     },
                 );
             }
-            let x = infer(&env2, ctx, body)?;
+            let x = infer(&env2, ctx, body, None)?;
             Ok(Ty::Arrow(Box::new(tv), Box::new(x)))
         }
 
         Ek::Fix { arg, body } => {
             let mut env2 = env.clone();
-            let tv = Ty::Var(ctx.fresh_tyvar());
+            let tv = Ty::Var(maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx));
             if !arg.is_empty() {
                 env2.vars.insert(
                     arg.clone(),
@@ -124,9 +132,8 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
                     },
                 );
             }
-            let x = infer(&env2, ctx, body)?;
             // unify {$tv -> x} & {$tv -> $tv}, inlined
-            ctx.unify(expr.offset, x, tv.clone());
+            let _ = infer(&env2, ctx, body, Some(tv.clone()))?;
             Ok(tv)
         }
 
@@ -135,8 +142,8 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
             // tyvar allocations which otherwise clutter up cg listings
             Ok(if let Ek::Tagger { key } = &prim.inner {
                 // optimized by 2x unfolding
-                let t_arg = infer(env, ctx, arg)?;
-                let tvout = ctx.fresh_tyvar();
+                let t_arg = infer(env, ctx, arg, None)?;
+                let tvout = maybe_new_tyvar_opt(prim.offset, res_ty.take(), ctx);
                 ctx.bind(
                     prim.offset,
                     tvout,
@@ -149,38 +156,37 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
                 );
                 Ty::Var(tvout)
             } else {
-                let t_prim = infer(env, ctx, prim)?;
-                let t_arg = infer(&env, ctx, arg)?;
+                let t_prim = infer(env, ctx, prim, None)?;
+                let t_arg = infer(env, ctx, arg, None)?;
                 if let Ty::Arrow(tp_arg, tp_ret) = t_prim {
                     // optimized by 1x unfolding
                     ctx.unify(expr.offset, *tp_arg, t_arg);
                     *tp_ret
                 } else {
-                    let tv = Ty::Var(ctx.fresh_tyvar());
+                    let tvout = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
                     ctx.unify(
                         expr.offset,
                         t_prim,
-                        Ty::Arrow(Box::new(t_arg), Box::new(tv.clone())),
+                        Ty::Arrow(Box::new(t_arg), Box::new(Ty::Var(tvout))),
                     );
-                    tv
+                    Ty::Var(tvout)
                 }
             })
         }
 
         Ek::Record(rcd) => {
             let mut m = BTreeMap::default();
-            let env = env.clone();
             for (k, v) in rcd {
-                let t = infer(&env, ctx, v)?;
+                let t = infer(env, ctx, v, None)?;
                 m.insert(k.clone(), t);
             }
             Ok(Ty::Record(m))
         }
 
         Ek::Dot { prim, key } => {
-            let t = infer(env, ctx, prim)?;
+            let t = infer(env, ctx, prim, None)?;
             let tvinp = maybe_new_tyvar(expr.offset, t, ctx);
-            let tvout = Ty::Var(ctx.fresh_tyvar());
+            let tvout = Ty::Var(maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx));
             ctx.bind(
                 expr.offset,
                 tvinp,
@@ -198,9 +204,9 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
         }
 
         Ek::Update { orig, ovrd } => {
-            let t_orig = infer(env, ctx, orig)?;
-            let t_ovrd = infer(env, ctx, ovrd)?;
-            let tvout = ctx.fresh_tyvar();
+            let t_orig = infer(env, ctx, orig, None)?;
+            let t_ovrd = infer(env, ctx, ovrd, None)?;
+            let tvout = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
             let tvorig = maybe_new_tyvar(expr.offset, t_orig, ctx);
             let tvovrd = maybe_new_tyvar(expr.offset, t_ovrd, ctx);
             let tcg_listen = Tcg {
@@ -251,7 +257,7 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
         Ek::FormatString(fsexs) => {
             let env = env.clone();
             for i in fsexs {
-                let t = infer(&env, ctx, i)?;
+                let t = infer(&env, ctx, i, None)?;
                 let tv = maybe_new_tyvar(i.offset, t, ctx);
                 ctx.bind(
                     i.offset,
@@ -285,5 +291,8 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
     };
     let ret = ret?;
     tracing::trace!("infer @{}:{} -> {}", expr.offset, expr.inner.typ(), ret);
+    if let Some(x) = res_ty {
+        ctx.unify(expr.offset, ret.clone(), x);
+    }
     Ok(ret)
 }

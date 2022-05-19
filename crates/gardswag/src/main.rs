@@ -94,8 +94,8 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
             .collect(),
     };
 
-    let mut t = infer::infer_block(&env, &mut ctx, &parsed)?;
-    debug!("type check ok");
+    let mut t = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;
+    debug!("type inference constraints generated");
     debug!("=T> {}", t);
     debug!("--constraints-- {}", ctx.constraints.len());
     for v in &ctx.constraints {
@@ -105,6 +105,7 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     ctx2.solve(ctx)
         .map_err(|(offset, e)| anyhow::anyhow!("@{}: {}", offset, e))?;
     ctx2.self_resolve()?;
+    debug!("type constraints, as far as possible, solved");
     // generalize the type
     use gardswag_typesys::Substitutable;
     t.apply(&|&i| ctx2.on_apply(i));
