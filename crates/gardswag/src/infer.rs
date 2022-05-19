@@ -87,6 +87,13 @@ fn maybe_new_tyvar(offset: usize, t: Ty, ctx: &mut tysy::CollectContext) -> TyVa
     }
 }
 
+fn maybe_new_tyvar_opt(offset: usize, t: Option<Ty>, ctx: &mut tysy::CollectContext) -> TyVar {
+    match t {
+        Some(t) => maybe_new_tyvar(offset, t, ctx),
+        None => ctx.fresh_tyvar(),
+    }
+}
+
 #[derive(Clone, Debug)]
 struct PatNode<'a> {
     offset: usize,
@@ -254,114 +261,131 @@ fn patterns2nodetree<'a, I: Iterator<Item = (usize, &'a synt::Pattern)>>(
 fn infer_pat(
     env: &Env,
     ctx: &mut tysy::CollectContext,
-    inp: Ty,
+    inp: Option<Ty>,
     PatNode {
         offset,
         kind,
         wildcard_witn,
     }: PatNode<'_>,
 ) -> Result<Ty, Error> {
-    Ok(if let Some(kind) = kind {
+    let ret = if let Some(kind) = kind {
         #[derive(Clone)]
         enum MaybeWldc {
             Wildcard(TyVar),
             Normal(Ty),
         }
-        let inptv = if wildcard_witn {
-            MaybeWldc::Wildcard(maybe_new_tyvar(offset, inp, ctx))
+        let already_known_ty = matches!(kind, Pnk::Unit);
+        let inptv = if already_known_ty {
+            inp.map(MaybeWldc::Normal)
+        } else if wildcard_witn {
+            Some(MaybeWldc::Wildcard(maybe_new_tyvar_opt(offset, inp, ctx)))
         } else {
-            MaybeWldc::Normal(inp)
+            Some(MaybeWldc::Normal(
+                inp.unwrap_or_else(|| Ty::Var(ctx.fresh_tyvar())),
+            ))
         };
         use PatNodeKind as Pnk;
         match kind {
             Pnk::TaggedUnion(tud) => {
                 let pre = tud
                     .into_iter()
-                    .map(|(key, i)| {
-                        let ttv = Ty::Var(ctx.fresh_tyvar());
-                        Ok((key.to_string(), infer_pat(env, ctx, ttv, i)?))
-                    })
+                    .map(|(key, i)| Ok((key.to_string(), infer_pat(env, ctx, None, i)?)))
                     .collect::<Result<_, _>>()?;
-                match inptv.clone() {
-                    MaybeWldc::Wildcard(inptv) => ctx.bind(
-                        offset,
-                        inptv,
-                        Tcg {
-                            kind: Some(Tcgk::TaggedUnion { partial: pre }),
-                            ..Tcg::default()
-                        },
-                    ),
-                    MaybeWldc::Normal(inp) => ctx.unify(offset, inp, Ty::TaggedUnion(pre)),
+                match inptv.unwrap() {
+                    MaybeWldc::Wildcard(inptv) => {
+                        ctx.bind(
+                            offset,
+                            inptv,
+                            Tcg {
+                                kind: Some(Tcgk::TaggedUnion { partial: pre }),
+                                ..Tcg::default()
+                            },
+                        );
+                        Ty::Var(inptv)
+                    }
+                    MaybeWldc::Normal(inp) => {
+                        ctx.unify(offset, inp.clone(), Ty::TaggedUnion(pre));
+                        inp
+                    }
                 }
             }
             Pnk::Record(rcd) => {
                 let pre = rcd
                     .into_iter()
-                    .map(|(key, i)| {
-                        let ttv = Ty::Var(ctx.fresh_tyvar());
-                        Ok((key.to_string(), infer_pat(env, ctx, ttv, i)?))
-                    })
+                    .map(|(key, i)| Ok((key.to_string(), infer_pat(env, ctx, None, i)?)))
                     .collect::<Result<_, _>>()?;
-                match inptv.clone() {
-                    MaybeWldc::Wildcard(inptv) => ctx.bind(
-                        offset,
-                        inptv,
-                        Tcg {
-                            kind: Some(Tcgk::Record {
-                                partial: pre,
-                                update_info: None,
-                            }),
-                            ..Tcg::default()
-                        },
-                    ),
-                    MaybeWldc::Normal(inp) => ctx.unify(offset, inp, Ty::Record(pre)),
+                match inptv.unwrap() {
+                    MaybeWldc::Wildcard(inptv) => {
+                        ctx.bind(
+                            offset,
+                            inptv,
+                            Tcg {
+                                kind: Some(Tcgk::Record {
+                                    partial: pre,
+                                    update_info: None,
+                                }),
+                                ..Tcg::default()
+                            },
+                        );
+                        Ty::Var(inptv)
+                    }
+                    MaybeWldc::Normal(inp) => {
+                        ctx.unify(offset, inp.clone(), Ty::Record(pre));
+                        inp
+                    }
                 }
             }
             Pnk::Unit => {
-                let inp = match inptv.clone() {
-                    MaybeWldc::Wildcard(inptv) => Ty::Var(inptv),
-                    MaybeWldc::Normal(inp) => inp,
-                };
-                ctx.unify(offset, inp, Ty::Literal(TyLit::Unit));
+                if let Some(inptv) = inptv {
+                    ctx.unify(
+                        offset,
+                        match inptv {
+                            MaybeWldc::Wildcard(inptv) => Ty::Var(inptv),
+                            MaybeWldc::Normal(inp) => inp,
+                        },
+                        Ty::Literal(TyLit::Unit),
+                    );
+                }
+                Ty::Literal(TyLit::Unit)
             }
-        }
-        match inptv {
-            MaybeWldc::Normal(inp) => inp,
-            MaybeWldc::Wildcard(inptv) => Ty::Var(inptv),
         }
     } else {
         // wildcard
-        inp
-    })
+        inp.unwrap_or_else(|| Ty::Var(ctx.fresh_tyvar()))
+    };
+    Ok(ret)
 }
 
 fn infer_case_pat(
     env: &mut BTreeMap<String, (usize, Ty)>,
     ctx: &mut tysy::CollectContext,
+    super_offset: usize,
     pat: &synt::Pattern,
+    inp_ty: Option<Ty>,
 ) -> Result<Ty, PatternError> {
     use synt::Pattern;
-    match pat {
+    let ret = match pat {
         Pattern::Identifier(x) => {
             use std::collections::btree_map::Entry;
-            let ttv = ctx.fresh_tyvar();
+            let retty = match inp_ty {
+                Some(x) => x,
+                None => Ty::Var(ctx.fresh_tyvar()),
+            };
             match env.entry(x.inner.to_string()) {
                 Entry::Vacant(vac) => {
-                    vac.insert((x.offset, Ty::Var(ttv)));
+                    vac.insert((x.offset, retty.clone()));
+                    Ok(retty)
                 }
-                Entry::Occupied(occ) => {
-                    return Err(PatternError::IdentAmbiguous {
-                        ident: x.inner.to_string(),
-                        offset1: occ.get().0,
-                        offset2: x.offset,
-                    });
-                }
+                Entry::Occupied(occ) => Err(PatternError::IdentAmbiguous {
+                    ident: x.inner.to_string(),
+                    offset1: occ.get().0,
+                    offset2: x.offset,
+                }),
             }
-            Ok(Ty::Var(ttv))
         }
         Pattern::Tagged { key, value } => {
-            let ttv = ctx.fresh_tyvar();
-            let t_value = infer_case_pat(env, ctx, &*value)?;
+            let ttv = maybe_new_tyvar_opt(key.offset, inp_ty, ctx);
+            let t_value = infer_case_pat(env, ctx, key.offset, &*value, None)?;
             ctx.bind(
                 key.offset,
                 ttv,
@@ -375,10 +399,10 @@ fn infer_case_pat(
             Ok(Ty::Var(ttv))
         }
         Pattern::Record(rcd) => {
-            let ttv = ctx.fresh_tyvar();
+            let ttv = maybe_new_tyvar_opt(rcd.offset, inp_ty, ctx);
             let mut rcm = BTreeMap::default();
             for (key, value) in &rcd.inner {
-                let t_value = infer_case_pat(env, ctx, value)?;
+                let t_value = infer_case_pat(env, ctx, rcd.offset, value, None)?;
                 rcm.insert(key.to_string(), t_value);
             }
             ctx.bind(
@@ -394,8 +418,14 @@ fn infer_case_pat(
             );
             Ok(Ty::Var(ttv))
         }
-        Pattern::Unit => Ok(Ty::Literal(TyLit::Unit)),
-    }
+        Pattern::Unit => {
+            if let Some(x) = inp_ty {
+                ctx.unify(super_offset, x, Ty::Literal(TyLit::Unit));
+            }
+            Ok(Ty::Literal(TyLit::Unit))
+        }
+    };
+    ret
 }
 
 fn infer_match(
@@ -410,20 +440,21 @@ fn infer_match(
     let patnode = patterns2nodetree(cases.iter().map(|i| (i.body.offset, &i.pat)))?;
 
     // inspect normalized pattern tree
-    let inp_t = infer_pat(env, ctx, inp_t, patnode)?;
+    let inp_t = infer_pat(env, ctx, Some(inp_t), patnode)?;
 
     // inspect bodies
     let resty = ctx.fresh_tyvar();
     for synt::Case { pat, body } in cases {
         let mut env2 = env.clone();
         let mut tmpenv = Default::default();
-        let inp_t2 = infer_case_pat(&mut tmpenv, ctx, pat).map_err(|inner| {
-            Error::Pattern(synt::Offsetted {
-                offset: body.offset,
-                inner,
-            })
-        })?;
-        ctx.unify(body.offset, inp_t.clone(), inp_t2);
+        let _ = infer_case_pat(&mut tmpenv, ctx, body.offset, pat, Some(inp_t.clone())).map_err(
+            |inner| {
+                Error::Pattern(synt::Offsetted {
+                    offset: body.offset,
+                    inner,
+                })
+            },
+        )?;
         for (key, (_, ty)) in tmpenv {
             env2.vars.insert(
                 key,
@@ -441,7 +472,7 @@ fn infer_match(
 
 fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result<Ty, Error> {
     use synt::ExprKind as Ek;
-    match &expr.inner {
+    let ret = match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {
             let lev = ctx.peek_next_tyvar();
             let t1 = infer(env, ctx, rhs)?;
@@ -624,5 +655,8 @@ fn infer(env: &Env, ctx: &mut tysy::CollectContext, expr: &synt::Expr) -> Result
         Ek::Boolean(_) => Ok(Ty::Literal(TyLit::Bool)),
         Ek::Integer(_) => Ok(Ty::Literal(TyLit::Int)),
         Ek::PureString(_) => Ok(Ty::Literal(TyLit::String)),
-    }
+    };
+    let ret = ret?;
+    tracing::trace!("infer @{}:{} -> {}", expr.offset, expr.inner.typ(), ret);
+    Ok(ret)
 }

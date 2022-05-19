@@ -1,7 +1,11 @@
-let option = .{
+let x_bind = \f \m match m | .None () => .None () | .Some x => f x;
+(* restrict enforces that x is an option *)
+let restrict = x_bind (\x .Some x);
+let f_bind = \f2 \f (x_bind (\x (f x |> f2)));
+let some = \x .Some x;
+.{
   none = .None ();
-  some = \x .Some x;
-  map = \f \m match m | .None () => .None () | .Some x => .Some (f x);
-  bind = \f \m match m | .None () => .None () | .Some x => f x;
-};
-option.map (\x (std.plus x 1)) (option.some 1)
+  some;
+  map  = f_bind some;
+  bind = f_bind restrict;
+}

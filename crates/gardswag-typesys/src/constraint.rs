@@ -53,12 +53,14 @@ impl Context {
             k.apply(&|&l| self.on_apply(l));
             k
         });
-        tracing::trace!(%i, %j, ?ret, "on_apply");
+        //tracing::trace!(%i, %j, ?ret, "on_apply");
         Some(if let Some(x) = ret { x } else { Ty::Var(j) })
     }
 
     pub fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
-        tracing::trace!(%a, %b, ?self, "unify");
+        //tracing::trace!(%a, %b, ?self, "unify");
+        // self clutters the output too much
+        tracing::trace!(%a, %b, "unify");
         match (a, b) {
             (Ty::Arrow(l1, r1), Ty::Arrow(l2, r2)) => {
                 self.unify(l1, l2)?;
@@ -673,16 +675,33 @@ impl Context {
             }
         }
         use std::collections::btree_map::Entry;
-        let rhs_tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
-        let z = self.g.insert(rhs_tcgid, tcg);
-        assert_eq!(z, None);
-        tracing::debug!("bound ${} <- {}", v, rhs_tcgid);
+        // lazy group allocation
+        fn rhs_tcgid(
+            tycg_cnt: &mut core::ops::RangeFrom<usize>,
+            g: &mut BTreeMap<TyConstraintGroupId, TyGroup>,
+            v: TyVar,
+            tcg: TyGroup,
+        ) -> TyConstraintGroupId {
+            let rhs_tcgid = TyConstraintGroupId(tycg_cnt.next().unwrap());
+            let z = g.insert(rhs_tcgid, tcg);
+            assert_eq!(z, None);
+            tracing::debug!("bound ${} <- {}", v, rhs_tcgid);
+            rhs_tcgid
+        }
         match self.m.entry(v) {
             Entry::Occupied(occ) => {
                 let lhs_tcgid = *occ.get();
+                if let Some(lhs_ty) = self.g.get(&lhs_tcgid).unwrap().resolved() {
+                    // avoid unnecessary allocation of tcgid
+                    if let Some(rhs_ty) = tcg.ty {
+                        return self.unify(&lhs_ty.clone(), &rhs_ty);
+                    }
+                }
+                let rhs_tcgid = rhs_tcgid(&mut self.tycg_cnt, &mut self.g, v, tcg);
                 self.unify_constraint_groups(lhs_tcgid, rhs_tcgid)
             }
             Entry::Vacant(y) => {
+                let rhs_tcgid = rhs_tcgid(&mut self.tycg_cnt, &mut self.g, v, tcg);
                 y.insert(rhs_tcgid);
                 if self.g.values().flat_map(|i| &i.listeners).any(|&i| i == v) {
                     self.notify_cgs(core::iter::once(rhs_tcgid).collect())?;

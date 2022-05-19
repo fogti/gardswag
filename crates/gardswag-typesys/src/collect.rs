@@ -257,7 +257,9 @@ impl Context {
     }
 
     pub fn unify(&mut self, offset: usize, a: Ty, b: Ty) {
-        self.constraints.push((offset, Constraint::Unify(a, b)));
+        if a != b {
+            self.constraints.push((offset, Constraint::Unify(a, b)));
+        }
     }
 
     #[inline]

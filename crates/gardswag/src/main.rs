@@ -97,9 +97,9 @@ fn main_check(dat: &str) -> anyhow::Result<(gardswag_syntax::Block, gardswag_typ
     let mut t = infer::infer_block(&env, &mut ctx, &parsed)?;
     debug!("type check ok");
     debug!("=T> {}", t);
-    trace!("--constraints-- {}", ctx.constraints.len());
+    debug!("--constraints-- {}", ctx.constraints.len());
     for v in &ctx.constraints {
-        trace!("\t{:?}", v);
+        debug!("\t{:?}", v);
     }
     let mut ctx2 = gardswag_typesys::constraint::Context::default();
     ctx2.solve(ctx)
