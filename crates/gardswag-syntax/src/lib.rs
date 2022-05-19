@@ -375,6 +375,81 @@ impl From<Offsetted<DotIntermed<Pattern>>> for Pattern {
     }
 }
 
+/// helper function for parsing dot record terms
+/// ` .{ key1: value1; key2: value2; } `
+fn try_parse_record<'a, T, F>(
+    super_offset: usize,
+    lxr: &mut PeekLexer<'a>,
+    f: F,
+) -> ParseResult<T, ErrorKind>
+where
+    F: Fn(&mut PeekLexer<'a>) -> ParseResult<T, ErrorKind>,
+    T: From<Offsetted<DotIntermed<T>>>,
+{
+    use lex::{Token, TokenKind as Tk};
+    let backtrack = lxr.clone();
+    let Offsetted { inner, offset } = xtry!(unexpect_eoe(super_offset, lxr.next().into()));
+    if inner != Tk::LcBracket {
+        *lxr = backtrack;
+        return PNone;
+    }
+    core::mem::drop(backtrack);
+    let mut rcd = BTreeMap::new();
+    while let Some(Ok(Token {
+        offset,
+        inner: Tk::Identifier(id),
+    })) = lxr.next_if(|i| {
+        matches!(
+            i,
+            Ok(Token {
+                inner: Tk::Identifier(_),
+                ..
+            })
+        )
+    }) {
+        let dcd = xtry!(expect_token_noeof(
+            offset,
+            lxr,
+            |lex::Token { inner, offset }| {
+                match inner {
+                    Tk::EqSym => Ok(true),
+                    Tk::SemiColon => Ok(false),
+                    _ => Err(lex::Token { inner, offset }),
+                }
+            }
+        ));
+        let value = if dcd {
+            let value = xtry!(unexpect_eoe(offset, f(lxr)));
+            let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
+            value
+        } else {
+            (Offsetted {
+                offset,
+                inner: DotIntermed::Identifier(id.clone()),
+            })
+            .into()
+        };
+        use std::collections::btree_map::Entry;
+        match rcd.entry(id) {
+            Entry::Vacant(v) => {
+                v.insert(value);
+            }
+            Entry::Occupied(occ) => {
+                return PErr(Offsetted {
+                    offset,
+                    inner: ErrorKind::DuplicateKey(occ.key().to_string()),
+                });
+            }
+        }
+    }
+    let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
+    POk((Offsetted {
+        offset,
+        inner: DotIntermed::Record(rcd),
+    })
+    .into())
+}
+
 /// helper function for parsing dot terms, e.g. records and variants
 /// * record: ` .{ key1: value1; key2: value2; } `
 /// * tagged: `.key value1`
@@ -388,86 +463,22 @@ where
     T: From<Offsetted<DotIntermed<T>>>,
 {
     use lex::{Token, TokenKind as Tk};
-    enum CaseTy {
-        Record,
-        Tag(String),
+    match try_parse_record(super_offset, lxr, &f) {
+        PNone => {}
+        y => return y,
     }
-    let Offsetted { inner, offset } = xtry!(expect_token_noeof(
+    let Offsetted { inner: key, offset } = xtry!(expect_token_noeof(
         super_offset,
         lxr,
         |Token { inner, offset }| match inner {
-            Tk::LcBracket => Ok(Offsetted {
-                inner: CaseTy::Record,
-                offset
-            }),
-            Tk::Identifier(x) => Ok(Offsetted {
-                inner: CaseTy::Tag(x),
-                offset
-            }),
+            Tk::Identifier(x) => Ok(Offsetted { inner: x, offset }),
             _ => Err(Token { inner, offset }),
         }
     ));
-    let intermed = match inner {
-        CaseTy::Record => {
-            let mut rcd = BTreeMap::new();
-            while let Some(Ok(Token {
-                offset,
-                inner: Tk::Identifier(id),
-            })) = lxr.next_if(|i| {
-                matches!(
-                    i,
-                    Ok(Token {
-                        inner: Tk::Identifier(_),
-                        ..
-                    })
-                )
-            }) {
-                let dcd = xtry!(expect_token_noeof(
-                    offset,
-                    lxr,
-                    |lex::Token { inner, offset }| {
-                        match inner {
-                            Tk::EqSym => Ok(true),
-                            Tk::SemiColon => Ok(false),
-                            _ => Err(lex::Token { inner, offset }),
-                        }
-                    }
-                ));
-                let value = if dcd {
-                    let value = xtry!(unexpect_eoe(offset, f(lxr)));
-                    let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
-                    value
-                } else {
-                    (Offsetted {
-                        offset,
-                        inner: DotIntermed::Identifier(id.clone()),
-                    })
-                    .into()
-                };
-                use std::collections::btree_map::Entry;
-                match rcd.entry(id) {
-                    Entry::Vacant(v) => {
-                        v.insert(value);
-                    }
-                    Entry::Occupied(occ) => {
-                        return PErr(Offsetted {
-                            offset,
-                            inner: ErrorKind::DuplicateKey(occ.key().to_string()),
-                        });
-                    }
-                }
-            }
-            let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
-            DotIntermed::Record(rcd)
-        }
-        CaseTy::Tag(key) => {
-            let value = xtry!(unexpect_eoe(offset, f(lxr)));
-            DotIntermed::Tagged { key, value }
-        }
-    };
+    let value = xtry!(unexpect_eoe(offset, f(lxr)));
     POk((Offsetted {
         offset,
-        inner: intermed,
+        inner: DotIntermed::Tagged { key, value },
     })
     .into())
 }
