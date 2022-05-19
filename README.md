@@ -36,3 +36,14 @@ but instead might support sockets in the future (tbd).
 * `socket` (tbd)
 * tagged unions (create a tagged values using `.<tagname> <expr>`)
 * records (create using `.{ <key> = <value>; <inherit_key>; }`)
+
+## TODO
+
+* union partialify operator
+  (turns an open or closed tagged union into a new open one)
+  used to avoid "cloning matches"
+  (`match x | .a y => .a y | .b y => .b y (* ... *)`)
+* recursive types,
+  to make compile-time unbounded data structures possible
+  (where we only know the size/depth at runtime)
+* sockets or plugins
