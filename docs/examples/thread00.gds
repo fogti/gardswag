@@ -1,0 +1,9 @@
+match std.make_chan ()
+  | .{ send; recv; }
+    => {
+      std.spawn_thread (\_ {
+        std.stdio.write("Hi\n");
+        std.chan_send () send;
+      });
+      std.chan_recv recv
+    }
