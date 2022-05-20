@@ -548,12 +548,12 @@ rec {
             packageId = "thiserror";
           }
           {
-            name = "unicode-normalization";
-            packageId = "unicode-normalization";
+            name = "unicode-ident";
+            packageId = "unicode-ident";
           }
           {
-            name = "unicode-xid";
-            packageId = "unicode-xid";
+            name = "unicode-normalization";
+            packageId = "unicode-normalization";
           }
         ];
         devDependencies = [
@@ -806,9 +806,9 @@ rec {
       };
       "libc" = rec {
         crateName = "libc";
-        version = "0.2.125";
+        version = "0.2.126";
         edition = "2015";
-        sha256 = "0axwhkyv58vx7i1sri4cqlnj77f0cn6pmbcip2zyjvcgd6pd45jr";
+        sha256 = "0diqlpap4pq81284368vffjwvp9jg9hp2x03s7hlk2yj3icmm79l";
         authors = [
           "The Rust Project Developers"
         ];
@@ -901,9 +901,9 @@ rec {
       };
       "once_cell" = rec {
         crateName = "once_cell";
-        version = "1.10.0";
+        version = "1.11.0";
         edition = "2018";
-        sha256 = "1fgclb93az22gq5lmqsm84kilx1p1xpij559bmvx2mn1x8vy1ww7";
+        sha256 = "1jl3sww9gdbg1spc804x28wa4n0gbckwchpm6ggynfn570xrh43v";
         authors = [
           "Aleksey Kladov <aleksey.kladov@gmail.com>"
         ];
@@ -911,7 +911,8 @@ rec {
           "alloc" = [ "race" ];
           "atomic-polyfill" = [ "dep:atomic-polyfill" ];
           "default" = [ "std" ];
-          "parking_lot" = [ "dep:parking_lot" ];
+          "parking_lot" = [ "parking_lot_core" ];
+          "parking_lot_core" = [ "dep:parking_lot_core" ];
           "std" = [ "alloc" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "race" "std" ];
@@ -1022,17 +1023,17 @@ rec {
       };
       "proc-macro2" = rec {
         crateName = "proc-macro2";
-        version = "1.0.38";
+        version = "1.0.39";
         edition = "2018";
-        sha256 = "1aj8mil84prgjga536bk45q17hcigxaz7b8q4bx7b4ackn7b89wh";
+        sha256 = "0vzm2m7rq6sym9w73ca3hpc5m9wkwm500hyya6bgrdr5j1b2ajy5";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
           "Alex Crichton <alex@alexcrichton.com>"
         ];
         dependencies = [
           {
-            name = "unicode-xid";
-            packageId = "unicode-xid";
+            name = "unicode-ident";
+            packageId = "unicode-ident";
           }
         ];
         features = {
@@ -1536,9 +1537,9 @@ rec {
       };
       "syn" = rec {
         crateName = "syn";
-        version = "1.0.94";
+        version = "1.0.95";
         edition = "2018";
-        sha256 = "0jnzc2wkhkw50q0r322iyi7h01sp1kby9q2v7l8nkkgb37lk6zm0";
+        sha256 = "0hprqgqywlv4z9piq6ygjh0shq7xfkxkc8braafz6949mcb63bzv";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
         ];
@@ -1555,8 +1556,8 @@ rec {
             usesDefaultFeatures = false;
           }
           {
-            name = "unicode-xid";
-            packageId = "unicode-xid";
+            name = "unicode-ident";
+            packageId = "unicode-ident";
           }
         ];
         features = {
@@ -1964,6 +1965,16 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "ansi" "ansi_term" "default" "env-filter" "fmt" "lazy_static" "matchers" "regex" "registry" "sharded-slab" "smallvec" "std" "thread_local" "tracing" "tracing-log" ];
       };
+      "unicode-ident" = rec {
+        crateName = "unicode-ident";
+        version = "1.0.0";
+        edition = "2018";
+        sha256 = "1vlksh7rxnkakdc5qiwxix6fng9a5cw9v8dfnkf5xsx1zdlg0anj";
+        authors = [
+          "David Tolnay <dtolnay@gmail.com>"
+        ];
+
+      };
       "unicode-normalization" = rec {
         crateName = "unicode-normalization";
         version = "0.1.19";
@@ -1984,20 +1995,6 @@ rec {
           "default" = [ "std" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
-      };
-      "unicode-xid" = rec {
-        crateName = "unicode-xid";
-        version = "0.2.3";
-        edition = "2015";
-        sha256 = "015zxvwk0is9ls3v016krn5gpr5rk5smyzg6c9j58439ckrm2zlm";
-        authors = [
-          "erick.tryzelaar <erick.tryzelaar@gmail.com>"
-          "kwantam <kwantam@gmail.com>"
-          "Manish Goregaokar <manishsmail@gmail.com>"
-        ];
-        features = {
-        };
-        resolvedDefaultFeatures = [ "default" ];
       };
       "valuable" = rec {
         crateName = "valuable";

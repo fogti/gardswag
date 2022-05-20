@@ -1,5 +1,6 @@
 use crate::Offsetted;
 use serde::{Deserialize, Serialize};
+use unicode_ident::{is_xid_continue, is_xid_start};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Lexer<'a> {
@@ -161,7 +162,6 @@ impl Iterator for Lexer<'_> {
 
     fn next(&mut self) -> Option<Result<Token, Error>> {
         use unicode_normalization::UnicodeNormalization as _;
-        use unicode_xid::UnicodeXID as _;
 
         if let Some(x) = self.buffer.take() {
             return Some(x);
@@ -281,9 +281,9 @@ impl Iterator for Lexer<'_> {
                 c @ '\\' | c @ 'λ' => {
                     self.consume(c.len_utf8());
                     // identifier
-                    let s = self.consume_select(|i| i.is_xid_continue());
+                    let s = self.consume_select(is_xid_continue);
                     if let Some(fi) = s.chars().next() {
-                        if !(matches!(fi, '_') || fi.is_xid_start()) {
+                        if !(matches!(s, "_") || is_xid_start(fi)) {
                             Err(ErrorKind::InvalidLambdaChar(fi))
                         } else if s.parse::<Keyword>().is_ok() {
                             Err(ErrorKind::KeywordLambda)
@@ -295,9 +295,9 @@ impl Iterator for Lexer<'_> {
                     }
                 }
 
-                c if c.is_xid_start() => {
+                c if is_xid_start(c) => {
                     // identifier
-                    let s = self.consume_select(|i| i.is_xid_continue());
+                    let s = self.consume_select(is_xid_continue);
                     assert!(!s.is_empty());
                     // check if it is a keyword
                     Ok(if let Ok(kw) = s.parse::<Keyword>() {
