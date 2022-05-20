@@ -33,13 +33,13 @@ impl Builtin {
 
 #[derive(Clone, Debug)]
 #[must_use = "the interpreter shouldn't blindly discard values"]
-pub enum Value<'a> {
+pub enum Value<'a, X> {
     Unit,
     Boolean(bool),
     Integer(i32),
     PureString(String),
 
-    Record(BTreeMap<&'a str, Value<'a>>),
+    Record(BTreeMap<&'a str, Value<'a, X>>),
 
     Tagger {
         key: &'a str,
@@ -47,28 +47,28 @@ pub enum Value<'a> {
 
     Tagged {
         key: &'a str,
-        value: Box<Value<'a>>,
+        value: Box<Value<'a, X>>,
     },
 
     Builtin {
         f: Builtin,
-        args: Vec<Value<'a>>,
+        args: Vec<Value<'a, X>>,
     },
     Lambda {
         argname: &'a str,
-        f: &'a Expr,
-        stacksave: BTreeMap<String, Value<'a>>,
+        f: &'a Expr<X>,
+        stacksave: BTreeMap<&'a str, Value<'a, X>>,
     },
     FixLambda {
         argname: &'a str,
-        f: &'a Expr,
+        f: &'a Expr<X>,
     },
 
-    ChanSend(crossbeam_channel::Sender<Value<'a>>),
-    ChanRecv(crossbeam_channel::Receiver<Value<'a>>),
+    ChanSend(crossbeam_channel::Sender<Value<'a, X>>),
+    ChanRecv(crossbeam_channel::Receiver<Value<'a, X>>),
 }
 
-impl<'a> core::cmp::PartialEq for Value<'a> {
+impl<'a, X: core::cmp::PartialEq> core::cmp::PartialEq for Value<'a, X> {
     fn eq(&self, oth: &Self) -> bool {
         use Value as V;
         match (self, oth) {
@@ -104,7 +104,7 @@ impl<'a> core::cmp::PartialEq for Value<'a> {
     }
 }
 
-impl<'a> From<Builtin> for Value<'a> {
+impl<'a, X> From<Builtin> for Value<'a, X> {
     fn from(x: Builtin) -> Self {
         Value::Builtin {
             f: x,
@@ -118,11 +118,14 @@ pub struct Env<'envout, 'envin> {
     pub thscope: &'envout thread::Scope<'envin>,
 }
 
-pub fn run_block<'a: 'envout + 'envin, 'envout, 'envin, 's>(
+pub trait XInterp: Clone + core::fmt::Debug + core::cmp::PartialEq + core::marker::Sync {}
+impl<T: Clone + core::fmt::Debug + core::cmp::PartialEq + core::marker::Sync> XInterp for T {}
+
+pub fn run_block<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
     env: Env<'envout, 'envin>,
-    blk: &'a Block,
-    stack: &'s VarStack<'s, Value<'a>>,
-) -> Value<'a> {
+    blk: &'a Block<X>,
+    stack: &'s VarStack<'s, 'a, Value<'a, X>>,
+) -> Value<'a, X> {
     for i in &blk.stmts {
         let _ = run(env, i, stack);
     }
@@ -136,15 +139,14 @@ pub fn run_block<'a: 'envout + 'envin, 'envout, 'envin, 's>(
 /// this function has a difficult signature,
 /// because we really want to avoid all unnecessary allocations,
 /// because it otherwise would be prohibitively costly...
-fn run_stacksave<'a: 'envout + 'envin, 'envout, 'envin, 's, I, S>(
+fn run_stacksave<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, I, X: XInterp>(
     env: Env<'envout, 'envin>,
-    expr: &'a Expr,
-    stack: &'s VarStack<'s, Value<'a>>,
+    expr: &'a Expr<X>,
+    stack: &'s VarStack<'s, 'a, Value<'a, X>>,
     mut stacksave: I,
-) -> Value<'a>
+) -> Value<'a, X>
 where
-    I: Iterator<Item = (S, Value<'a>)>,
-    S: AsRef<str>,
+    I: Iterator<Item = (&'a str, Value<'a, X>)>,
 {
     match stacksave.next() {
         Some((name, value)) => run_stacksave(
@@ -152,7 +154,7 @@ where
             expr,
             &VarStack {
                 parent: Some(stack),
-                name: name.as_ref(),
+                name,
                 value,
             },
             stacksave,
@@ -161,10 +163,10 @@ where
     }
 }
 
-fn run_pat<'a, 'b>(
-    coll: &mut BTreeMap<&'a str, &'b Value<'a>>,
-    pat: &'a synt::Pattern,
-    inp: &'b Value<'a>,
+fn run_pat<'a, 'b, X: core::fmt::Debug>(
+    coll: &mut BTreeMap<&'a str, &'b Value<'a, X>>,
+    pat: &'a synt::Pattern<X>,
+    inp: &'b Value<'a, X>,
 ) -> Option<()> {
     tracing::trace!("pat {:?}", pat);
 
@@ -182,7 +184,7 @@ fn run_pat<'a, 'b>(
             } if key.inner == *got_key => run_pat(coll, value, got_value),
             _ => None,
         },
-        Pattern::Record(synt::Offsetted { inner: rcpat, .. }) => match inp {
+        Pattern::Record(synt::Annot { inner: rcpat, .. }) => match inp {
             Value::Record(rcm) if rcpat.len() <= rcm.len() => {
                 for (key, value) in rcpat {
                     let got_value = rcm.get(&**key)?;
@@ -199,11 +201,11 @@ fn run_pat<'a, 'b>(
     }
 }
 
-pub fn run<'a: 'envout + 'envin, 'envout, 'envin, 's>(
+pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
     env: Env<'envout, 'envin>,
-    expr: &'a Expr,
-    stack: &'s VarStack<'s, Value<'a>>,
-) -> Value<'a> {
+    expr: &'a Expr<X>,
+    stack: &'s VarStack<'s, 'a, Value<'a, X>>,
+) -> Value<'a, X> {
     tracing::debug!("expr@{} : {}", expr.offset, expr.inner.typ());
     tracing::trace!("stack={:?}", stack);
     use gardswag_syntax::ExprKind as Ek;
@@ -238,7 +240,7 @@ pub fn run<'a: 'envout + 'envin, 'envout, 'envin, 's>(
                 if stacksave.contains_key(k) || k == arg || !body.inner.is_var_accessed(k) {
                     continue;
                 }
-                stacksave.insert(k.to_string(), v.clone());
+                stacksave.insert(k, (*v).clone());
             }
 
             Value::Lambda {
@@ -455,7 +457,7 @@ pub fn run<'a: 'envout + 'envin, 'envout, 'envin, 's>(
                         env,
                         &i.body,
                         stack,
-                        coll.into_iter().map(|(key, value)| (key, value.clone())),
+                        coll.into_iter().map(|(key, value)| (key, (*value).clone())),
                     ));
                     break;
                 }
@@ -463,7 +465,7 @@ pub fn run<'a: 'envout + 'envin, 'envout, 'envin, 's>(
             res.expect("disformed match")
         }
         Ek::Identifier(id) => {
-            let r = stack.find(id).unwrap().clone();
+            let r = stack.find(id).unwrap();
             if let Value::FixLambda { argname, f } = r {
                 run(
                     env,
@@ -475,7 +477,7 @@ pub fn run<'a: 'envout + 'envin, 'envout, 'envin, 's>(
                     },
                 )
             } else {
-                r
+                (*r).clone()
             }
         }
         Ek::Unit => Value::Unit,

@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag/src/main.rs
+source: crates/gardswag/src/tests.rs
 expression: x
 ---
 - stmts: []
@@ -18,14 +18,40 @@ expression: x
                     - offset: 43
                       inner:
                         PureString: what
+                      extra:
+                        ty:
+                          Literal: String
+                        ident_multi: 0
+                extra:
+                  ty:
+                    Literal: String
+                  ident_multi: 0
               b:
                 offset: 72
                 inner:
                   Integer: 1
+                extra:
+                  ty:
+                    Literal: Int
+                  ident_multi: 0
               c:
                 offset: 97
                 inner:
                   Record: {}
+                extra:
+                  ty:
+                    Record: {}
+                  ident_multi: 0
+          extra:
+            ty:
+              Record:
+                a:
+                  Literal: String
+                b:
+                  Literal: Int
+                c:
+                  Record: {}
+            ident_multi: 0
         ovrd:
           offset: 123
           inner:
@@ -37,10 +63,34 @@ expression: x
                     - offset: 149
                       inner:
                         PureString: "no"
+                      extra:
+                        ty:
+                          Literal: String
+                        ident_multi: 0
+                extra:
+                  ty:
+                    Literal: String
+                  ident_multi: 0
               c:
                 offset: 176
                 inner:
                   Integer: 50
+                extra:
+                  ty:
+                    Literal: Int
+                  ident_multi: 0
+          extra:
+            ty:
+              Record:
+                b:
+                  Literal: String
+                c:
+                  Literal: Int
+            ident_multi: 0
+    extra:
+      ty:
+        Var: 7
+      ident_multi: 0
 - forall: []
   ty:
     Record:

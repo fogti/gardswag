@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag-syntax/src/lib.rs
+source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
 ---
 stmts:
@@ -18,12 +18,17 @@ stmts:
                       offset: 0
                       inner:
                         Identifier: std
+                      extra: ~
                     key:
                       offset: 4
                       inner: stdio
+                      extra: ~
+                extra: ~
               key:
                 offset: 10
                 inner: write
+                extra: ~
+          extra: ~
         arg:
           offset: 16
           inner:
@@ -31,5 +36,8 @@ stmts:
               - offset: 17
                 inner:
                   PureString: "Hello world!\n"
+                extra: ~
+          extra: ~
+    extra: ~
 term: ~
 

@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag-syntax/src/lib.rs
+source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"\n                let id = \\x x;\n                let torben = id 1;\n                .{\n                   id;\n                   id2 = id;\n                   torben;\n                }\n            \"#).unwrap()"
 ---
 stmts: []
@@ -10,6 +10,7 @@ term:
       lhs:
         offset: 21
         inner: id
+        extra: ~
       rhs:
         offset: 26
         inner:
@@ -19,6 +20,8 @@ term:
               offset: 29
               inner:
                 Identifier: x
+              extra: ~
+        extra: ~
       rest:
         stmts: []
         term:
@@ -28,6 +31,7 @@ term:
               lhs:
                 offset: 52
                 inner: torben
+                extra: ~
               rhs:
                 offset: 61
                 inner:
@@ -36,10 +40,13 @@ term:
                       offset: 61
                       inner:
                         Identifier: id
+                      extra: ~
                     arg:
                       offset: 64
                       inner:
                         Integer: 1
+                      extra: ~
+                extra: ~
               rest:
                 stmts: []
                 term:
@@ -50,12 +57,18 @@ term:
                         offset: 105
                         inner:
                           Identifier: id
+                        extra: ~
                       id2:
                         offset: 134
                         inner:
                           Identifier: id
+                        extra: ~
                       torben:
                         offset: 157
                         inner:
                           Identifier: torben
+                        extra: ~
+                  extra: ~
+          extra: ~
+  extra: ~
 

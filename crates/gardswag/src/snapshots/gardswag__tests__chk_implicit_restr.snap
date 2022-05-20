@@ -15,6 +15,7 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
               lhs:
                 offset: 40
                 inner: id
+                extra: ~
               rhs:
                 offset: 45
                 inner:
@@ -24,6 +25,16 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                       offset: 48
                       inner:
                         Identifier: y
+                      extra:
+                        ty:
+                          Var: 6
+                        ident_multi: 0
+                extra:
+                  ty:
+                    Arrow:
+                      - Var: 6
+                      - Var: 6
+                  ident_multi: 1
               rest:
                 stmts: []
                 term:
@@ -34,10 +45,20 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                         offset: 88
                         inner:
                           Identifier: id
+                        extra:
+                          ty:
+                            Arrow:
+                              - Var: 7
+                              - Var: 7
+                          ident_multi: 0
                       x:
                         offset: 110
                         inner:
                           Identifier: x
+                        extra:
+                          ty:
+                            Var: 5
+                          ident_multi: 0
                       y:
                         offset: 135
                         inner:
@@ -50,6 +71,56 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                                     offset: 137
                                     inner:
                                       Identifier: x
+                                    extra:
+                                      ty:
+                                        Var: 5
+                                      ident_multi: 0
+                              extra:
+                                ty:
+                                  Var: 5
+                                ident_multi: 0
+                        extra:
+                          ty:
+                            Literal: String
+                          ident_multi: 0
+                  extra:
+                    ty:
+                      Record:
+                        id:
+                          Arrow:
+                            - Var: 7
+                            - Var: 7
+                        x:
+                          Var: 5
+                        y:
+                          Literal: String
+                    ident_multi: 0
+          extra:
+            ty:
+              Record:
+                id:
+                  Arrow:
+                    - Var: 7
+                    - Var: 7
+                x:
+                  Var: 5
+                y:
+                  Literal: String
+            ident_multi: 1
+    extra:
+      ty:
+        Arrow:
+          - Var: 5
+          - Record:
+              id:
+                Arrow:
+                  - Var: 7
+                  - Var: 7
+              x:
+                Var: 5
+              y:
+                Literal: String
+      ident_multi: 2
 - forall:
     - ty: ~
       oneof:

@@ -1,6 +1,5 @@
 ---
-source: crates/gardswag-syntax/src/lib.rs
-assertion_line: 821
+source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"\n                .{\n                  a = 1;\n                  b = \"what\";\n                  c = .{};\n                } // .{\n                  b = 50;\n                  c = \"now\";\n                }\n            \"#).unwrap()"
 ---
 stmts: []
@@ -16,6 +15,7 @@ term:
               offset: 42
               inner:
                 Integer: 1
+              extra: ~
             b:
               offset: 67
               inner:
@@ -23,10 +23,14 @@ term:
                   - offset: 68
                     inner:
                       PureString: what
+                    extra: ~
+              extra: ~
             c:
               offset: 97
               inner:
                 Record: {}
+              extra: ~
+        extra: ~
       ovrd:
         offset: 123
         inner:
@@ -35,6 +39,7 @@ term:
               offset: 148
               inner:
                 Integer: 50
+              extra: ~
             c:
               offset: 174
               inner:
@@ -42,4 +47,8 @@ term:
                   - offset: 175
                     inner:
                       PureString: now
+                    extra: ~
+              extra: ~
+        extra: ~
+  extra: ~
 

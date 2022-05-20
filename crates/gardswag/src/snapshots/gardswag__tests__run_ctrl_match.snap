@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag/src/main.rs
+source: crates/gardswag/src/tests.rs
 expression: x
 ---
 - stmts: []
@@ -16,20 +16,39 @@ expression: x
                 inner:
                   Tagger:
                     key: this_is_a_variant
+                extra:
+                  ty:
+                    Arrow:
+                      - Var: 5
+                      - Var: 6
+                  ident_multi: 0
               arg:
                 offset: 25
                 inner:
                   Integer: 1
+                extra:
+                  ty:
+                    Literal: Int
+                  ident_multi: 0
+          extra:
+            ty:
+              Var: 6
+            ident_multi: 0
         cases:
           - pat:
               Tagged:
                 key:
                   offset: 30
                   inner: this_is_a_variant
+                  extra: ~
                 value:
                   Identifier:
                     offset: 48
                     inner: x
+                    extra:
+                      ty:
+                        Var: 7
+                      ident_multi: 1
             body:
               offset: 56
               inner:
@@ -46,17 +65,118 @@ expression: x
                                 offset: 53
                                 inner:
                                   Identifier: std
+                                extra:
+                                  ty:
+                                    Record:
+                                      chan_recv:
+                                        Arrow:
+                                          - ChanRecv:
+                                              Var: 13
+                                          - TaggedUnion:
+                                              None:
+                                                Literal: Unit
+                                              Some:
+                                                Var: 13
+                                      chan_send:
+                                        Arrow:
+                                          - Var: 12
+                                          - Arrow:
+                                              - ChanSend:
+                                                  Var: 12
+                                              - Literal: Bool
+                                      eq:
+                                        Arrow:
+                                          - Var: 9
+                                          - Arrow:
+                                              - Var: 10
+                                              - Literal: Bool
+                                      leq:
+                                        Arrow:
+                                          - Literal: Int
+                                          - Arrow:
+                                              - Literal: Int
+                                              - Literal: Bool
+                                      make_chan:
+                                        Arrow:
+                                          - Literal: Unit
+                                          - Record:
+                                              recv:
+                                                ChanRecv:
+                                                  Var: 11
+                                              send:
+                                                ChanSend:
+                                                  Var: 11
+                                      minus:
+                                        Arrow:
+                                          - Literal: Int
+                                          - Arrow:
+                                              - Literal: Int
+                                              - Literal: Int
+                                      mult:
+                                        Arrow:
+                                          - Literal: Int
+                                          - Arrow:
+                                              - Literal: Int
+                                              - Literal: Int
+                                      not:
+                                        Arrow:
+                                          - Literal: Bool
+                                          - Literal: Bool
+                                      plus:
+                                        Arrow:
+                                          - Literal: Int
+                                          - Arrow:
+                                              - Literal: Int
+                                              - Literal: Int
+                                      spawn_thread:
+                                        Arrow:
+                                          - Arrow:
+                                              - Literal: Unit
+                                              - Literal: Unit
+                                          - Literal: Unit
+                                      stdio:
+                                        Record:
+                                          write:
+                                            Arrow:
+                                              - Literal: String
+                                              - Literal: Unit
+                                  ident_multi: 0
                               key:
                                 offset: 57
                                 inner: plus
+                                extra: ~
+                          extra:
+                            ty:
+                              Var: 15
+                            ident_multi: 0
                         arg:
                           offset: 62
                           inner:
                             Identifier: x
+                          extra:
+                            ty:
+                              Var: 7
+                            ident_multi: 0
+                    extra:
+                      ty:
+                        Var: 16
+                      ident_multi: 0
                   arg:
                     offset: 64
                     inner:
                       Integer: 1
+                    extra:
+                      ty:
+                        Literal: Int
+                      ident_multi: 0
+              extra:
+                ty:
+                  Var: 8
+                ident_multi: 0
+    extra:
+      ty:
+        Var: 8
+      ident_multi: 0
 - forall: []
   ty:
     Literal: Int

@@ -1,22 +1,22 @@
 use core::iter::once;
-use gardswag_syntax::{self as synt, Case, Expr, Offsetted, Pattern as Pat};
+use gardswag_syntax::{self as synt, Annot, AnnotFmap, Case, Expr, Pattern as Pat};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
 use gardswag_typesys::{self as tysy, CollectContext, Ty, TyLit, TyVar};
 use gardswag_varstack::VarStack;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use super::{infer, maybe_new_tyvar_opt, Env, Error};
+use super::{infer, maybe_new_tyvar_opt, Env, Error, InferExtra};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PatternError {
     #[error("unreachable pattern: {0:?}")]
-    Unreachable(Pat),
+    Unreachable(Pat<()>),
 
     #[error("unreachable pattern: {0}")]
     Unreachable2(String),
 
     #[error("pattern kind mismatch: expected {expected}, got {got:?}")]
-    KindMismatchSingle { expected: String, got: Pat },
+    KindMismatchSingle { expected: String, got: Pat<()> },
 
     #[error("pattern kind mismatch: lhs {lhs}, rhs {rhs}")]
     KindMismatchMerge { lhs: String, rhs: String },
@@ -37,8 +37,8 @@ type ICaseVars<'a> = BTreeMap<&'a str, (usize, Rc<RefCell<Option<Ty>>>)>;
 #[derive(Clone, Debug)]
 struct ICase<'a> {
     vars: ICaseVars<'a>,
-    pat: &'a Pat,
-    body: &'a Expr,
+    pat: &'a Pat<()>,
+    body: &'a Expr<()>,
 }
 
 #[derive(Clone, Debug)]
@@ -118,14 +118,14 @@ impl<'a> PatNodeKind<'a> {
 fn pattern2node<'a>(
     vars: &mut ICaseVars<'a>,
     offset: usize,
-    pat: &'a Pat,
+    pat: &'a Pat<()>,
 ) -> Result<PatNode<'a>, Error> {
     let kind = match pat {
         Pat::Identifier(x) => {
             use std::collections::btree_map::Entry;
             return match vars.entry(&*x.inner) {
                 Entry::Vacant(vac) => {
-                    let t_x = Rc::new(RefCell::new(None));
+                    let t_x = Default::default();
                     vac.insert((x.offset, Rc::clone(&t_x)));
                     Ok(PatNode {
                         offset,
@@ -133,13 +133,14 @@ fn pattern2node<'a>(
                         wildcard_witn: Some(t_x),
                     })
                 }
-                Entry::Occupied(occ) => Err(Error::Pattern(Offsetted {
+                Entry::Occupied(occ) => Err(Error::Pattern(Annot {
                     offset,
                     inner: PatternError::IdentAmbiguous {
                         ident: x.inner.to_string(),
                         offset1: occ.get().0,
                         offset2: x.offset,
                     },
+                    extra: (),
                 })),
             };
         }
@@ -162,7 +163,7 @@ fn pattern2node<'a>(
     })
 }
 
-fn cases2nodetree<'a>(cases: &mut [ICase<'a>]) -> Result<PatNode<'a>, Error> {
+fn cases2nodetree<'c, 'a>(cases: &'c mut [ICase<'a>]) -> Result<PatNode<'a>, Error> {
     let mut cases = cases.iter_mut();
 
     // build case tree, first detect type
@@ -174,9 +175,10 @@ fn cases2nodetree<'a>(cases: &mut [ICase<'a>]) -> Result<PatNode<'a>, Error> {
             (tmp.offset, kind)
         } else {
             return if let Some(ICase { body, pat, .. }) = cases.next() {
-                Err(Error::Pattern(Offsetted {
+                Err(Error::Pattern(Annot {
                     offset: body.offset,
-                    inner: PatternError::Unreachable(pat.clone()),
+                    inner: PatternError::Unreachable(pat.clone().map(&mut |_| ())),
+                    extra: (),
                 }))
             } else {
                 Ok(tmp)
@@ -188,65 +190,78 @@ fn cases2nodetree<'a>(cases: &mut [ICase<'a>]) -> Result<PatNode<'a>, Error> {
     for ICase { vars, body, pat } in &mut cases {
         use std::collections::btree_map::Entry;
         let offset = body.offset;
-        let pat = &**pat;
+        let pat = &*pat;
         match (pat, &mut ret) {
             (_, Pnk::Unit) => {
-                return Err(Error::Pattern(Offsetted {
+                return Err(Error::Pattern(Annot {
                     offset,
-                    inner: PatternError::Unreachable(pat.clone()),
+                    inner: PatternError::Unreachable((**pat).clone().map(&mut |_| ())),
+                    extra: (),
                 }));
             }
             (Pat::Identifier(x), _) => match vars.entry(&x.inner) {
                 Entry::Vacant(vac) => {
-                    let t_x = Rc::new(RefCell::new(None));
+                    let t_x = Default::default();
                     vac.insert((x.offset, Rc::clone(&t_x)));
                     wildcard_witn = Some(t_x);
                     break;
                 }
                 Entry::Occupied(occ) => {
-                    return Err(Error::Pattern(Offsetted {
+                    return Err(Error::Pattern(Annot {
                         offset,
                         inner: PatternError::IdentAmbiguous {
                             ident: x.inner.to_string(),
                             offset1: occ.get().0,
                             offset2: x.offset,
                         },
+                        extra: (),
                     }));
                 }
             },
             (Pat::Tagged { key, value }, Pnk::TaggedUnion(tupat)) => {
-                let subpnt = pattern2node(vars, offset, &**value)?;
+                let subpnt = pattern2node(vars, offset, &*value)?;
                 match tupat.entry(&key.inner) {
                     Entry::Vacant(vac) => {
                         vac.insert(subpnt);
                     }
                     Entry::Occupied(occ) => {
-                        occ.into_mut()
-                            .push(subpnt)
-                            .map_err(|inner| Error::Pattern(Offsetted { offset, inner }))?;
+                        occ.into_mut().push(subpnt).map_err(|inner| {
+                            Error::Pattern(Annot {
+                                offset,
+                                inner,
+                                extra: (),
+                            })
+                        })?;
                     }
                 }
             }
             (Pat::Record(rcinp), Pnk::Record(rcpat)) if rcinp.inner.len() == rcpat.len() => {
                 let rcinpk = pattern2node(vars, offset, pat)?.kind;
-                ret.push(rcinpk.unwrap())
-                    .map_err(|inner| Error::Pattern(Offsetted { offset, inner }))?;
+                ret.push(rcinpk.unwrap()).map_err(|inner| {
+                    Error::Pattern(Annot {
+                        offset,
+                        inner,
+                        extra: (),
+                    })
+                })?;
             }
             (got, expected) => {
-                return Err(Error::Pattern(Offsetted {
+                return Err(Error::Pattern(Annot {
                     offset,
                     inner: PatternError::KindMismatchSingle {
                         expected: format!("{:?}", expected),
-                        got: got.clone(),
+                        got: (**got).clone().map(&mut |_| ()),
                     },
+                    extra: (),
                 }));
             }
         }
     }
     if let Some(ICase { body, pat, .. }) = cases.next() {
-        Err(Error::Pattern(Offsetted {
+        Err(Error::Pattern(Annot {
             offset: body.offset,
-            inner: PatternError::Unreachable(pat.clone()),
+            inner: PatternError::Unreachable(pat.clone().map(&mut |_| ())),
+            extra: (),
         }))
     } else {
         Ok(PatNode {
@@ -358,42 +373,83 @@ fn infer_pat(
     Ok(ret)
 }
 
+fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<&str, (Ty, Rc<RefCell<usize>>)>) -> Pat<InferExtra> {
+    match pat {
+        Pat::Unit => Pat::Unit,
+        Pat::Identifier(Annot {
+            offset,
+            extra: (),
+            inner,
+        }) => Pat::Identifier(Annot {
+            offset: *offset,
+            extra: {
+                let v = vars.get(&**inner).unwrap();
+                InferExtra {
+                    ty: v.0.clone(),
+                    ident_multi: v.1.take(),
+                }
+            },
+            inner: inner.clone(),
+        }),
+        Pat::Tagged { key, value } => Pat::Tagged {
+            key: key.clone(),
+            value: Box::new(apply_idents(value, vars)),
+        },
+        Pat::Record(Annot {
+            offset,
+            extra: (),
+            inner,
+        }) => Pat::Record(Annot {
+            offset: *offset,
+            extra: (),
+            inner: inner
+                .iter()
+                .map(|(k, v)| (k.clone(), apply_idents(v, vars)))
+                .collect(),
+        }),
+    }
+}
+
 fn infer_w_stack_vars<'a, 's, I>(
     env: Env<'s>,
     ctx: &mut CollectContext,
-    body: &'a synt::Expr,
+    body: &'a synt::Expr<()>,
     resty: TyVar,
     mut items: I,
-) -> Result<(), Error>
+) -> Result<synt::Expr<InferExtra>, Error>
 where
-    I: Iterator<Item = (&'a str, Ty)>,
+    I: Iterator<Item = (&'a str, Ty, Rc<RefCell<usize>>)>,
 {
     match items.next() {
-        Some((name, ty)) => infer_w_stack_vars(
+        Some((name, ty, ident_multi)) => infer_w_stack_vars(
             &VarStack {
                 parent: Some(env),
                 name,
-                value: tysy::Scheme {
-                    forall: Default::default(),
-                    ty,
-                },
+                value: (
+                    tysy::Scheme {
+                        forall: Default::default(),
+                        ty,
+                    },
+                    ident_multi,
+                ),
             },
             ctx,
             body,
             resty,
             items,
         ),
-        None => infer(env, ctx, body, Some(Ty::Var(resty))).map(|_| ()),
+        None => infer(env, ctx, body, Some(Ty::Var(resty))),
     }
 }
 
 pub fn infer_match(
     env: Env<'_>,
     ctx: &mut CollectContext,
-    inp: &synt::Expr,
-    cases: &[Case],
-) -> Result<Ty, Error> {
-    let inp_t = infer(env, ctx, inp, None)?;
+    offset: usize,
+    inp: &synt::Expr<()>,
+    cases: &[Case<()>],
+) -> Result<synt::Expr<InferExtra>, Error> {
+    let inp = infer(env, ctx, inp, None)?;
 
     // build annotatable case list
     let mut cases: Vec<_> = cases
@@ -405,25 +461,49 @@ pub fn infer_match(
         })
         .collect();
 
-    // build case tree
-    let patnode = cases2nodetree(&mut cases[..])?;
-
-    // inspect normalized pattern tree
-    let _ = infer_pat(ctx, Some(inp_t), patnode)?;
+    {
+        // build + inspect normalized pattern tree
+        infer_pat(
+            ctx,
+            Some(inp.extra.ty.clone()),
+            cases2nodetree(&mut cases[..])?,
+        )?;
+        let _ = &mut cases[..];
+    }
 
     // inspect bodies
     let resty = ctx.fresh_tyvar();
-    for ICase { vars, body, pat: _ } in cases {
-        infer_w_stack_vars(
+    let mut cases2 = Vec::with_capacity(cases.len());
+    for ICase { vars, body, pat } in cases {
+        let vars: BTreeMap<_, _> = vars
+            .into_iter()
+            .map(|(key, (_, mut ty))| {
+                let ty: &mut Option<Ty> = RefCell::get_mut(Rc::get_mut(&mut ty).unwrap());
+                (key, (ty.take().unwrap(), Rc::<RefCell<usize>>::default()))
+            })
+            .collect();
+        let body = infer_w_stack_vars(
             env,
             ctx,
             body,
             resty,
-            vars.into_iter().map(|(key, (_, mut ty))| {
-                let ty: &mut Option<Ty> = RefCell::get_mut(Rc::get_mut(&mut ty).unwrap());
-                (key, ty.take().unwrap())
-            }),
+            vars.iter()
+                .map(|(&k, (v1, v2))| (k, v1.clone(), Rc::clone(v2))),
         )?;
+        cases2.push(synt::Case {
+            pat: apply_idents(pat, &vars),
+            body,
+        });
     }
-    Ok(Ty::Var(resty))
+    Ok(Annot {
+        offset,
+        extra: InferExtra {
+            ty: Ty::Var(resty),
+            ident_multi: 0,
+        },
+        inner: synt::ExprKind::Match {
+            inp: Box::new(inp),
+            cases: cases2,
+        },
+    })
 }

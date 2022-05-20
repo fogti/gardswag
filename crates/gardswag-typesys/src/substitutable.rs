@@ -90,6 +90,15 @@ impl<K: cmp::Eq + cmp::Ord, V: FreeVars> FreeVars for BTreeMap<K, V> {
     }
 }
 
+// ugly hack
+impl<V: FreeVars, V2> FreeVars for (V, V2) {
+    type In = V::In;
+
+    fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
+        self.0.fv(accu, do_add)
+    }
+}
+
 impl<K: cmp::Eq + cmp::Ord, V: Substitutable> Substitutable for BTreeMap<K, V> {
     type Out = V::Out;
 
@@ -120,7 +129,7 @@ impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<
     }
 }
 
-impl<V: FreeVars> FreeVars for gardswag_varstack::VarStack<'_, V> {
+impl<V: FreeVars> FreeVars for gardswag_varstack::VarStack<'_, '_, V> {
     type In = V::In;
 
     fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {

@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag/src/main.rs
+source: crates/gardswag/src/tests.rs
 expression: x
 ---
 - stmts: []
@@ -10,6 +10,7 @@ expression: x
         lhs:
           offset: 21
           inner: id
+          extra: ~
         rhs:
           offset: 26
           inner:
@@ -19,6 +20,16 @@ expression: x
                 offset: 29
                 inner:
                   Identifier: x
+                extra:
+                  ty:
+                    Var: 5
+                  ident_multi: 0
+          extra:
+            ty:
+              Arrow:
+                - Var: 5
+                - Var: 5
+            ident_multi: 1
         rest:
           stmts: []
           term:
@@ -29,10 +40,28 @@ expression: x
                   offset: 48
                   inner:
                     Identifier: id
+                  extra:
+                    ty:
+                      Arrow:
+                        - Var: 6
+                        - Var: 6
+                    ident_multi: 0
                 arg:
                   offset: 51
                   inner:
                     Integer: 1
+                  extra:
+                    ty:
+                      Literal: Int
+                    ident_multi: 0
+            extra:
+              ty:
+                Var: 6
+              ident_multi: 0
+    extra:
+      ty:
+        Var: 6
+      ident_multi: 1
 - forall: []
   ty:
     Literal: Int

@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag-syntax/src/lib.rs
+source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"\n                let id = \\x x |> \\y y;\n                \\z (id z |> \\m std.plus m 1 |> \\m std.minus m 2)\n            \"#).unwrap()"
 ---
 stmts: []
@@ -10,6 +10,7 @@ term:
       lhs:
         offset: 21
         inner: id
+        extra: ~
       rhs:
         offset: 31
         inner:
@@ -23,6 +24,8 @@ term:
                     offset: 37
                     inner:
                       Identifier: y
+                    extra: ~
+              extra: ~
             arg:
               offset: 26
               inner:
@@ -32,6 +35,9 @@ term:
                     offset: 29
                     inner:
                       Identifier: x
+                    extra: ~
+              extra: ~
+        extra: ~
       rest:
         stmts: []
         term:
@@ -64,17 +70,25 @@ term:
                                               offset: 90
                                               inner:
                                                 Identifier: std
+                                              extra: ~
                                             key:
                                               offset: 94
                                               inner: minus
+                                              extra: ~
+                                        extra: ~
                                       arg:
                                         offset: 100
                                         inner:
                                           Identifier: m
+                                        extra: ~
+                                  extra: ~
                                 arg:
                                   offset: 102
                                   inner:
                                     Integer: 2
+                                  extra: ~
+                            extra: ~
+                      extra: ~
                     arg:
                       offset: 65
                       inner:
@@ -100,17 +114,25 @@ term:
                                                     offset: 71
                                                     inner:
                                                       Identifier: std
+                                                    extra: ~
                                                   key:
                                                     offset: 75
                                                     inner: plus
+                                                    extra: ~
+                                              extra: ~
                                             arg:
                                               offset: 80
                                               inner:
                                                 Identifier: m
+                                              extra: ~
+                                        extra: ~
                                       arg:
                                         offset: 82
                                         inner:
                                           Integer: 1
+                                        extra: ~
+                                  extra: ~
+                            extra: ~
                           arg:
                             offset: 60
                             inner:
@@ -119,8 +141,15 @@ term:
                                   offset: 60
                                   inner:
                                     Identifier: id
+                                  extra: ~
                                 arg:
                                   offset: 63
                                   inner:
                                     Identifier: z
+                                  extra: ~
+                            extra: ~
+                      extra: ~
+                extra: ~
+          extra: ~
+  extra: ~
 

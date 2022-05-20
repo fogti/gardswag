@@ -112,7 +112,7 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
 fn main_check(
     dat: &str,
 ) -> anyhow::Result<(
-    gardswag_syntax::Block,
+    gardswag_syntax::Block<crate::infer::InferExtra>,
     gardswag_typesys::constraint::SchemeSer,
 )> {
     let parsed = gardswag_syntax::parse(dat)?;
@@ -121,12 +121,12 @@ fn main_check(
     let env = gardswag_varstack::VarStack {
         parent: None,
         name: "std",
-        value: mk_env_std(&mut ctx),
+        value: (mk_env_std(&mut ctx), Default::default()),
     };
 
-    let mut t = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;
+    let parsed = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;
     debug!("type inference constraints generated");
-    debug!("=T> {}", t);
+    debug!("=TyAst> {:?}", parsed);
     debug!("--constraints-- {}", ctx.constraints.len());
     for v in &ctx.constraints {
         debug!("\t{:?}", v);
@@ -138,15 +138,20 @@ fn main_check(
     debug!("type constraints, as far as possible, solved");
     // generalize the type
     use gardswag_typesys::{FreeVars as _, Substitutable as _};
-    t.apply(&|&i| ctx2.on_apply(i));
+    let mut ty = parsed
+        .term
+        .clone()
+        .map(|i| i.extra.ty)
+        .unwrap_or(gardswag_typesys::Ty::Literal(gardswag_typesys::TyLit::Unit));
+    ty.apply(&|&i| ctx2.on_apply(i));
     //let tg = t.generalize(&env);
     let tg = gardswag_typesys::Scheme {
         forall: {
             let mut tfv = Default::default();
-            t.fv(&mut tfv, true);
+            ty.fv(&mut tfv, true);
             tfv
         },
-        ty: t,
+        ty,
     };
     trace!("--TV--");
     for (k, v) in &ctx2.m {
@@ -163,11 +168,11 @@ fn main_check(
 
 fn main_interp<'a: 'envout + 'envin, 'envout, 'envin>(
     s: &'envout crossbeam_utils::thread::Scope<'envin>,
-    parsed: &'a gardswag_syntax::Block,
-) -> interp::Value<'a> {
+    parsed: &'a gardswag_syntax::Block<crate::infer::InferExtra>,
+) -> interp::Value<'a, crate::infer::InferExtra> {
     use interp::{Builtin as Bi, Value as Val};
 
-    let stack: gardswag_varstack::VarStack<'a, Val<'a>> = gardswag_varstack::VarStack {
+    let stack: gardswag_varstack::VarStack<'a, 'static, Val<'a, _>> = gardswag_varstack::VarStack {
         parent: None,
         name: "std",
         value: Val::Record(

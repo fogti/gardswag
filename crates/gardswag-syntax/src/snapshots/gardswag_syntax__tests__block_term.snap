@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag-syntax/src/lib.rs
+source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(\"{ a }\").unwrap()"
 ---
 stmts: []
@@ -7,4 +7,5 @@ term:
   offset: 2
   inner:
     Identifier: a
+  extra: ~
 

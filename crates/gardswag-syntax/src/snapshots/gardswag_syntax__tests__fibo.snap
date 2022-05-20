@@ -1,5 +1,5 @@
 ---
-source: crates/gardswag-syntax/src/lib.rs
+source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"\n                let a = 1;\n                let b = 1;\n                let rec fib = \\x \\y \\n {\n                  (* seq: [..., x, y] ++ [z] *)\n                  let z = std.plus x y;\n                  if (std.leq n 0)\n                    { z }\n                    { fib y z (std.minus n 1) }\n                };\n                std.stdio.write \"{fib 1 1 6}\\m\";\n            \"#).unwrap()"
 ---
 stmts: []
@@ -10,10 +10,12 @@ term:
       lhs:
         offset: 21
         inner: a
+        extra: ~
       rhs:
         offset: 25
         inner:
           Integer: 1
+        extra: ~
       rest:
         stmts: []
         term:
@@ -23,10 +25,12 @@ term:
               lhs:
                 offset: 48
                 inner: b
+                extra: ~
               rhs:
                 offset: 52
                 inner:
                   Integer: 1
+                extra: ~
               rest:
                 stmts: []
                 term:
@@ -36,6 +40,7 @@ term:
                       lhs:
                         offset: 79
                         inner: fib
+                        extra: ~
                       rhs:
                         offset: 85
                         inner:
@@ -68,6 +73,7 @@ term:
                                                           lhs:
                                                             offset: 166
                                                             inner: z
+                                                            extra: ~
                                                           rhs:
                                                             offset: 173
                                                             inner:
@@ -84,17 +90,24 @@ term:
                                                                               offset: 170
                                                                               inner:
                                                                                 Identifier: std
+                                                                              extra: ~
                                                                             key:
                                                                               offset: 174
                                                                               inner: plus
+                                                                              extra: ~
+                                                                        extra: ~
                                                                       arg:
                                                                         offset: 179
                                                                         inner:
                                                                           Identifier: x
+                                                                        extra: ~
+                                                                  extra: ~
                                                                 arg:
                                                                   offset: 181
                                                                   inner:
                                                                     Identifier: y
+                                                                  extra: ~
+                                                            extra: ~
                                                           rest:
                                                             stmts: []
                                                             term:
@@ -117,23 +130,31 @@ term:
                                                                                       offset: 206
                                                                                       inner:
                                                                                         Identifier: std
+                                                                                      extra: ~
                                                                                     key:
                                                                                       offset: 210
                                                                                       inner: leq
+                                                                                      extra: ~
+                                                                                extra: ~
                                                                               arg:
                                                                                 offset: 214
                                                                                 inner:
                                                                                   Identifier: n
+                                                                                extra: ~
+                                                                          extra: ~
                                                                         arg:
                                                                           offset: 216
                                                                           inner:
                                                                             Integer: 0
+                                                                          extra: ~
+                                                                    extra: ~
                                                                   then:
                                                                     stmts: []
                                                                     term:
                                                                       offset: 241
                                                                       inner:
                                                                         Identifier: z
+                                                                      extra: ~
                                                                   or_else:
                                                                     stmts: []
                                                                     term:
@@ -152,14 +173,19 @@ term:
                                                                                         offset: 267
                                                                                         inner:
                                                                                           Identifier: fib
+                                                                                        extra: ~
                                                                                       arg:
                                                                                         offset: 271
                                                                                         inner:
                                                                                           Identifier: y
+                                                                                        extra: ~
+                                                                                  extra: ~
                                                                                 arg:
                                                                                   offset: 273
                                                                                   inner:
                                                                                     Identifier: z
+                                                                                  extra: ~
+                                                                            extra: ~
                                                                           arg:
                                                                             offset: 279
                                                                             inner:
@@ -176,17 +202,32 @@ term:
                                                                                               offset: 276
                                                                                               inner:
                                                                                                 Identifier: std
+                                                                                              extra: ~
                                                                                             key:
                                                                                               offset: 280
                                                                                               inner: minus
+                                                                                              extra: ~
+                                                                                        extra: ~
                                                                                       arg:
                                                                                         offset: 286
                                                                                         inner:
                                                                                           Identifier: n
+                                                                                        extra: ~
+                                                                                  extra: ~
                                                                                 arg:
                                                                                   offset: 288
                                                                                   inner:
                                                                                     Integer: 1
+                                                                                  extra: ~
+                                                                            extra: ~
+                                                                      extra: ~
+                                                              extra: ~
+                                                      extra: ~
+                                                extra: ~
+                                          extra: ~
+                                    extra: ~
+                              extra: ~
+                        extra: ~
                       rest:
                         stmts:
                           - offset: 337
@@ -204,12 +245,17 @@ term:
                                               offset: 328
                                               inner:
                                                 Identifier: std
+                                              extra: ~
                                             key:
                                               offset: 332
                                               inner: stdio
+                                              extra: ~
+                                        extra: ~
                                       key:
                                         offset: 338
                                         inner: write
+                                        extra: ~
+                                  extra: ~
                                 arg:
                                   offset: 344
                                   inner:
@@ -234,20 +280,34 @@ term:
                                                                 offset: 346
                                                                 inner:
                                                                   Identifier: fib
+                                                                extra: ~
                                                               arg:
                                                                 offset: 350
                                                                 inner:
                                                                   Integer: 1
+                                                                extra: ~
+                                                          extra: ~
                                                         arg:
                                                           offset: 352
                                                           inner:
                                                             Integer: 1
+                                                          extra: ~
+                                                    extra: ~
                                                   arg:
                                                     offset: 354
                                                     inner:
                                                       Integer: 6
+                                                    extra: ~
+                                              extra: ~
+                                        extra: ~
                                       - offset: 356
                                         inner:
                                           PureString: m
+                                        extra: ~
+                                  extra: ~
+                            extra: ~
                         term: ~
+                  extra: ~
+          extra: ~
+  extra: ~
 

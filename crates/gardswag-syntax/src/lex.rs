@@ -1,4 +1,4 @@
-use crate::Offsetted;
+use crate::Annot;
 use serde::{Deserialize, Serialize};
 use unicode_ident::{is_xid_continue, is_xid_start};
 
@@ -17,7 +17,7 @@ enum LvlKind {
     CurlyBrks,
 }
 
-pub type Error = Offsetted<ErrorKind>;
+pub type Error = Annot<ErrorKind>;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum ErrorKind {
@@ -46,7 +46,7 @@ pub enum ErrorKind {
     KeywordLambda,
 }
 
-pub type Token = Offsetted<TokenKind>;
+pub type Token = Annot<TokenKind>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum TokenKind {
@@ -211,17 +211,19 @@ impl Iterator for Lexer<'_> {
                         '{' => {}
                         '}' => {
                             self.consume(x.len_utf8());
-                            self.buffer = Some(Err(Offsetted {
+                            self.buffer = Some(Err(Annot {
                                 offset,
                                 inner: ErrorKind::UnbalancedString(self.offset),
+                                extra: (),
                             }));
                         }
                         '"' => {
                             self.consume(x.len_utf8());
                             self.lvl.pop();
-                            self.buffer = Some(Ok(Offsetted {
+                            self.buffer = Some(Ok(Annot {
                                 offset: self.offset,
                                 inner: TokenKind::StringEnd,
+                                extra: (),
                             }));
                         }
                         _ => unreachable!(),
@@ -375,7 +377,14 @@ impl Iterator for Lexer<'_> {
 
         // combine {kind, offset}
         assert_ne!(offset, self.offset);
-        Some(Offsetted { offset, inner }.into())
+        Some(
+            Annot {
+                offset,
+                inner,
+                extra: (),
+            }
+            .into(),
+        )
     }
 }
 
