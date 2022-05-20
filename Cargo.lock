@@ -154,6 +154,7 @@ dependencies = [
 name = "gardswag-annotated"
 version = "0.1.0"
 dependencies = [
+ "gardswag-subst",
  "serde",
 ]
 
@@ -161,6 +162,7 @@ dependencies = [
 name = "gardswag-infer-cgen"
 version = "0.1.0"
 dependencies = [
+ "gardswag-subst",
  "gardswag-syntax",
  "gardswag-typesys",
  "gardswag-varstack",
@@ -173,7 +175,6 @@ dependencies = [
 name = "gardswag-subst"
 version = "0.1.0"
 dependencies = [
- "gardswag-annotated",
  "gardswag-varstack",
 ]
 
@@ -195,9 +196,7 @@ dependencies = [
 name = "gardswag-typesys"
 version = "0.1.0"
 dependencies = [
- "gardswag-annotated",
  "gardswag-subst",
- "gardswag-varstack",
  "serde",
  "thiserror",
  "tracing",

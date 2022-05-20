@@ -139,41 +139,12 @@ impl<K: core::hash::Hash + cmp::Eq, V: Substitutable> Substitutable for HashMap<
     }
 }
 
+#[cfg(feature = "gardswag-varstack")]
 impl<V: FreeVars> FreeVars for gardswag_varstack::VarStack<'_, '_, V> {
     type In = V::In;
 
     fn fv(&self, accu: &mut BTreeSet<V::In>, do_add: bool) {
         self.iter().for_each(|(_, i)| i.fv(accu, do_add))
-    }
-}
-
-impl<In: cmp::Eq + cmp::Ord, T: FreeVars<In = In>, X: FreeVars<In = In>> FreeVars
-    for gardswag_annotated::Annot<T, X>
-{
-    type In = T::In;
-
-    fn fv(&self, accu: &mut BTreeSet<In>, do_add: bool) {
-        self.inner.fv(accu, do_add);
-        self.extra.fv(accu, do_add);
-    }
-}
-
-impl<
-        In: cmp::Eq + cmp::Ord,
-        Out: Clone,
-        T: Substitutable<In = In, Out = Out>,
-        X: Substitutable<In = In, Out = Out>,
-    > Substitutable for gardswag_annotated::Annot<T, X>
-{
-    type Out = Out;
-
-    #[inline]
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&In) -> Option<Out>,
-    {
-        self.inner.apply(f);
-        self.extra.apply(f);
     }
 }
 

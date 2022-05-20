@@ -12,3 +12,7 @@ gardswag-varstack.path = "../gardswag-varstack"
 serde = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
+
+[dependencies.gardswag-subst]
+path = "../gardswag-subst"
+features = ["gardswag-varstack"]

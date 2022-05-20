@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+gardswag-subst.path = "../gardswag-subst"
 
 [dependencies.serde]
 version = "1.0"
