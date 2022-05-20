@@ -9,12 +9,12 @@
 #![deny(unused_variables)]
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub mod lex;
 
-mod annot;
-pub use annot::{Annot, AnnotFmap};
+pub use gardswag_annotated::{Annot, AnnotFmap};
+use gardswag_subst::{FreeVars, Substitutable};
 
 mod block;
 use block::parse_block;
@@ -59,7 +59,7 @@ pub enum ExprKind<X> {
     },
 
     Lambda {
-        arg: String,
+        arg: Identifier<()>,
         body: Box<Expr<X>>,
     },
     Call {
@@ -69,7 +69,7 @@ pub enum ExprKind<X> {
 
     // fixpoint operator
     Fix {
-        arg: String,
+        arg: Identifier<()>,
         body: Box<Expr<X>>,
     },
 
@@ -149,7 +149,7 @@ impl<X> ExprKind<X> {
                     || or_else.is_var_accessed(v)
             }
             Self::Lambda { arg, body } | Self::Fix { arg, body } => {
-                arg != v && body.inner.is_var_accessed(v)
+                arg.inner != v && body.inner.is_var_accessed(v)
             }
             Self::Call { prim, arg } => {
                 prim.inner.is_var_accessed(v) || arg.inner.is_var_accessed(v)
@@ -245,6 +245,126 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for ExprKind<X> {
     }
 }
 
+impl<X: FreeVars> FreeVars for ExprKind<X> {
+    type In = X::In;
+
+    fn fv(&self, accu: &mut BTreeSet<X::In>, do_add: bool) {
+        match self {
+            ExprKind::Let { lhs: _, rhs, rest } => {
+                rhs.fv(accu, do_add);
+                rest.fv(accu, do_add);
+            }
+            ExprKind::Block(x) => x.fv(accu, do_add),
+
+            ExprKind::If {
+                cond,
+                then,
+                or_else,
+            } => {
+                cond.fv(accu, do_add);
+                then.fv(accu, do_add);
+                or_else.fv(accu, do_add);
+            }
+
+            ExprKind::Lambda { body, .. } | ExprKind::Fix { body, .. } => {
+                body.fv(accu, do_add);
+            }
+            ExprKind::Call { prim, arg } => {
+                prim.fv(accu, do_add);
+                arg.fv(accu, do_add);
+            }
+
+            ExprKind::Record(x) => {
+                x.fv(accu, do_add);
+            }
+            ExprKind::Dot { prim, key: _ } => {
+                prim.fv(accu, do_add);
+            }
+            ExprKind::Update { orig, ovrd } => {
+                orig.fv(accu, do_add);
+                ovrd.fv(accu, do_add);
+            }
+
+            ExprKind::Tagger { key: _ } => {}
+
+            ExprKind::Match { inp, cases } => {
+                inp.fv(accu, do_add);
+                cases.fv(accu, do_add);
+            }
+
+            ExprKind::FormatString(x) => x.fv(accu, do_add),
+
+            ExprKind::Identifier(_)
+            | ExprKind::Unit
+            | ExprKind::Boolean(_)
+            | ExprKind::Integer(_)
+            | ExprKind::PureString(_) => {}
+        }
+    }
+}
+
+impl<X: Substitutable> Substitutable for ExprKind<X> {
+    type Out = X::Out;
+
+    #[inline]
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&X::In) -> Option<X::Out>,
+    {
+        match self {
+            ExprKind::Let { lhs: _, rhs, rest } => {
+                rhs.apply(f);
+                rest.apply(f);
+            }
+            ExprKind::Block(x) => x.apply(f),
+
+            ExprKind::If {
+                cond,
+                then,
+                or_else,
+            } => {
+                cond.apply(f);
+                then.apply(f);
+                or_else.apply(f);
+            }
+
+            ExprKind::Lambda { body, .. } | ExprKind::Fix { body, .. } => {
+                body.apply(f);
+            }
+            ExprKind::Call { prim, arg } => {
+                prim.apply(f);
+                arg.apply(f);
+            }
+
+            ExprKind::Record(x) => {
+                x.apply(f);
+            }
+            ExprKind::Dot { prim, key: _ } => {
+                prim.apply(f);
+            }
+            ExprKind::Update { orig, ovrd } => {
+                orig.apply(f);
+                ovrd.apply(f);
+            }
+
+            ExprKind::Tagger { key: _ } => {}
+
+            ExprKind::Match { inp, cases } => {
+                inp.apply(f);
+                cases.apply(f);
+            }
+
+            ExprKind::FormatString(x) => x.apply(f),
+
+            ExprKind::Identifier(_)
+            | ExprKind::Unit
+            | ExprKind::Boolean(_)
+            | ExprKind::Integer(_)
+            | ExprKind::PureString(_) => {}
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Case<X> {
     pub pat: Pattern<X>,
@@ -263,6 +383,28 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for Case<X> {
             pat: pat.map(f),
             body: body.map(f),
         }
+    }
+}
+
+impl<X: FreeVars> FreeVars for Case<X> {
+    type In = X::In;
+
+    fn fv(&self, accu: &mut BTreeSet<X::In>, do_add: bool) {
+        self.pat.fv(accu, do_add);
+        self.body.fv(accu, do_add);
+    }
+}
+
+impl<X: Substitutable> Substitutable for Case<X> {
+    type Out = X::Out;
+
+    #[inline]
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&X::In) -> Option<X::Out>,
+    {
+        self.pat.apply(f);
+        self.body.apply(f);
     }
 }
 
@@ -308,6 +450,48 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for Pattern<X> {
                 extra: (),
                 inner: inner.into_iter().map(|(k, v)| (k, v.map(f))).collect(),
             }),
+        }
+    }
+}
+
+impl<X: FreeVars> FreeVars for Pattern<X> {
+    type In = X::In;
+
+    fn fv(&self, accu: &mut BTreeSet<X::In>, do_add: bool) {
+        match self {
+            Pattern::Unit => {}
+            Pattern::Identifier(Annot { extra, .. }) => {
+                extra.fv(accu, do_add);
+            }
+            Pattern::Tagged { value, .. } => {
+                value.fv(accu, do_add);
+            }
+            Pattern::Record(Annot { inner, .. }) => {
+                inner.fv(accu, do_add);
+            }
+        }
+    }
+}
+
+impl<X: Substitutable> Substitutable for Pattern<X> {
+    type Out = X::Out;
+
+    #[inline]
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&X::In) -> Option<X::Out>,
+    {
+        match self {
+            Pattern::Unit => {}
+            Pattern::Identifier(Annot { extra, .. }) => {
+                extra.apply(f);
+            }
+            Pattern::Tagged { value, .. } => {
+                value.apply(f);
+            }
+            Pattern::Record(Annot { inner, .. }) => {
+                inner.apply(f);
+            }
         }
     }
 }
@@ -476,53 +660,19 @@ fn handle_wildcard(s: String) -> String {
     }
 }
 
-enum DotIntermed<T> {
-    Identifier(String),
-    Record(BTreeMap<String, T>),
-}
-
-impl<X> From<DotIntermed<Expr<X>>> for ExprKind<X> {
-    fn from(x: DotIntermed<Expr<X>>) -> ExprKind<X> {
-        match x {
-            DotIntermed::Identifier(x) => ExprKind::Identifier(x),
-            DotIntermed::Record(rcd) => ExprKind::Record(rcd),
-        }
-    }
-}
-
-impl<X> From<Annot<DotIntermed<Pattern<X>>, X>> for Pattern<X> {
-    fn from(
-        Annot {
-            offset,
-            inner,
-            extra,
-        }: Annot<DotIntermed<Pattern<X>>, X>,
-    ) -> Pattern<X> {
-        match inner {
-            DotIntermed::Identifier(inner) => Pattern::Identifier(Annot {
-                offset,
-                inner: handle_wildcard(inner),
-                extra,
-            }),
-            DotIntermed::Record(inner) => Pattern::Record(Annot {
-                offset,
-                inner,
-                extra: (),
-            }),
-        }
-    }
-}
-
 /// helper function for parsing dot record terms
 /// ` .{ key1: value1; key2: value2; } `
-fn try_parse_record<'a, T, F>(
+fn try_parse_record<'a, T, F, Fi, Fr>(
     super_offset: usize,
     lxr: &mut PeekLexer<'a>,
     f: F,
+    mkid: Fi,
+    mkrec: Fr,
 ) -> ParseResult<T, ErrorKind>
 where
     F: Fn(&mut PeekLexer<'a>) -> ParseResult<T, ErrorKind>,
-    T: From<Annot<DotIntermed<T>>>,
+    Fi: Fn(Identifier<()>) -> T,
+    Fr: Fn(Annot<BTreeMap<String, T>>) -> T,
 {
     use lex::{Token, TokenKind as Tk};
     let backtrack = lxr.clone();
@@ -570,12 +720,11 @@ where
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
             value
         } else {
-            (Annot {
+            mkid(Annot {
                 offset,
-                inner: DotIntermed::Identifier(id.clone()),
+                inner: id.clone(),
                 extra: (),
             })
-            .into()
         };
         use std::collections::btree_map::Entry;
         match rcd.entry(id) {
@@ -592,12 +741,11 @@ where
         }
     }
     let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
-    POk((Annot {
+    POk(mkrec(Annot {
         offset,
-        inner: DotIntermed::Record(rcd),
+        inner: rcd,
         extra: (),
-    })
-    .into())
+    }))
 }
 
 fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern<()>, ErrorKind> {
@@ -610,7 +758,23 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern<()>, ErrorKind>
             extra: (),
         })),
         Tk::Dot => {
-            match try_parse_record(offset, lxr, parse_pattern) {
+            match try_parse_record(
+                offset,
+                lxr,
+                parse_pattern,
+                |Annot {
+                     offset,
+                     inner,
+                     extra,
+                 }| {
+                    Pattern::Identifier(Annot {
+                        offset,
+                        extra,
+                        inner: handle_wildcard(inner),
+                    })
+                },
+                Pattern::Record,
+            ) {
                 PNone => {}
                 y => return y,
             }
@@ -731,7 +895,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                 rhs = Expr {
                     offset: rhs.offset,
                     inner: ExprKind::Fix {
-                        arg: lhs.inner.clone(),
+                        arg: lhs.clone(),
                         body: Box::new(rhs),
                     },
                     extra: (),
@@ -795,7 +959,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
         Tk::Lambda(lam) => {
             let expr = xtry!(unexpect_eoe(offset, parse_expr_calls(lxr)));
             Ok(ExprKind::Lambda {
-                arg: handle_wildcard(lam),
+                arg: lam,
                 body: Box::new(expr),
             })
         }
@@ -866,7 +1030,29 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::StringEnd));
             Ok(ExprKind::FormatString(parts))
         }
-        Tk::Dot => match try_parse_record(offset, lxr, &parse_expr_greedy) {
+        Tk::Dot => match try_parse_record(
+            offset,
+            lxr,
+            &parse_expr_greedy,
+            |Annot {
+                 offset,
+                 inner,
+                 extra,
+             }| Annot {
+                offset,
+                inner: ExprKind::Identifier(inner),
+                extra,
+            },
+            |Annot {
+                 offset,
+                 inner,
+                 extra,
+             }| Annot {
+                offset,
+                inner: ExprKind::Record(inner),
+                extra,
+            },
+        ) {
             PNone => {
                 let key = xtry!(expect_token_noeof(
                     offset,

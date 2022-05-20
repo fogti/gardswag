@@ -1,3 +1,13 @@
+#![forbid(
+    trivial_casts,
+    unconditional_recursion,
+    unsafe_code,
+    unused_must_use,
+    clippy::as_conversions,
+    clippy::cast_ptr_alignment
+)]
+#![deny(unused_variables)]
+
 use core::fmt;
 
 #[derive(Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -5,6 +15,24 @@ pub struct Annot<T, A = ()> {
     pub offset: usize,
     pub inner: T,
     pub extra: A,
+}
+
+impl<T, X> Annot<T, X> {
+    pub fn map_leaf<F, R>(self, f: &mut F) -> Annot<T, R>
+    where
+        F: FnMut(X) -> R,
+    {
+        let Annot {
+            offset,
+            inner,
+            extra,
+        } = self;
+        Annot {
+            offset,
+            inner,
+            extra: f(extra),
+        }
+    }
 }
 
 pub trait AnnotFmap<NewExtra> {
@@ -56,30 +84,6 @@ where
         }
     }
 }
-
-macro_rules! impl_inner_tr {
-    ($from:ty, $to:ty) => {
-        impl From<Annot<$from>> for Annot<$to> {
-            #[inline]
-            fn from(
-                Annot {
-                    offset,
-                    inner,
-                    extra,
-                }: Annot<$from>,
-            ) -> Self {
-                Self {
-                    offset,
-                    inner: inner.into(),
-                    extra,
-                }
-            }
-        }
-    };
-}
-
-impl_inner_tr!(crate::lex::ErrorKind, crate::ErrorKind);
-impl_inner_tr!(crate::DotIntermed<crate::Expr<()>>, crate::ExprKind<()>);
 
 impl<T, E, X> From<Annot<Result<T, E>, X>> for Result<Annot<T, X>, Annot<E, X>> {
     #[inline]

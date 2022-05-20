@@ -52,7 +52,7 @@ pub type Token = Annot<TokenKind>;
 pub enum TokenKind {
     Keyword(Keyword),
     Identifier(String),
-    Lambda(String),
+    Lambda(crate::Identifier<()>),
     Integer(i32),
     StringStart,
     StringEnd,
@@ -282,6 +282,7 @@ impl Iterator for Lexer<'_> {
 
                 c @ '\\' | c @ 'λ' => {
                     self.consume(c.len_utf8());
+                    let lpar_offset = self.offset;
                     // identifier
                     let s = self.consume_select(is_xid_continue);
                     if let Some(fi) = s.chars().next() {
@@ -290,7 +291,11 @@ impl Iterator for Lexer<'_> {
                         } else if s.parse::<Keyword>().is_ok() {
                             Err(ErrorKind::KeywordLambda)
                         } else {
-                            Ok(TokenKind::Lambda(s.nfc().to_string()))
+                            Ok(TokenKind::Lambda(Annot {
+                                offset: lpar_offset,
+                                inner: crate::handle_wildcard(s.nfc().to_string()),
+                                extra: (),
+                            }))
                         }
                     } else {
                         Err(ErrorKind::NoLambdaArg)

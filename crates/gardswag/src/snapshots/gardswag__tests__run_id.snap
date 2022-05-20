@@ -15,7 +15,10 @@ expression: x
           offset: 26
           inner:
             Lambda:
-              arg: x
+              arg:
+                offset: 27
+                inner: x
+                extra: ~
               body:
                 offset: 29
                 inner:
@@ -43,8 +46,8 @@ expression: x
                   extra:
                     ty:
                       Arrow:
-                        - Var: 6
-                        - Var: 6
+                        - Literal: Int
+                        - Literal: Int
                     ident_multi: 0
                 arg:
                   offset: 51
@@ -56,11 +59,11 @@ expression: x
                     ident_multi: 0
             extra:
               ty:
-                Var: 6
+                Literal: Int
               ident_multi: 0
     extra:
       ty:
-        Var: 6
+        Literal: Int
       ident_multi: 1
 - forall: []
   ty:

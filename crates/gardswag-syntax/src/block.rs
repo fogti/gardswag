@@ -2,6 +2,7 @@ use crate::{
     lex, parse_expr_greedy, unexpect_eoe, Annot, AnnotFmap, Error, ErrorKind, Expr, ParseResult,
     ParseResult::*, PeekLexer,
 };
+use gardswag_subst::{FreeVars, Substitutable};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
@@ -30,6 +31,31 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for Block<X> {
         Block {
             stmts: <_ as AnnotFmap<NewExtra>>::map(stmts, f),
             term: <_ as AnnotFmap<NewExtra>>::map(term, f),
+        }
+    }
+}
+
+impl<X: FreeVars> FreeVars for Block<X> {
+    type In = X::In;
+
+    fn fv(&self, accu: &mut std::collections::BTreeSet<X::In>, do_add: bool) {
+        self.stmts.fv(accu, do_add);
+        if let Some(x) = &self.term {
+            x.fv(accu, do_add);
+        }
+    }
+}
+
+impl<X: Substitutable> Substitutable for Block<X> {
+    type Out = X::Out;
+
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&X::In) -> Option<X::Out>,
+    {
+        self.stmts.apply(f);
+        if let Some(x) = &mut self.term {
+            x.apply(f);
         }
     }
 }
@@ -111,7 +137,15 @@ pub(crate) fn parse_block(
                 b.term = Some(Box::new(expr));
             }
             Some(x) => {
-                match x.as_ref().map_err(|e| e.clone())?.inner {
+                match x
+                    .as_ref()
+                    .map_err(|Annot { offset, inner, .. }| Annot {
+                        offset: *offset,
+                        inner: inner.clone().into(),
+                        extra: (),
+                    })?
+                    .inner
+                {
                     Tk::SemiColon => {
                         b.stmts.push(expr);
                         let _ = lxr.next();

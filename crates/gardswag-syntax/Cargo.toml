@@ -6,6 +6,8 @@ edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
+gardswag-annotated.path = "../gardswag-annotated"
+gardswag-subst.path = "../gardswag-subst"
 thiserror = "1.0"
 unicode-ident = "1.0"
 unicode-normalization = "0.1"

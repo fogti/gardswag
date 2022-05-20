@@ -15,7 +15,10 @@ term:
         offset: 26
         inner:
           Lambda:
-            arg: x
+            arg:
+              offset: 27
+              inner: x
+              extra: ~
             body:
               offset: 29
               inner:

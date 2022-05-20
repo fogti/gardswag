@@ -1,9 +1,9 @@
 use core::cell::RefCell;
 use gardswag_syntax::{self as synt, Annot};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
-use gardswag_typesys::{self as tysy, Ty, TyLit, TyVar};
+use gardswag_typesys::{self as tysy, FreeVars, Substitutable, Ty, TyLit, TyVar};
 use gardswag_varstack::VarStack;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 mod pattern;
@@ -24,6 +24,25 @@ pub type Env<'s> = &'s VarStack<'s, 's, (tysy::Scheme, Rc<RefCell<usize>>)>;
 pub struct InferExtra {
     pub ty: Ty,
     pub ident_multi: usize,
+}
+
+impl FreeVars for InferExtra {
+    type In = TyVar;
+
+    fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
+        self.ty.fv(accu, do_add);
+    }
+}
+
+impl Substitutable for InferExtra {
+    type Out = Ty;
+
+    fn apply<F>(&mut self, f: &F)
+    where
+        F: Fn(&Self::In) -> Option<Self::Out>,
+    {
+        self.ty.apply(f);
+    }
 }
 
 pub fn infer_block(
@@ -151,7 +170,7 @@ fn infer(
             let tv = Ty::Var(ctx.fresh_tyvar());
             let env2 = VarStack {
                 parent: Some(env),
-                name: arg,
+                name: &arg.inner,
                 value: (
                     tysy::Scheme {
                         forall: Default::default(),
@@ -160,14 +179,19 @@ fn infer(
                     Default::default(),
                 ),
             };
-            let body = infer(if arg.is_empty() { env } else { &env2 }, ctx, body, None)?;
+            let body: synt::Expr<InferExtra> = infer(
+                if arg.inner.is_empty() { env } else { &env2 },
+                ctx,
+                body,
+                None,
+            )?;
             Ok(Annot {
                 offset: expr.offset,
                 extra: InferExtra {
                     ty: Ty::Arrow(Box::new(tv), Box::new(body.extra.ty.clone())),
                     ident_multi: env2.value.1.take(),
                 },
-                inner: Ek::Lambda {
+                inner: Ek::<InferExtra>::Lambda {
                     arg: arg.clone(),
                     body: Box::new(body),
                 },
@@ -178,7 +202,7 @@ fn infer(
             let tv = Ty::Var(maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx));
             let env2 = VarStack {
                 parent: Some(env),
-                name: arg,
+                name: &arg.inner,
                 value: (
                     tysy::Scheme {
                         forall: Default::default(),
@@ -189,7 +213,7 @@ fn infer(
             };
             // unify {$tv -> x} & {$tv -> $tv}, inlined
             let body = infer(
-                if arg.is_empty() { env } else { &env2 },
+                if arg.inner.is_empty() { env } else { &env2 },
                 ctx,
                 body,
                 Some(tv.clone()),

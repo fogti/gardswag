@@ -89,7 +89,13 @@ expression: x
             ident_multi: 0
     extra:
       ty:
-        Var: 7
+        Record:
+          a:
+            Literal: String
+          b:
+            Literal: String
+          c:
+            Literal: Int
       ident_multi: 0
 - forall: []
   ty:

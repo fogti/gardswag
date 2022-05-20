@@ -19,8 +19,10 @@ expression: x
                 extra:
                   ty:
                     Arrow:
-                      - Var: 5
-                      - Var: 6
+                      - Literal: Int
+                      - TaggedUnion:
+                          this_is_a_variant:
+                            Literal: Int
                   ident_multi: 0
               arg:
                 offset: 25
@@ -32,7 +34,9 @@ expression: x
                   ident_multi: 0
           extra:
             ty:
-              Var: 6
+              TaggedUnion:
+                this_is_a_variant:
+                  Literal: Int
             ident_multi: 0
         cases:
           - pat:
@@ -47,7 +51,7 @@ expression: x
                     inner: x
                     extra:
                       ty:
-                        Var: 7
+                        Literal: Int
                       ident_multi: 1
             body:
               offset: 56
@@ -147,7 +151,11 @@ expression: x
                                 extra: ~
                           extra:
                             ty:
-                              Var: 15
+                              Arrow:
+                                - Literal: Int
+                                - Arrow:
+                                    - Literal: Int
+                                    - Literal: Int
                             ident_multi: 0
                         arg:
                           offset: 62
@@ -155,11 +163,13 @@ expression: x
                             Identifier: x
                           extra:
                             ty:
-                              Var: 7
+                              Literal: Int
                             ident_multi: 0
                     extra:
                       ty:
-                        Var: 16
+                        Arrow:
+                          - Literal: Int
+                          - Literal: Int
                       ident_multi: 0
                   arg:
                     offset: 64
@@ -171,11 +181,11 @@ expression: x
                       ident_multi: 0
               extra:
                 ty:
-                  Var: 8
+                  Literal: Int
                 ident_multi: 0
     extra:
       ty:
-        Var: 8
+        Literal: Int
       ident_multi: 0
 - forall: []
   ty:

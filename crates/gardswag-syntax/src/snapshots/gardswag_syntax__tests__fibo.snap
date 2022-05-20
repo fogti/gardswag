@@ -45,22 +45,34 @@ term:
                         offset: 85
                         inner:
                           Fix:
-                            arg: fib
+                            arg:
+                              offset: 79
+                              inner: fib
+                              extra: ~
                             body:
                               offset: 85
                               inner:
                                 Lambda:
-                                  arg: x
+                                  arg:
+                                    offset: 86
+                                    inner: x
+                                    extra: ~
                                   body:
                                     offset: 88
                                     inner:
                                       Lambda:
-                                        arg: y
+                                        arg:
+                                          offset: 89
+                                          inner: y
+                                          extra: ~
                                         body:
                                           offset: 91
                                           inner:
                                             Lambda:
-                                              arg: n
+                                              arg:
+                                                offset: 92
+                                                inner: n
+                                                extra: ~
                                               body:
                                                 offset: 94
                                                 inner:

@@ -124,7 +124,7 @@ fn main_check(
         value: (mk_env_std(&mut ctx), Default::default()),
     };
 
-    let parsed = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;
+    let mut parsed = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;
     debug!("type inference constraints generated");
     debug!("=TyAst> {:?}", parsed);
     debug!("--constraints-- {}", ctx.constraints.len());
@@ -136,14 +136,14 @@ fn main_check(
         .map_err(|(offset, e)| anyhow::anyhow!("@{}: {}", offset, e))?;
     ctx2.self_resolve()?;
     debug!("type constraints, as far as possible, solved");
+    parsed.apply(&|&i| ctx2.on_apply(i));
     // generalize the type
     use gardswag_typesys::{FreeVars as _, Substitutable as _};
-    let mut ty = parsed
+    let ty = parsed
         .term
         .clone()
         .map(|i| i.extra.ty)
         .unwrap_or(gardswag_typesys::Ty::Literal(gardswag_typesys::TyLit::Unit));
-    ty.apply(&|&i| ctx2.on_apply(i));
     //let tg = t.generalize(&env);
     let tg = gardswag_typesys::Scheme {
         forall: {

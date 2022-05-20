@@ -49,6 +49,26 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "gardswag-annotated" = rec {
+      packageId = "gardswag-annotated";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "gardswag-annotated";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
+    "gardswag-subst" = rec {
+      packageId = "gardswag-subst";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "gardswag-subst";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "gardswag-syntax" = rec {
       packageId = "gardswag-syntax";
       build = internal.buildRustCrateWithFeatures {
@@ -532,12 +552,51 @@ rec {
         ];
 
       };
+      "gardswag-annotated" = rec {
+        crateName = "gardswag-annotated";
+        version = "0.1.0";
+        edition = "2021";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-annotated; };
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+        ];
+
+      };
+      "gardswag-subst" = rec {
+        crateName = "gardswag-subst";
+        version = "0.1.0";
+        edition = "2021";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-subst; };
+        dependencies = [
+          {
+            name = "gardswag-annotated";
+            packageId = "gardswag-annotated";
+          }
+          {
+            name = "gardswag-varstack";
+            packageId = "gardswag-varstack";
+          }
+        ];
+
+      };
       "gardswag-syntax" = rec {
         crateName = "gardswag-syntax";
         version = "0.1.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-syntax; };
         dependencies = [
+          {
+            name = "gardswag-annotated";
+            packageId = "gardswag-annotated";
+          }
+          {
+            name = "gardswag-subst";
+            packageId = "gardswag-subst";
+          }
           {
             name = "serde";
             packageId = "serde";
@@ -576,6 +635,14 @@ rec {
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-typesys; };
         dependencies = [
+          {
+            name = "gardswag-annotated";
+            packageId = "gardswag-annotated";
+          }
+          {
+            name = "gardswag-subst";
+            packageId = "gardswag-subst";
+          }
           {
             name = "gardswag-varstack";
             packageId = "gardswag-varstack";

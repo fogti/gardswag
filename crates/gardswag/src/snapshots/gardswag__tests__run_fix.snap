@@ -15,12 +15,18 @@ expression: x
           offset: 29
           inner:
             Fix:
-              arg: f
+              arg:
+                offset: 25
+                inner: f
+                extra: ~
               body:
                 offset: 29
                 inner:
                   Lambda:
-                    arg: a
+                    arg:
+                      offset: 30
+                      inner: a
+                      extra: ~
                     body:
                       offset: 32
                       inner:
@@ -62,9 +68,9 @@ expression: x
                                                             - Literal: Bool
                                                     eq:
                                                       Arrow:
-                                                        - Var: 7
+                                                        - Literal: Int
                                                         - Arrow:
-                                                            - Var: 8
+                                                            - Literal: Int
                                                             - Literal: Bool
                                                     leq:
                                                       Arrow:
@@ -123,7 +129,11 @@ expression: x
                                               extra: ~
                                         extra:
                                           ty:
-                                            Var: 13
+                                            Arrow:
+                                              - Literal: Int
+                                              - Arrow:
+                                                  - Literal: Int
+                                                  - Literal: Bool
                                           ident_multi: 0
                                       arg:
                                         offset: 43
@@ -131,11 +141,13 @@ expression: x
                                           Identifier: a
                                         extra:
                                           ty:
-                                            Var: 6
+                                            Literal: Int
                                           ident_multi: 0
                                   extra:
                                     ty:
-                                      Var: 14
+                                      Arrow:
+                                        - Literal: Int
+                                        - Literal: Bool
                                     ident_multi: 0
                                 arg:
                                   offset: 45
@@ -147,7 +159,7 @@ expression: x
                                     ident_multi: 0
                             extra:
                               ty:
-                                Var: 15
+                                Literal: Bool
                               ident_multi: 0
                           then:
                             stmts: []
@@ -171,7 +183,9 @@ expression: x
                                       Identifier: f
                                     extra:
                                       ty:
-                                        Var: 5
+                                        Arrow:
+                                          - Literal: Int
+                                          - Literal: Int
                                       ident_multi: 0
                                   arg:
                                     offset: 58
@@ -183,7 +197,7 @@ expression: x
                                       ident_multi: 0
                               extra:
                                 ty:
-                                  Var: 16
+                                  Literal: Int
                                 ident_multi: 0
                       extra:
                         ty:
@@ -192,12 +206,14 @@ expression: x
                 extra:
                   ty:
                     Arrow:
-                      - Var: 6
+                      - Literal: Int
                       - Literal: Int
                   ident_multi: 1
           extra:
             ty:
-              Var: 5
+              Arrow:
+                - Literal: Int
+                - Literal: Int
             ident_multi: 1
         rest:
           stmts: []
@@ -211,7 +227,9 @@ expression: x
                     Identifier: f
                   extra:
                     ty:
-                      Var: 17
+                      Arrow:
+                        - Literal: Int
+                        - Literal: Int
                     ident_multi: 0
                 arg:
                   offset: 81
@@ -223,11 +241,11 @@ expression: x
                     ident_multi: 0
             extra:
               ty:
-                Var: 29
+                Literal: Int
               ident_multi: 0
     extra:
       ty:
-        Var: 29
+        Literal: Int
       ident_multi: 1
 - forall: []
   ty:

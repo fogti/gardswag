@@ -151,9 +151,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "gardswag-annotated"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "gardswag-subst"
+version = "0.1.0"
+dependencies = [
+ "gardswag-annotated",
+ "gardswag-varstack",
+]
+
+[[package]]
 name = "gardswag-syntax"
 version = "0.1.0"
 dependencies = [
+ "gardswag-annotated",
+ "gardswag-subst",
  "insta",
  "proptest",
  "serde",
@@ -166,6 +183,8 @@ dependencies = [
 name = "gardswag-typesys"
 version = "0.1.0"
 dependencies = [
+ "gardswag-annotated",
+ "gardswag-subst",
  "gardswag-varstack",
  "serde",
  "thiserror",

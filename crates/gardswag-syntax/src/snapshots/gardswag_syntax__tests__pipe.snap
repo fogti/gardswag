@@ -19,7 +19,10 @@ term:
               offset: 34
               inner:
                 Lambda:
-                  arg: y
+                  arg:
+                    offset: 35
+                    inner: y
+                    extra: ~
                   body:
                     offset: 37
                     inner:
@@ -30,7 +33,10 @@ term:
               offset: 26
               inner:
                 Lambda:
-                  arg: x
+                  arg:
+                    offset: 27
+                    inner: x
+                    extra: ~
                   body:
                     offset: 29
                     inner:
@@ -44,7 +50,10 @@ term:
           offset: 56
           inner:
             Lambda:
-              arg: z
+              arg:
+                offset: 57
+                inner: z
+                extra: ~
               body:
                 offset: 84
                 inner:
@@ -53,7 +62,10 @@ term:
                       offset: 87
                       inner:
                         Lambda:
-                          arg: m
+                          arg:
+                            offset: 88
+                            inner: m
+                            extra: ~
                           body:
                             offset: 93
                             inner:
@@ -97,7 +109,10 @@ term:
                             offset: 68
                             inner:
                               Lambda:
-                                arg: m
+                                arg:
+                                  offset: 69
+                                  inner: m
+                                  extra: ~
                                 body:
                                   offset: 74
                                   inner:

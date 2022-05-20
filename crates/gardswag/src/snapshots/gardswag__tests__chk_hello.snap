@@ -100,7 +100,11 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                         extra: ~
                   extra:
                     ty:
-                      Var: 11
+                      Record:
+                        write:
+                          Arrow:
+                            - Literal: String
+                            - Literal: Unit
                     ident_multi: 0
                 key:
                   offset: 10
@@ -108,7 +112,9 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                   extra: ~
             extra:
               ty:
-                Var: 12
+                Arrow:
+                  - Literal: String
+                  - Literal: Unit
               ident_multi: 0
           arg:
             offset: 16
@@ -127,7 +133,7 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
               ident_multi: 0
       extra:
         ty:
-          Var: 14
+          Literal: Unit
         ident_multi: 0
   term: ~
 - forall: []

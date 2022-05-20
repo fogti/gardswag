@@ -7,7 +7,10 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
     offset: 17
     inner:
       Lambda:
-        arg: x
+        arg:
+          offset: 18
+          inner: x
+          extra: ~
         body:
           offset: 36
           inner:
@@ -20,7 +23,10 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                 offset: 45
                 inner:
                   Lambda:
-                    arg: y
+                    arg:
+                      offset: 46
+                      inner: y
+                      extra: ~
                     body:
                       offset: 48
                       inner:

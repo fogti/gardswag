@@ -101,7 +101,11 @@ expression: x
                       extra: ~
                 extra:
                   ty:
-                    Var: 11
+                    Arrow:
+                      - Literal: Int
+                      - Arrow:
+                          - Literal: Int
+                          - Literal: Int
                   ident_multi: 0
               arg:
                 offset: 26
@@ -113,7 +117,9 @@ expression: x
                   ident_multi: 0
           extra:
             ty:
-              Var: 12
+              Arrow:
+                - Literal: Int
+                - Literal: Int
             ident_multi: 0
         arg:
           offset: 28
@@ -125,7 +131,7 @@ expression: x
             ident_multi: 0
     extra:
       ty:
-        Var: 13
+        Literal: Int
       ident_multi: 0
 - forall: []
   ty:

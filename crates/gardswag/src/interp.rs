@@ -237,14 +237,14 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
         Ek::Lambda { arg, body } => {
             let mut stacksave = std::collections::BTreeMap::new();
             for (k, v) in stack.iter() {
-                if stacksave.contains_key(k) || k == arg || !body.inner.is_var_accessed(k) {
+                if stacksave.contains_key(k) || k == arg.inner || !body.inner.is_var_accessed(k) {
                     continue;
                 }
                 stacksave.insert(k, (*v).clone());
             }
 
             Value::Lambda {
-                argname: arg,
+                argname: &arg.inner,
                 f: body,
                 stacksave,
             }
@@ -397,9 +397,9 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
             body,
             &VarStack {
                 parent: Some(stack),
-                name: arg,
+                name: &arg.inner,
                 value: Value::FixLambda {
-                    argname: arg,
+                    argname: &arg.inner,
                     f: body,
                 },
             },
