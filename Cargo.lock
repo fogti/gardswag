@@ -138,6 +138,7 @@ dependencies = [
  "clap",
  "crossbeam-channel",
  "crossbeam-utils",
+ "gardswag-infer-cgen",
  "gardswag-syntax",
  "gardswag-typesys",
  "gardswag-varstack",
@@ -145,7 +146,6 @@ dependencies = [
  "proptest",
  "serde",
  "serde_yaml",
- "thiserror",
  "tracing",
  "tracing-subscriber",
 ]
@@ -155,6 +155,18 @@ name = "gardswag-annotated"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "gardswag-infer-cgen"
+version = "0.1.0"
+dependencies = [
+ "gardswag-syntax",
+ "gardswag-typesys",
+ "gardswag-varstack",
+ "serde",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

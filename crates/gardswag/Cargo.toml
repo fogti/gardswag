@@ -8,12 +8,12 @@ license = "Apache-2.0"
 anyhow = "1.0"
 crossbeam-utils = "0.8"
 crossbeam-channel = "0.5"
+gardswag-infer-cgen.path = "../gardswag-infer-cgen"
 gardswag-syntax.path = "../gardswag-syntax"
 gardswag-typesys.path = "../gardswag-typesys"
 gardswag-varstack.path = "../gardswag-varstack"
 serde = "1.0"
 serde_yaml = "0.8"
-thiserror = "1.0"
 tracing = "0.1"
 
 [dependencies.clap]

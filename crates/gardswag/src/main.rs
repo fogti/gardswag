@@ -1,8 +1,8 @@
+use gardswag_infer_cgen as infer;
 use gardswag_typesys::CollectContext as TyCollectCtx;
 use std::path::PathBuf;
 use tracing::{debug, trace};
 
-mod infer;
 mod interp;
 
 #[cfg(test)]

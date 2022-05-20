@@ -59,6 +59,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "gardswag-infer-cgen" = rec {
+      packageId = "gardswag-infer-cgen";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "gardswag-infer-cgen";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "gardswag-subst" = rec {
       packageId = "gardswag-subst";
       build = internal.buildRustCrateWithFeatures {
@@ -505,6 +515,10 @@ rec {
             packageId = "crossbeam-utils";
           }
           {
+            name = "gardswag-infer-cgen";
+            packageId = "gardswag-infer-cgen";
+          }
+          {
             name = "gardswag-syntax";
             packageId = "gardswag-syntax";
           }
@@ -523,10 +537,6 @@ rec {
           {
             name = "serde_yaml";
             packageId = "serde_yaml";
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror";
           }
           {
             name = "tracing";
@@ -562,6 +572,39 @@ rec {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];
+          }
+        ];
+
+      };
+      "gardswag-infer-cgen" = rec {
+        crateName = "gardswag-infer-cgen";
+        version = "0.1.0";
+        edition = "2021";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-infer-cgen; };
+        dependencies = [
+          {
+            name = "gardswag-syntax";
+            packageId = "gardswag-syntax";
+          }
+          {
+            name = "gardswag-typesys";
+            packageId = "gardswag-typesys";
+          }
+          {
+            name = "gardswag-varstack";
+            packageId = "gardswag-varstack";
+          }
+          {
+            name = "serde";
+            packageId = "serde";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror";
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
           }
         ];
 

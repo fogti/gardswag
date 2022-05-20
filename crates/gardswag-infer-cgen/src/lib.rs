@@ -1,3 +1,13 @@
+#![forbid(
+    trivial_casts,
+    unconditional_recursion,
+    unsafe_code,
+    unused_must_use,
+    clippy::as_conversions,
+    clippy::cast_ptr_alignment
+)]
+#![deny(unused_variables)]
+
 use core::cell::RefCell;
 use gardswag_syntax::{self as synt, Annot};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
@@ -460,7 +470,7 @@ fn infer(
         }),
     };
     let ret = ret?;
-    tracing::trace!("infer @{}:{} -> {:?}", expr.offset, expr.inner.typ(), ret);
+    tracing::trace!("@{}:{} -> {:?}", expr.offset, expr.inner.typ(), ret);
     if let Some(x) = res_ty {
         ctx.unify(expr.offset, ret.extra.ty.clone(), x);
     }
