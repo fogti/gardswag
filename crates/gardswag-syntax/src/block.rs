@@ -23,10 +23,7 @@ impl<X> Block<X> {
 impl<X, NewExtra> AnnotFmap<NewExtra> for Block<X> {
     type Extra = X;
     type Output = Block<NewExtra>;
-    fn map<F>(self, f: &mut F) -> Self::Output
-    where
-        F: FnMut(Self::Extra) -> NewExtra,
-    {
+    fn map<F: FnMut(Self::Extra) -> NewExtra>(self, f: &mut F) -> Self::Output {
         let Block { stmts, term } = self;
         Block {
             stmts: <_ as AnnotFmap<NewExtra>>::map(stmts, f),
@@ -35,10 +32,8 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for Block<X> {
     }
 }
 
-impl<X: FreeVars> FreeVars for Block<X> {
-    type In = X::In;
-
-    fn fv(&self, accu: &mut std::collections::BTreeSet<X::In>, do_add: bool) {
+impl<In, X: FreeVars<In>> FreeVars<In> for Block<X> {
+    fn fv(&self, accu: &mut std::collections::BTreeSet<In>, do_add: bool) {
         self.stmts.fv(accu, do_add);
         if let Some(x) = &self.term {
             x.fv(accu, do_add);
@@ -46,13 +41,9 @@ impl<X: FreeVars> FreeVars for Block<X> {
     }
 }
 
-impl<X: Substitutable> Substitutable for Block<X> {
+impl<In, X: Substitutable<In>> Substitutable<In> for Block<X> {
     type Out = X::Out;
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&X::In) -> Option<X::Out>,
-    {
+    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
         self.stmts.apply(f);
         if let Some(x) = &mut self.term {
             x.apply(f);

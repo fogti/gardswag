@@ -56,9 +56,7 @@ impl Tcg {
     }
 }
 
-impl FreeVars for Tcg {
-    type In = TyVar;
-
+impl FreeVars<TyVar> for Tcg {
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         if let Some(x) = &self.ty {
             x.fv(accu, do_add);
@@ -75,13 +73,9 @@ impl FreeVars for Tcg {
     }
 }
 
-impl Substitutable for Tcg {
+impl Substitutable<TyVar> for Tcg {
     type Out = Ty;
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&TyVar) -> Option<Ty>,
-    {
+    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
         if let Some(ty) = &mut self.ty {
             ty.apply(f);
         }
@@ -101,9 +95,7 @@ impl Substitutable for Tcg {
     }
 }
 
-impl FreeVars for Tcgk {
-    type In = TyVar;
-
+impl FreeVars<TyVar> for Tcgk {
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         match self {
             Tcgk::Record {
@@ -128,13 +120,9 @@ impl FreeVars for Tcgk {
     }
 }
 
-impl Substitutable for Tcgk {
+impl Substitutable<TyVar> for Tcgk {
     type Out = Ty;
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&TyVar) -> Option<Ty>,
-    {
+    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
         let f2 = move |i: &TyVar| {
             // this is annoyingly fragile
             if let Some(Ty::Var(x)) = f(i) {
@@ -171,9 +159,7 @@ pub enum Constraint {
     Bind(TyVar, Tcg),
 }
 
-impl FreeVars for Constraint {
-    type In = TyVar;
-
+impl FreeVars<TyVar> for Constraint {
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         match self {
             Self::Unify(a, b) => {
@@ -192,13 +178,9 @@ impl FreeVars for Constraint {
     }
 }
 
-impl Substitutable for Constraint {
+impl Substitutable<TyVar> for Constraint {
     type Out = TyVar;
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&TyVar) -> Option<TyVar>,
-    {
+    fn apply<F: Fn(&TyVar) -> Option<TyVar>>(&mut self, f: &F) {
         let f2 = move |i: &TyVar| f(i).map(Ty::Var);
         match self {
             Self::Unify(a, b) => {

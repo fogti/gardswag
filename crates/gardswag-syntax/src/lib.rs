@@ -245,10 +245,8 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for ExprKind<X> {
     }
 }
 
-impl<X: FreeVars> FreeVars for ExprKind<X> {
-    type In = X::In;
-
-    fn fv(&self, accu: &mut BTreeSet<X::In>, do_add: bool) {
+impl<In, X: FreeVars<In>> FreeVars<In> for ExprKind<X> {
+    fn fv(&self, accu: &mut BTreeSet<In>, do_add: bool) {
         match self {
             ExprKind::Let { lhs: _, rhs, rest } => {
                 rhs.fv(accu, do_add);
@@ -303,14 +301,9 @@ impl<X: FreeVars> FreeVars for ExprKind<X> {
     }
 }
 
-impl<X: Substitutable> Substitutable for ExprKind<X> {
+impl<In, X: Substitutable<In>> Substitutable<In> for ExprKind<X> {
     type Out = X::Out;
-
-    #[inline]
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&X::In) -> Option<X::Out>,
-    {
+    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
         match self {
             ExprKind::Let { lhs: _, rhs, rest } => {
                 rhs.apply(f);
@@ -374,10 +367,8 @@ pub struct Case<X> {
 impl<X, NewExtra> AnnotFmap<NewExtra> for Case<X> {
     type Extra = X;
     type Output = Case<NewExtra>;
-    fn map<F>(self, f: &mut F) -> Case<NewExtra>
-    where
-        F: FnMut(X) -> NewExtra,
-    {
+    #[inline]
+    fn map<F: FnMut(X) -> NewExtra>(self, f: &mut F) -> Case<NewExtra> {
         let Case { pat, body } = self;
         Case {
             pat: pat.map(f),
@@ -386,23 +377,18 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for Case<X> {
     }
 }
 
-impl<X: FreeVars> FreeVars for Case<X> {
-    type In = X::In;
-
-    fn fv(&self, accu: &mut BTreeSet<X::In>, do_add: bool) {
+impl<In, X: FreeVars<In>> FreeVars<In> for Case<X> {
+    #[inline]
+    fn fv(&self, accu: &mut BTreeSet<In>, do_add: bool) {
         self.pat.fv(accu, do_add);
         self.body.fv(accu, do_add);
     }
 }
 
-impl<X: Substitutable> Substitutable for Case<X> {
+impl<In, X: Substitutable<In>> Substitutable<In> for Case<X> {
     type Out = X::Out;
-
     #[inline]
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&X::In) -> Option<X::Out>,
-    {
+    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
         self.pat.apply(f);
         self.body.apply(f);
     }
@@ -454,10 +440,9 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for Pattern<X> {
     }
 }
 
-impl<X: FreeVars> FreeVars for Pattern<X> {
-    type In = X::In;
-
-    fn fv(&self, accu: &mut BTreeSet<X::In>, do_add: bool) {
+impl<In, X: FreeVars<In>> FreeVars<In> for Pattern<X> {
+    #[inline]
+    fn fv(&self, accu: &mut BTreeSet<In>, do_add: bool) {
         match self {
             Pattern::Unit => {}
             Pattern::Identifier(Annot { extra, .. }) => {
@@ -473,14 +458,10 @@ impl<X: FreeVars> FreeVars for Pattern<X> {
     }
 }
 
-impl<X: Substitutable> Substitutable for Pattern<X> {
+impl<In, X: Substitutable<In>> Substitutable<In> for Pattern<X> {
     type Out = X::Out;
-
     #[inline]
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&X::In) -> Option<X::Out>,
-    {
+    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
         match self {
             Pattern::Unit => {}
             Pattern::Identifier(Annot { extra, .. }) => {

@@ -36,21 +36,17 @@ pub struct InferExtra {
     pub ident_multi: usize,
 }
 
-impl FreeVars for InferExtra {
-    type In = TyVar;
-
+impl FreeVars<TyVar> for InferExtra {
+    #[inline]
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         self.ty.fv(accu, do_add);
     }
 }
 
-impl Substitutable for InferExtra {
+impl Substitutable<TyVar> for InferExtra {
     type Out = Ty;
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&Self::In) -> Option<Self::Out>,
-    {
+    #[inline]
+    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
         self.ty.apply(f);
     }
 }

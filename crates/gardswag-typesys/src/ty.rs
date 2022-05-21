@@ -83,9 +83,7 @@ impl fmt::Debug for Ty {
     }
 }
 
-impl FreeVars for Ty {
-    type In = TyVar;
-
+impl FreeVars<TyVar> for Ty {
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         match self {
             Ty::Literal(_) => {}
@@ -108,13 +106,9 @@ impl FreeVars for Ty {
     }
 }
 
-impl Substitutable for Ty {
-    type Out = Self;
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&TyVar) -> Option<Self>,
-    {
+impl Substitutable<TyVar> for Ty {
+    type Out = Ty;
+    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
         match self {
             Ty::Literal(_) => {}
             Ty::Var(ref mut tv) => {
@@ -155,7 +149,7 @@ impl Ty {
     /// by recording all inner type variables
     pub fn generalize<E>(self, depenv: &E, rng: core::ops::Range<TyVar>) -> Scheme
     where
-        E: FreeVars<In = TyVar>,
+        E: FreeVars<TyVar>,
     {
         let mut forall = rng.collect();
         //self.fv(&mut forall, true);
@@ -176,9 +170,7 @@ impl Scheme {
     }
 }
 
-impl FreeVars for Scheme {
-    type In = TyVar;
-
+impl FreeVars<TyVar> for Scheme {
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         if do_add {
             let x: Vec<usize> = self.forall.difference(accu).copied().collect();
@@ -195,13 +187,9 @@ impl FreeVars for Scheme {
     }
 }
 
-impl Substitutable for Scheme {
+impl Substitutable<TyVar> for Scheme {
     type Out = Ty;
-
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&Self::In) -> Option<Self::Out>,
-    {
+    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
         self.ty.apply(&|i| {
             if self.forall.contains(i) {
                 if let Some(x) = f(i) {
