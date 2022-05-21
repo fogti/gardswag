@@ -47,3 +47,4 @@ but instead might support sockets in the future (tbd).
   to make compile-time unbounded data structures possible
   (where we only know the size/depth at runtime)
 * sockets or plugins
+* lambdas with linearity spec for the argument (0, 1, `*`)
