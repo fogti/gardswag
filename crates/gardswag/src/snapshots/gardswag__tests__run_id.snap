@@ -29,7 +29,7 @@ expression: x
                   ident_multi: 0
           extra:
             ty:
-              Arrow:
+              Arrow1:
                 - Var: 5
                 - Var: 5
             ident_multi: 1
@@ -45,7 +45,7 @@ expression: x
                     Identifier: id
                   extra:
                     ty:
-                      Arrow:
+                      Arrow1:
                         - Literal: Int
                         - Literal: Int
                     ident_multi: 0
@@ -66,6 +66,7 @@ expression: x
         Literal: Int
       ident_multi: 1
 - forall: []
+  forall_args: []
   ty:
     Literal: Int
 

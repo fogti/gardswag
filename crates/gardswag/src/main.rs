@@ -30,7 +30,7 @@ struct Args {
 }
 
 fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
-    use gardswag_typesys::{Scheme as TyScheme, Ty, TyLit};
+    use gardswag_typesys::{FinalArgMultiplicity as Fam, Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
         (int) => {{
@@ -47,13 +47,13 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
         }};
     }
     macro_rules! ta {
-        ($a:expr $(=> $b:expr)*) => {{
-            let mut x = vec![$a];
-            $(x.push($b);)+
+        ($af:expr, $a:expr $(=> $bf:expr, $b:expr)*) => {{
+            let mut x = vec![($af, $a)];
+            $(x.push(($bf, $b));)+
             let mut it = x.into_iter().rev();
-            let mut y = it.next().unwrap();
-            for i in it {
-                y = Ty::Arrow(Box::new(i), Box::new(y));
+            let mut y = it.next().unwrap().1;
+            for (f, i) in it {
+                y = f.resolved(i, y);
             }
             y
         }}
@@ -85,21 +85,21 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
     let gtv = |i| Ty::Var(tyvars[i]);
 
     let ty = tr!({
-        plus: ta!(tl!(int) => tl!(int) => tl!(int)),
-        minus: ta!(tl!(int) => tl!(int) => tl!(int)),
-        mult: ta!(tl!(int) => tl!(int) => tl!(int)),
-        eq: ta!(gtv(0) => gtv(1) => tl!(bool)),
-        leq: ta!(tl!(int) => tl!(int) => tl!(bool)),
-        not: ta!(tl!(bool) => tl!(bool)),
-        spawn_thread: ta!(ta!(tl!(()) => tl!(())) => tl!(())),
-        make_chan: ta!(tl!(()) => tr!({
+        plus: ta!(Fam::Linear, tl!(int) => Fam::Linear, tl!(int) => Fam::Linear, tl!(int)),
+        minus: ta!(Fam::Linear, tl!(int) => Fam::Linear, tl!(int) => Fam::Linear, tl!(int)),
+        mult: ta!(Fam::Linear, tl!(int) => Fam::Linear, tl!(int) => Fam::Linear, tl!(int)),
+        eq: ta!(Fam::Linear, gtv(0) => Fam::Linear, gtv(1) => Fam::Linear, tl!(bool)),
+        leq: ta!(Fam::Linear, tl!(int) => Fam::Linear, tl!(int) => Fam::Linear, tl!(bool)),
+        not: ta!(Fam::Linear, tl!(bool) => Fam::Linear, tl!(bool)),
+        spawn_thread: ta!(Fam::Linear, ta!(Fam::Unrestricted, tl!(()) => Fam::Linear, tl!(())) => Fam::Linear, tl!(())),
+        make_chan: ta!(Fam::Erased, tl!(()) => Fam::Unrestricted, tr!({
             send: tch!(send: gtv(2)),
             recv: tch!(recv: gtv(2)),
         })),
-        chan_send: ta!(gtv(3) => tch!(send: gtv(3)) => tl!(bool)),
-        chan_recv: ta!(tch!(recv: gtv(4)) => ttu!(None: tl!(()), Some: gtv(4))),
+        chan_send: ta!(Fam::Linear, gtv(3) => Fam::Linear, tch!(send: gtv(3)) => Fam::Linear, tl!(bool)),
+        chan_recv: ta!(Fam::Linear, tch!(recv: gtv(4)) => Fam::Linear, ttu!(None: tl!(()), Some: gtv(4))),
         stdio: tr!({
-            write: ta!(tl!(str) => tl!(())),
+            write: ta!(Fam::Linear, tl!(str) => Fam::Linear, tl!(())),
         }),
     });
 
@@ -121,7 +121,10 @@ fn main_check(
     let env = gardswag_varstack::VarStack {
         parent: None,
         name: "std",
-        value: (mk_env_std(&mut ctx), Default::default()),
+        value: (
+            mk_env_std(&mut ctx),
+            std::rc::Rc::new(core::cell::RefCell::new((vec![Default::default()], 0))),
+        ),
     };
 
     let mut parsed = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;
@@ -136,7 +139,7 @@ fn main_check(
         .map_err(|(offset, e)| anyhow::anyhow!("@{}: {}", offset, e))?;
     ctx2.self_resolve()?;
     debug!("type constraints, as far as possible, solved");
-    parsed.apply(&|&i| ctx2.on_apply(i));
+    parsed.apply(&mut |&i| ctx2.on_apply(i));
     // generalize the type
     use gardswag_typesys::{FreeVars as _, Substitutable as _};
     let ty = parsed

@@ -43,7 +43,7 @@ impl<In, X: FreeVars<In>> FreeVars<In> for Block<X> {
 
 impl<In, X: Substitutable<In>> Substitutable<In> for Block<X> {
     type Out = X::Out;
-    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
+    fn apply<F: FnMut(&In) -> Option<X::Out>>(&mut self, f: &mut F) {
         self.stmts.apply(f);
         if let Some(x) = &mut self.term {
             x.apply(f);

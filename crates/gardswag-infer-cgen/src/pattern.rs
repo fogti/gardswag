@@ -1,11 +1,11 @@
 use core::iter::once;
 use gardswag_syntax::{self as synt, Annot, AnnotFmap, Case, Expr, Pattern as Pat};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
-use gardswag_typesys::{self as tysy, CollectContext, Ty, TyLit, TyVar};
+use gardswag_typesys::{self as tysy, ArgMultiplicity, CollectContext, Ty, TyLit, TyVar};
 use gardswag_varstack::VarStack;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use super::{infer, maybe_new_tyvar_opt, Env, Error, InferExtra};
+use super::{infer, maybe_new_tyvar_opt, Env, Error, IdentMeta, InferExtra};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PatternError {
@@ -326,26 +326,12 @@ fn infer_pat(
                     .into_iter()
                     .map(|(key, i)| Ok((key.to_string(), infer_pat(ctx, None, i)?)))
                     .collect::<Result<_, _>>()?;
-                match inptv.unwrap() {
-                    MaybeWldc::Wildcard(inptv) => {
-                        ctx.bind(
-                            offset,
-                            inptv,
-                            Tcg {
-                                kind: Some(Tcgk::Record {
-                                    partial: pre,
-                                    update_info: None,
-                                }),
-                                ..Tcg::default()
-                            },
-                        );
-                        Ty::Var(inptv)
-                    }
-                    MaybeWldc::Normal(inp) => {
-                        ctx.unify(offset, inp.clone(), Ty::Record(pre));
-                        inp
-                    }
-                }
+                let inp = match inptv.unwrap() {
+                    MaybeWldc::Wildcard(inptv) => Ty::Var(inptv),
+                    MaybeWldc::Normal(inp) => inp,
+                };
+                ctx.unify(offset, inp.clone(), Ty::Record(pre));
+                inp
             }
             Pnk::Unit => {
                 if let Some(inptv) = inptv {
@@ -373,7 +359,7 @@ fn infer_pat(
     Ok(ret)
 }
 
-fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<&str, (Ty, Rc<RefCell<usize>>)>) -> Pat<InferExtra> {
+fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<&str, (Ty, IdentMeta)>) -> Pat<InferExtra> {
     match pat {
         Pat::Unit => Pat::Unit,
         Pat::Identifier(Annot {
@@ -386,7 +372,7 @@ fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<&str, (Ty, Rc<RefCell<usize>>)>) 
                 let v = vars.get(&**inner).unwrap();
                 InferExtra {
                     ty: v.0.clone(),
-                    ident_multi: v.1.take(),
+                    ident_multi: v.1.take().1,
                 }
             },
             inner: inner.clone(),
@@ -418,7 +404,7 @@ fn infer_w_stack_vars<'a, 's, I>(
     mut items: I,
 ) -> Result<synt::Expr<InferExtra>, Error>
 where
-    I: Iterator<Item = (&'a str, Ty, Rc<RefCell<usize>>)>,
+    I: Iterator<Item = (&'a str, Ty, IdentMeta)>,
 {
     match items.next() {
         Some((name, ty, ident_multi)) => infer_w_stack_vars(
@@ -474,14 +460,25 @@ pub fn infer_match(
     // inspect bodies
     let resty = ctx.fresh_tyvar();
     let mut cases2 = Vec::with_capacity(cases.len());
-    for ICase { vars, body, pat } in cases {
+    for (n, ICase { vars, body, pat }) in cases.into_iter().enumerate() {
         let vars: BTreeMap<_, _> = vars
             .into_iter()
             .map(|(key, (_, mut ty))| {
                 let ty: &mut Option<Ty> = RefCell::get_mut(Rc::get_mut(&mut ty).unwrap());
-                (key, (ty.take().unwrap(), Rc::<RefCell<usize>>::default()))
+                (
+                    key,
+                    (
+                        ty.take().unwrap(),
+                        Rc::new(RefCell::new((vec![Default::default()], 0))),
+                    ),
+                )
             })
             .collect();
+        for (_, i) in env.iter() {
+            let mut im = i.1.borrow_mut();
+            let l = im.0[im.0.len() - 1 - n].clone();
+            im.0.push(l);
+        }
         let body = infer_w_stack_vars(
             env,
             ctx,
@@ -494,6 +491,11 @@ pub fn infer_match(
             pat: apply_idents(pat, &vars),
             body,
         });
+    }
+    for (_, i) in env.iter() {
+        let mut im = i.1.borrow_mut();
+        let coll: Vec<_> = (0..cases2.len()).map(|_| im.0.pop().unwrap()).collect();
+        *im.0.last_mut().unwrap() = ArgMultiplicity::Max(coll);
     }
     Ok(Annot {
         offset,

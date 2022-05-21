@@ -76,7 +76,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                   ty:
                                                                     Record:
                                                                       chan_recv:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - ChanRecv:
                                                                               Var: 13
                                                                           - TaggedUnion:
@@ -85,26 +85,26 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                               Some:
                                                                                 Var: 13
                                                                       chan_send:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Var: 12
-                                                                          - Arrow:
+                                                                          - Arrow1:
                                                                               - ChanSend:
                                                                                   Var: 12
                                                                               - Literal: Bool
                                                                       eq:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Var: 9
-                                                                          - Arrow:
+                                                                          - Arrow1:
                                                                               - Var: 10
                                                                               - Literal: Bool
                                                                       leq:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Literal: Int
-                                                                          - Arrow:
+                                                                          - Arrow1:
                                                                               - Literal: Int
                                                                               - Literal: Bool
                                                                       make_chan:
-                                                                        Arrow:
+                                                                        Arrow0:
                                                                           - Literal: Unit
                                                                           - Record:
                                                                               recv:
@@ -114,37 +114,37 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                 ChanSend:
                                                                                   Var: 11
                                                                       minus:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Literal: Int
-                                                                          - Arrow:
+                                                                          - Arrow1:
                                                                               - Literal: Int
                                                                               - Literal: Int
                                                                       mult:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Literal: Int
-                                                                          - Arrow:
+                                                                          - Arrow1:
                                                                               - Literal: Int
                                                                               - Literal: Int
                                                                       not:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Literal: Bool
                                                                           - Literal: Bool
                                                                       plus:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Literal: Int
-                                                                          - Arrow:
+                                                                          - Arrow1:
                                                                               - Literal: Int
                                                                               - Literal: Int
                                                                       spawn_thread:
-                                                                        Arrow:
-                                                                          - Arrow:
+                                                                        Arrow1:
+                                                                          - ArrowU:
                                                                               - Literal: Unit
                                                                               - Literal: Unit
                                                                           - Literal: Unit
                                                                       stdio:
                                                                         Record:
                                                                           write:
-                                                                            Arrow:
+                                                                            Arrow1:
                                                                               - Literal: String
                                                                               - Literal: Unit
                                                                   ident_multi: 0
@@ -154,9 +154,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                 extra: ~
                                                           extra:
                                                             ty:
-                                                              Arrow:
+                                                              Arrow1:
                                                                 - Literal: Int
-                                                                - Arrow:
+                                                                - Arrow1:
                                                                     - Literal: Int
                                                                     - Literal: Int
                                                             ident_multi: 0
@@ -170,7 +170,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                             ident_multi: 0
                                                     extra:
                                                       ty:
-                                                        Arrow:
+                                                        Arrow1:
                                                           - Literal: Int
                                                           - Literal: Int
                                                       ident_multi: 0
@@ -212,7 +212,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                           ty:
                                                                             Record:
                                                                               chan_recv:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - ChanRecv:
                                                                                       Var: 22
                                                                                   - TaggedUnion:
@@ -221,26 +221,26 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                       Some:
                                                                                         Var: 22
                                                                               chan_send:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - Var: 21
-                                                                                  - Arrow:
+                                                                                  - Arrow1:
                                                                                       - ChanSend:
                                                                                           Var: 21
                                                                                       - Literal: Bool
                                                                               eq:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - Var: 18
-                                                                                  - Arrow:
+                                                                                  - Arrow1:
                                                                                       - Var: 19
                                                                                       - Literal: Bool
                                                                               leq:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - Literal: Int
-                                                                                  - Arrow:
+                                                                                  - Arrow1:
                                                                                       - Literal: Int
                                                                                       - Literal: Bool
                                                                               make_chan:
-                                                                                Arrow:
+                                                                                Arrow0:
                                                                                   - Literal: Unit
                                                                                   - Record:
                                                                                       recv:
@@ -250,37 +250,37 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                         ChanSend:
                                                                                           Var: 20
                                                                               minus:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - Literal: Int
-                                                                                  - Arrow:
+                                                                                  - Arrow1:
                                                                                       - Literal: Int
                                                                                       - Literal: Int
                                                                               mult:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - Literal: Int
-                                                                                  - Arrow:
+                                                                                  - Arrow1:
                                                                                       - Literal: Int
                                                                                       - Literal: Int
                                                                               not:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - Literal: Bool
                                                                                   - Literal: Bool
                                                                               plus:
-                                                                                Arrow:
+                                                                                Arrow1:
                                                                                   - Literal: Int
-                                                                                  - Arrow:
+                                                                                  - Arrow1:
                                                                                       - Literal: Int
                                                                                       - Literal: Int
                                                                               spawn_thread:
-                                                                                Arrow:
-                                                                                  - Arrow:
+                                                                                Arrow1:
+                                                                                  - ArrowU:
                                                                                       - Literal: Unit
                                                                                       - Literal: Unit
                                                                                   - Literal: Unit
                                                                               stdio:
                                                                                 Record:
                                                                                   write:
-                                                                                    Arrow:
+                                                                                    Arrow1:
                                                                                       - Literal: String
                                                                                       - Literal: Unit
                                                                           ident_multi: 0
@@ -290,9 +290,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                         extra: ~
                                                                   extra:
                                                                     ty:
-                                                                      Arrow:
+                                                                      Arrow1:
                                                                         - Literal: Int
-                                                                        - Arrow:
+                                                                        - Arrow1:
                                                                             - Literal: Int
                                                                             - Literal: Bool
                                                                     ident_multi: 0
@@ -306,7 +306,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                     ident_multi: 0
                                                             extra:
                                                               ty:
-                                                                Arrow:
+                                                                Arrow1:
                                                                   - Literal: Int
                                                                   - Literal: Bool
                                                               ident_multi: 0
@@ -352,13 +352,11 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                             Identifier: fib
                                                                           extra:
                                                                             ty:
-                                                                              Arrow:
+                                                                              Arrow1:
                                                                                 - Literal: Int
-                                                                                - Arrow:
+                                                                                - ArrowU:
                                                                                     - Literal: Int
-                                                                                    - Arrow:
-                                                                                        - Literal: Int
-                                                                                        - Literal: Int
+                                                                                    - Var: 46
                                                                             ident_multi: 0
                                                                         arg:
                                                                           offset: 217
@@ -370,11 +368,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                             ident_multi: 0
                                                                     extra:
                                                                       ty:
-                                                                        Arrow:
+                                                                        ArrowU:
                                                                           - Literal: Int
-                                                                          - Arrow:
-                                                                              - Literal: Int
-                                                                              - Literal: Int
+                                                                          - Var: 46
                                                                       ident_multi: 0
                                                                   arg:
                                                                     offset: 219
@@ -386,9 +382,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                       ident_multi: 0
                                                               extra:
                                                                 ty:
-                                                                  Arrow:
-                                                                    - Literal: Int
-                                                                    - Literal: Int
+                                                                  Var: 46
                                                                 ident_multi: 0
                                                             arg:
                                                               offset: 225
@@ -410,7 +404,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                   ty:
                                                                                     Record:
                                                                                       chan_recv:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - ChanRecv:
                                                                                               Var: 51
                                                                                           - TaggedUnion:
@@ -419,26 +413,26 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                               Some:
                                                                                                 Var: 51
                                                                                       chan_send:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - Var: 50
-                                                                                          - Arrow:
+                                                                                          - Arrow1:
                                                                                               - ChanSend:
                                                                                                   Var: 50
                                                                                               - Literal: Bool
                                                                                       eq:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - Var: 47
-                                                                                          - Arrow:
+                                                                                          - Arrow1:
                                                                                               - Var: 48
                                                                                               - Literal: Bool
                                                                                       leq:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - Literal: Int
-                                                                                          - Arrow:
+                                                                                          - Arrow1:
                                                                                               - Literal: Int
                                                                                               - Literal: Bool
                                                                                       make_chan:
-                                                                                        Arrow:
+                                                                                        Arrow0:
                                                                                           - Literal: Unit
                                                                                           - Record:
                                                                                               recv:
@@ -448,37 +442,37 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                                 ChanSend:
                                                                                                   Var: 49
                                                                                       minus:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - Literal: Int
-                                                                                          - Arrow:
+                                                                                          - Arrow1:
                                                                                               - Literal: Int
                                                                                               - Literal: Int
                                                                                       mult:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - Literal: Int
-                                                                                          - Arrow:
+                                                                                          - Arrow1:
                                                                                               - Literal: Int
                                                                                               - Literal: Int
                                                                                       not:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - Literal: Bool
                                                                                           - Literal: Bool
                                                                                       plus:
-                                                                                        Arrow:
+                                                                                        Arrow1:
                                                                                           - Literal: Int
-                                                                                          - Arrow:
+                                                                                          - Arrow1:
                                                                                               - Literal: Int
                                                                                               - Literal: Int
                                                                                       spawn_thread:
-                                                                                        Arrow:
-                                                                                          - Arrow:
+                                                                                        Arrow1:
+                                                                                          - ArrowU:
                                                                                               - Literal: Unit
                                                                                               - Literal: Unit
                                                                                           - Literal: Unit
                                                                                       stdio:
                                                                                         Record:
                                                                                           write:
-                                                                                            Arrow:
+                                                                                            Arrow1:
                                                                                               - Literal: String
                                                                                               - Literal: Unit
                                                                                   ident_multi: 0
@@ -488,9 +482,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                 extra: ~
                                                                           extra:
                                                                             ty:
-                                                                              Arrow:
+                                                                              Arrow1:
                                                                                 - Literal: Int
-                                                                                - Arrow:
+                                                                                - Arrow1:
                                                                                     - Literal: Int
                                                                                     - Literal: Int
                                                                             ident_multi: 0
@@ -504,7 +498,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                             ident_multi: 0
                                                                     extra:
                                                                       ty:
-                                                                        Arrow:
+                                                                        Arrow1:
                                                                           - Literal: Int
                                                                           - Literal: Int
                                                                       ident_multi: 0
@@ -538,37 +532,29 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                     ident_multi: 0
                             extra:
                               ty:
-                                Arrow:
-                                  - Literal: Int
-                                  - Literal: Int
+                                Var: 46
                               ident_multi: 2
                       extra:
                         ty:
-                          Arrow:
+                          ArrowU:
                             - Literal: Int
-                            - Arrow:
-                                - Literal: Int
-                                - Literal: Int
+                            - Var: 46
                         ident_multi: 2
                 extra:
                   ty:
-                    Arrow:
+                    Arrow1:
                       - Literal: Int
-                      - Arrow:
+                      - ArrowU:
                           - Literal: Int
-                          - Arrow:
-                              - Literal: Int
-                              - Literal: Int
+                          - Var: 46
                   ident_multi: 1
           extra:
             ty:
-              Arrow:
+              Arrow1:
                 - Literal: Int
-                - Arrow:
+                - ArrowU:
                     - Literal: Int
-                    - Arrow:
-                        - Literal: Int
-                        - Literal: Int
+                    - Var: 46
             ident_multi: 1
         rest:
           stmts: []
@@ -578,31 +564,45 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
               Identifier: fib
             extra:
               ty:
-                Arrow:
-                  - Literal: Int
-                  - Arrow:
-                      - Literal: Int
-                      - Arrow:
-                          - Literal: Int
-                          - Literal: Int
+                Var: 58
               ident_multi: 0
     extra:
       ty:
-        Arrow:
-          - Literal: Int
-          - Arrow:
-              - Literal: Int
-              - Arrow:
-                  - Literal: Int
-                  - Literal: Int
+        Var: 58
       ident_multi: 1
-- forall: []
+- forall:
+    - ty: ~
+      oneof: []
+      listeners: []
+      kind:
+        Arrow:
+          multi: 1
+          ty_arg:
+            Literal: Int
+          ty_ret:
+            ArrowU:
+              - Literal: Int
+              - Var: 1
+    - ty: ~
+      oneof: []
+      listeners: []
+      kind:
+        Arrow:
+          multi: 2
+          ty_arg:
+            Literal: Int
+          ty_ret:
+            Literal: Int
+  forall_args:
+    - Linear
+    - Linear
+    - Max:
+        - Prod:
+            - Unrestricted
+            - Var: 28
+        - Prod:
+            - Linear
+            - Var: 18
   ty:
-    Arrow:
-      - Literal: Int
-      - Arrow:
-          - Literal: Int
-          - Arrow:
-              - Literal: Int
-              - Literal: Int
+    Var: 0
 

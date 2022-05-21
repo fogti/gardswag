@@ -303,7 +303,7 @@ impl<In, X: FreeVars<In>> FreeVars<In> for ExprKind<X> {
 
 impl<In, X: Substitutable<In>> Substitutable<In> for ExprKind<X> {
     type Out = X::Out;
-    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
+    fn apply<F: FnMut(&In) -> Option<X::Out>>(&mut self, f: &mut F) {
         match self {
             ExprKind::Let { lhs: _, rhs, rest } => {
                 rhs.apply(f);
@@ -388,7 +388,7 @@ impl<In, X: FreeVars<In>> FreeVars<In> for Case<X> {
 impl<In, X: Substitutable<In>> Substitutable<In> for Case<X> {
     type Out = X::Out;
     #[inline]
-    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
+    fn apply<F: FnMut(&In) -> Option<X::Out>>(&mut self, f: &mut F) {
         self.pat.apply(f);
         self.body.apply(f);
     }
@@ -461,7 +461,7 @@ impl<In, X: FreeVars<In>> FreeVars<In> for Pattern<X> {
 impl<In, X: Substitutable<In>> Substitutable<In> for Pattern<X> {
     type Out = X::Out;
     #[inline]
-    fn apply<F: Fn(&In) -> Option<X::Out>>(&mut self, f: &F) {
+    fn apply<F: FnMut(&In) -> Option<X::Out>>(&mut self, f: &mut F) {
         match self {
             Pattern::Unit => {}
             Pattern::Identifier(Annot { extra, .. }) => {

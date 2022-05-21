@@ -21,10 +21,7 @@ where
     type Out = Out;
 
     #[inline]
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&In) -> Option<Out>,
-    {
+    fn apply<F: FnMut(&In) -> Option<Out>>(&mut self, f: &mut F) {
         self.inner.apply(f);
         self.extra.apply(f);
     }

@@ -1,6 +1,28 @@
-use crate::{FreeVars, Substitutable, Ty, TyVar};
+use crate::{FinalArgMultiplicity as Fam, FreeVars, Substitutable, Ty, TyVar};
+use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct ArgMultiplicityId(pub(crate) usize);
+
+impl fmt::Debug for ArgMultiplicityId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "$am{}", self.0)
+    }
+}
+
+impl fmt::Display for ArgMultiplicityId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "$am{}", self.0)
+    }
+}
+
+use ArgMultiplicityId as ArgMultId;
+
+impl gardswag_subst::AutoImpl for ArgMultId {}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TyConstraintGroup {
@@ -24,6 +46,18 @@ use TyConstraintGroup as Tcg;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum TyConstraintGroupKind {
+    /// type should be an arrow
+    Arrow {
+        /// multiplicity variable
+        multi: ArgMultId,
+
+        /// argument type
+        ty_arg: Ty,
+
+        /// return type
+        ty_ret: Ty,
+    },
+
     /// type should be a record
     Record {
         /// with at least some specific fields
@@ -75,12 +109,15 @@ impl FreeVars<TyVar> for Tcg {
 
 impl Substitutable<TyVar> for Tcg {
     type Out = Ty;
-    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
+    fn apply<F: FnMut(&TyVar) -> Option<Ty>>(&mut self, f: &mut F) {
         if let Some(ty) = &mut self.ty {
             ty.apply(f);
         }
         self.oneof.apply(f);
-        let f2 = move |i: &TyVar| {
+        if let Some(x) = &mut self.kind {
+            x.apply(f);
+        }
+        let mut f2 = move |i: &TyVar| {
             // this is annoyingly fragile
             if let Some(Ty::Var(x)) = f(i) {
                 Some(x)
@@ -88,9 +125,23 @@ impl Substitutable<TyVar> for Tcg {
                 None
             }
         };
-        self.listeners.apply(&f2);
-        if let Some(x) = &mut self.kind {
-            x.apply(f);
+        self.listeners.apply(&mut f2);
+    }
+}
+
+impl FreeVars<ArgMultId> for Tcg {
+    fn fv(&self, accu: &mut BTreeSet<ArgMultId>, do_add: bool) {
+        if let Some(Tcgk::Arrow { multi, .. }) = &self.kind {
+            multi.fv(accu, do_add);
+        }
+    }
+}
+
+impl Substitutable<ArgMultId> for Tcg {
+    type Out = ArgMultId;
+    fn apply<F: FnMut(&ArgMultId) -> Option<ArgMultId>>(&mut self, f: &mut F) {
+        if let Some(Tcgk::Arrow { multi, .. }) = &mut self.kind {
+            multi.apply(f);
         }
     }
 }
@@ -98,6 +149,14 @@ impl Substitutable<TyVar> for Tcg {
 impl FreeVars<TyVar> for Tcgk {
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
         match self {
+            Tcgk::Arrow {
+                multi: _,
+                ty_arg,
+                ty_ret,
+            } => {
+                ty_arg.fv(accu, do_add);
+                ty_ret.fv(accu, do_add);
+            }
             Tcgk::Record {
                 partial,
                 update_info,
@@ -122,22 +181,30 @@ impl FreeVars<TyVar> for Tcgk {
 
 impl Substitutable<TyVar> for Tcgk {
     type Out = Ty;
-    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
-        let f2 = move |i: &TyVar| {
-            // this is annoyingly fragile
-            if let Some(Ty::Var(x)) = f(i) {
-                Some(x)
-            } else {
-                None
-            }
-        };
+    fn apply<F: FnMut(&TyVar) -> Option<Ty>>(&mut self, f: &mut F) {
         match self {
+            Tcgk::Arrow {
+                multi: _,
+                ty_arg,
+                ty_ret,
+            } => {
+                ty_arg.apply(f);
+                ty_ret.apply(f);
+            }
             Tcgk::Record {
                 partial,
                 update_info,
             } => {
                 partial.apply(f);
                 if let Some((a, b)) = update_info {
+                    let mut f2 = move |i: &TyVar| {
+                        // this is annoyingly fragile
+                        if let Some(Ty::Var(x)) = f(i) {
+                            Some(x)
+                        } else {
+                            None
+                        }
+                    };
                     if let Some(x) = f2(a) {
                         *a = x;
                     }
@@ -153,10 +220,93 @@ impl Substitutable<TyVar> for Tcgk {
     }
 }
 
+/// multiplicity of the argument of an arrow.
+/// used for inferring multiplicity from usage.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+pub enum ArgMultiplicity {
+    Var(ArgMultId),
+
+    // `Erased` / 0 is omiited, because it can be represented using `Sum([])`
+    // and is otherwise unnecessary, because `Ty::Arrow0` can be used instead.
+    Linear,
+    Unrestricted,
+
+    /// used for classic multiple usages with unknown multiplicity
+    Sum(Vec<ArgMultiplicity>),
+
+    /// used for pattern matching, if stmts etc.
+    Max(Vec<ArgMultiplicity>),
+
+    /// used for lambda invocations
+    Prod(Vec<ArgMultiplicity>),
+}
+
+impl Default for ArgMultiplicity {
+    #[inline]
+    fn default() -> Self {
+        Self::Sum(Vec::new())
+    }
+}
+
+impl ArgMultiplicity {
+    #[inline]
+    pub fn null() -> Self {
+        Self::Sum(Vec::new())
+    }
+
+    pub fn as_fam(&self) -> Option<Fam> {
+        match self {
+            Self::Linear => Some(Fam::Linear),
+            Self::Unrestricted => Some(Fam::Unrestricted),
+            Self::Sum(xs) if xs.is_empty() => Some(Fam::Erased),
+            _ => None,
+        }
+    }
+
+    pub fn resolved(&self, a: Ty, b: Ty) -> Result<Ty, (Ty, Ty)> {
+        match self.as_fam() {
+            Some(x) => Ok(x.resolved(a, b)),
+            None => Err((a, b)),
+        }
+    }
+}
+
+impl From<Fam> for ArgMultiplicity {
+    fn from(x: Fam) -> Self {
+        match x {
+            Fam::Erased => Self::null(),
+            Fam::Linear => Self::Linear,
+            Fam::Unrestricted => Self::Unrestricted,
+        }
+    }
+}
+
+impl FreeVars<ArgMultId> for ArgMultiplicity {
+    fn fv(&self, accu: &mut BTreeSet<ArgMultId>, do_add: bool) {
+        match self {
+            Self::Var(x) => x.fv(accu, do_add),
+            Self::Linear | Self::Unrestricted => {}
+            Self::Sum(xs) | Self::Max(xs) | Self::Prod(xs) => xs.fv(accu, do_add),
+        }
+    }
+}
+
+impl Substitutable<ArgMultId> for ArgMultiplicity {
+    type Out = ArgMultId;
+    fn apply<F: FnMut(&ArgMultId) -> Option<ArgMultId>>(&mut self, f: &mut F) {
+        match self {
+            Self::Var(x) => x.apply(f),
+            Self::Linear | Self::Unrestricted => {}
+            Self::Sum(xs) | Self::Max(xs) | Self::Prod(xs) => xs.apply(f),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Constraint {
     Unify(Ty, Ty),
     Bind(TyVar, Tcg),
+    BindArgMulti(ArgMultId, ArgMultiplicity),
 }
 
 impl FreeVars<TyVar> for Constraint {
@@ -167,31 +317,61 @@ impl FreeVars<TyVar> for Constraint {
                 b.fv(accu, do_add);
             }
             Self::Bind(tv, cg) => {
-                if do_add {
-                    accu.insert(*tv);
-                } else {
-                    accu.remove(tv);
-                }
+                tv.fv(accu, do_add);
                 cg.fv(accu, do_add);
             }
+            Self::BindArgMulti(_, _) => {}
         }
     }
 }
 
 impl Substitutable<TyVar> for Constraint {
     type Out = TyVar;
-    fn apply<F: Fn(&TyVar) -> Option<TyVar>>(&mut self, f: &F) {
-        let f2 = move |i: &TyVar| f(i).map(Ty::Var);
+    fn apply<F: FnMut(&TyVar) -> Option<TyVar>>(&mut self, f: &mut F) {
         match self {
             Self::Unify(a, b) => {
-                a.apply(&f2);
-                b.apply(&f2);
+                let mut f2 = move |i: &TyVar| f(i).map(Ty::Var);
+                a.apply(&mut f2);
+                b.apply(&mut f2);
             }
             Self::Bind(tv, cg) => {
                 if let Some(x) = f(tv) {
                     *tv = x;
                 }
-                cg.apply(&f2);
+                let mut f2 = move |i: &TyVar| f(i).map(Ty::Var);
+                cg.apply(&mut f2);
+            }
+            Self::BindArgMulti(_, _) => {}
+        }
+    }
+}
+
+impl FreeVars<ArgMultId> for Constraint {
+    fn fv(&self, accu: &mut BTreeSet<ArgMultId>, do_add: bool) {
+        match self {
+            Self::Unify(_, _) => {}
+            Self::Bind(_, cg) => {
+                cg.fv(accu, do_add);
+            }
+            Self::BindArgMulti(amid, amdat) => {
+                amid.fv(accu, do_add);
+                amdat.fv(accu, do_add);
+            }
+        }
+    }
+}
+
+impl Substitutable<ArgMultId> for Constraint {
+    type Out = ArgMultId;
+    fn apply<F: FnMut(&ArgMultId) -> Option<ArgMultId>>(&mut self, f: &mut F) {
+        match self {
+            Self::Unify(_, _) => {}
+            Self::Bind(_, cg) => {
+                cg.apply(f);
+            }
+            Self::BindArgMulti(amid, amdat) => {
+                amid.apply(f);
+                amdat.apply(f);
             }
         }
     }
@@ -201,6 +381,7 @@ impl Substitutable<TyVar> for Constraint {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Context {
     fresh_tyvars: core::ops::RangeFrom<usize>,
+    fresh_argmulti: core::ops::RangeFrom<usize>,
     pub constraints: Vec<(usize, Constraint)>,
 }
 
@@ -208,6 +389,7 @@ impl Default for Context {
     fn default() -> Self {
         Self {
             fresh_tyvars: 0..,
+            fresh_argmulti: 0..,
             constraints: Default::default(),
         }
     }
@@ -216,6 +398,10 @@ impl Default for Context {
 impl Context {
     pub fn fresh_tyvar(&mut self) -> TyVar {
         self.fresh_tyvars.next().unwrap()
+    }
+
+    pub fn fresh_argmulti(&mut self) -> ArgMultId {
+        ArgMultId(self.fresh_argmulti.next().unwrap())
     }
 
     pub(crate) fn dup_tyvars<I>(&mut self, tvs: I) -> BTreeMap<TyVar, TyVar>
@@ -228,21 +414,52 @@ impl Context {
                 (i, j)
             })
             .collect();
+        let mut amm = BTreeMap::<ArgMultId, ArgMultId>::new();
+
+        // constraints for tyvars
         let new_constraints: Vec<_> = self
             .constraints
             .iter()
             .filter(|i| {
-                let mut tfv = Default::default();
+                let mut tfv = BTreeSet::<TyVar>::new();
                 i.1.fv(&mut tfv, true);
                 tfv.into_iter().any(|j| ret.contains_key(&j))
             })
             .map(|i| {
                 let mut i = i.clone();
-                let f = |j: &TyVar| ret.get(j).copied();
-                i.1.apply(&f);
+                i.1.apply(&mut |j| ret.get(j).copied());
+                i.1.apply(&mut |j| {
+                    Some(
+                        *amm.entry(*j)
+                            .or_insert_with(|| ArgMultId(self.fresh_argmulti.next().unwrap())),
+                    )
+                });
                 i
             })
             .collect();
+
+        // constraints for argmultis
+        let new_constraints_ams: Vec<_> = self
+            .constraints
+            .iter()
+            .filter(|i| {
+                if let Constraint::BindArgMulti(_, _) = &i.1 {
+                    let mut afv = BTreeSet::<ArgMultId>::new();
+                    i.1.fv(&mut afv, true);
+                    afv.into_iter().any(|j| amm.contains_key(&j))
+                } else {
+                    false
+                }
+            })
+            .map(|i| {
+                let mut i = i.clone();
+                i.1.apply(&mut |j| amm.get(j).copied());
+                i
+            })
+            .collect();
+
+        // argmultis constraints must come before tyvar constraints
+        self.constraints.extend(new_constraints_ams);
         self.constraints.extend(new_constraints);
         ret
     }
@@ -260,5 +477,12 @@ impl Context {
 
     pub fn bind(&mut self, offset: usize, v: TyVar, tcg: Tcg) {
         self.constraints.push((offset, Constraint::Bind(v, tcg)));
+    }
+
+    pub fn create_argmulti(&mut self, offset: usize, am: ArgMultiplicity) -> ArgMultId {
+        let ret = self.fresh_argmulti();
+        self.constraints
+            .push((offset, Constraint::BindArgMulti(ret, am)));
+        ret
     }
 }

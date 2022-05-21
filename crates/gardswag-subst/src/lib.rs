@@ -20,9 +20,9 @@ pub trait FreeVars<In> {
 pub trait Substitutable<In>: FreeVars<In> {
     type Out: std::clone::Clone;
 
-    fn apply<F>(&mut self, f: &F)
+    fn apply<F>(&mut self, f: &mut F)
     where
-        F: Fn(&In) -> Option<Self::Out>;
+        F: FnMut(&In) -> Option<Self::Out>;
 }
 
 impl<In, V: FreeVars<In>> FreeVars<In> for [V] {
@@ -34,9 +34,9 @@ impl<In, V: FreeVars<In>> FreeVars<In> for [V] {
 impl<In, V: Substitutable<In>> Substitutable<In> for [V] {
     type Out = V::Out;
 
-    fn apply<F>(&mut self, f: &F)
+    fn apply<F>(&mut self, f: &mut F)
     where
-        F: Fn(&In) -> Option<V::Out>,
+        F: FnMut(&In) -> Option<V::Out>,
     {
         self.iter_mut().for_each(|i| i.apply(f));
     }
@@ -53,9 +53,9 @@ impl<In, V: Substitutable<In>> Substitutable<In> for Vec<V> {
     type Out = V::Out;
 
     #[inline]
-    fn apply<F>(&mut self, f: &F)
+    fn apply<F>(&mut self, f: &mut F)
     where
-        F: Fn(&In) -> Option<V::Out>,
+        F: FnMut(&In) -> Option<V::Out>,
     {
         (**self).apply(f)
     }
@@ -71,9 +71,9 @@ impl<In, V: FreeVars<In> + cmp::Ord> FreeVars<In> for BTreeSet<V> {
 impl<In, V: Substitutable<In> + cmp::Ord> Substitutable<In> for BTreeSet<V> {
     type Out = V::Out;
 
-    fn apply<F>(&mut self, f: &F)
+    fn apply<F>(&mut self, f: &mut F)
     where
-        F: Fn(&In) -> Option<V::Out>,
+        F: FnMut(&In) -> Option<V::Out>,
     {
         *self = core::mem::take(self)
             .into_iter()
@@ -101,9 +101,9 @@ impl<In, V: FreeVars<In>, V2> FreeVars<In> for (V, V2) {
 impl<In, K: cmp::Eq + cmp::Ord, V: Substitutable<In>> Substitutable<In> for BTreeMap<K, V> {
     type Out = V::Out;
 
-    fn apply<F>(&mut self, f: &F)
+    fn apply<F>(&mut self, f: &mut F)
     where
-        F: Fn(&In) -> Option<V::Out>,
+        F: FnMut(&In) -> Option<V::Out>,
     {
         self.values_mut().for_each(|i| i.apply(f));
     }
@@ -118,9 +118,9 @@ impl<In, K: core::hash::Hash + cmp::Eq, V: FreeVars<In>> FreeVars<In> for HashMa
 impl<In, K: core::hash::Hash + cmp::Eq, V: Substitutable<In>> Substitutable<In> for HashMap<K, V> {
     type Out = V::Out;
 
-    fn apply<F>(&mut self, f: &F)
+    fn apply<F>(&mut self, f: &mut F)
     where
-        F: Fn(&In) -> Option<V::Out>,
+        F: FnMut(&In) -> Option<V::Out>,
     {
         self.values_mut().for_each(|i| i.apply(f));
     }
@@ -133,9 +133,12 @@ impl<In, V: FreeVars<In>> FreeVars<In> for gardswag_varstack::VarStack<'_, '_, V
     }
 }
 
-impl FreeVars<usize> for usize {
+pub trait AutoImpl: Sized + Copy + core::cmp::Eq + core::cmp::Ord {}
+impl AutoImpl for usize {}
+
+impl<T: AutoImpl> FreeVars<T> for T {
     #[inline]
-    fn fv(&self, accu: &mut BTreeSet<usize>, do_add: bool) {
+    fn fv(&self, accu: &mut BTreeSet<T>, do_add: bool) {
         if do_add {
             accu.insert(*self);
         } else {
@@ -144,14 +147,10 @@ impl FreeVars<usize> for usize {
     }
 }
 
-impl Substitutable<usize> for usize {
-    type Out = usize;
-
+impl<T: AutoImpl> Substitutable<T> for T {
+    type Out = T;
     #[inline]
-    fn apply<F>(&mut self, f: &F)
-    where
-        F: Fn(&usize) -> Option<usize>,
-    {
+    fn apply<F: FnMut(&T) -> Option<T>>(&mut self, f: &mut F) {
         if let Some(x) = f(self) {
             *self = x;
         }

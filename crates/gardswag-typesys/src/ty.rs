@@ -31,10 +31,19 @@ pub enum Ty {
 
     Var(TyVar),
 
-    Arrow(Box<Ty>, Box<Ty>),
+    /// argument is discarded / erased
+    Arrow0(Box<Ty>, Box<Ty>),
 
+    /// argument is used exactly once
+    Arrow1(Box<Ty>, Box<Ty>),
+
+    /// unrestricted usage of argument
+    ArrowU(Box<Ty>, Box<Ty>),
+
+    /// sender end of channels
     ChanSend(Box<Ty>),
 
+    /// receiver end of channels
     ChanRecv(Box<Ty>),
 
     Record(BTreeMap<String, Ty>),
@@ -42,13 +51,63 @@ pub enum Ty {
     TaggedUnion(BTreeMap<String, Ty>),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub enum FinalArgMultiplicity {
+    /// argument is discarded / erased
+    Erased,
+    /// argument is used exactly once
+    Linear,
+    /// unrestricted usage of argument
+    Unrestricted,
+}
+
+impl FinalArgMultiplicity {
+    pub fn resolved(&self, arg: Ty, ret: Ty) -> Ty {
+        match self {
+            Self::Erased => Ty::Arrow0(Box::new(arg), Box::new(ret)),
+            Self::Linear => Ty::Arrow1(Box::new(arg), Box::new(ret)),
+            Self::Unrestricted => Ty::ArrowU(Box::new(arg), Box::new(ret)),
+        }
+    }
+}
+
+impl Ty {
+    pub fn as_arrow(&self) -> Option<(FinalArgMultiplicity, &Ty, &Ty)> {
+        use FinalArgMultiplicity as Fam;
+        match self {
+            Ty::Arrow0(a, b) => Some((Fam::Erased, a, b)),
+            Ty::Arrow1(a, b) => Some((Fam::Linear, a, b)),
+            Ty::ArrowU(a, b) => Some((Fam::Unrestricted, a, b)),
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::Literal(lit) => write!(f, "{}", lit),
             Ty::Var(v) => write!(f, "${}", v),
-            Ty::Arrow(a, b) => {
-                if matches!(**a, Ty::Arrow(..)) {
+            Ty::Arrow0(a, b) => {
+                write!(f, "0")?;
+                if a.as_arrow().is_some() {
+                    write!(f, "({})", a)
+                } else {
+                    write!(f, "{}", a)
+                }?;
+                write!(f, " -> {}", b)
+            }
+            Ty::Arrow1(a, b) => {
+                write!(f, "1")?;
+                if a.as_arrow().is_some() {
+                    write!(f, "({})", a)
+                } else {
+                    write!(f, "{}", a)
+                }?;
+                write!(f, " -> {}", b)
+            }
+            Ty::ArrowU(a, b) => {
+                if a.as_arrow().is_some() {
                     write!(f, "({})", a)
                 } else {
                     write!(f, "{}", a)
@@ -90,12 +149,11 @@ impl FreeVars<TyVar> for Ty {
             Ty::Var(tv) => {
                 tv.fv(accu, do_add);
             }
-            Ty::Arrow(arg, ret) => {
+            Ty::Arrow0(arg, ret) | Ty::Arrow1(arg, ret) | Ty::ArrowU(arg, ret) => {
                 arg.fv(accu, do_add);
                 ret.fv(accu, do_add);
             }
-            Ty::ChanSend(x) => x.fv(accu, do_add),
-            Ty::ChanRecv(x) => x.fv(accu, do_add),
+            Ty::ChanSend(x) | Ty::ChanRecv(x) => x.fv(accu, do_add),
             Ty::Record(rcm) => {
                 rcm.values().for_each(|i| i.fv(accu, do_add));
             }
@@ -108,7 +166,7 @@ impl FreeVars<TyVar> for Ty {
 
 impl Substitutable<TyVar> for Ty {
     type Out = Ty;
-    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
+    fn apply<F: FnMut(&TyVar) -> Option<Ty>>(&mut self, f: &mut F) {
         match self {
             Ty::Literal(_) => {}
             Ty::Var(ref mut tv) => {
@@ -116,12 +174,11 @@ impl Substitutable<TyVar> for Ty {
                     *self = x;
                 }
             }
-            Ty::Arrow(arg, ret) => {
+            Ty::Arrow0(arg, ret) | Ty::Arrow1(arg, ret) | Ty::ArrowU(arg, ret) => {
                 arg.apply(f);
                 ret.apply(f);
             }
-            Ty::ChanSend(x) => x.apply(f),
-            Ty::ChanRecv(x) => x.apply(f),
+            Ty::ChanSend(x) | Ty::ChanRecv(x) => x.apply(f),
             Ty::Record(rcm) => {
                 rcm.values_mut().for_each(|i| i.apply(f));
             }
@@ -154,6 +211,7 @@ impl Ty {
         let mut forall = rng.collect();
         //self.fv(&mut forall, true);
         depenv.fv(&mut forall, false);
+
         let ret = Scheme { forall, ty: self };
         tracing::trace!("generalize res {:?}", ret);
         ret
@@ -164,7 +222,7 @@ impl Scheme {
     pub fn instantiate(&self, outerctx: &mut crate::CollectContext) -> Ty {
         let mut t2 = self.ty.clone();
         let m = outerctx.dup_tyvars(self.forall.iter().copied());
-        t2.apply(&|i| m.get(i).map(|&j| Ty::Var(j)));
+        t2.apply(&mut |i| m.get(i).map(|&j| Ty::Var(j)));
         tracing::trace!("instantiate res {:?}", t2);
         t2
     }
@@ -189,8 +247,8 @@ impl FreeVars<TyVar> for Scheme {
 
 impl Substitutable<TyVar> for Scheme {
     type Out = Ty;
-    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
-        self.ty.apply(&|i| {
+    fn apply<F: FnMut(&TyVar) -> Option<Ty>>(&mut self, f: &mut F) {
+        self.ty.apply(&mut |i| {
             if self.forall.contains(i) {
                 if let Some(x) = f(i) {
                     tracing::warn!(

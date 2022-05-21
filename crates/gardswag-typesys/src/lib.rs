@@ -10,13 +10,13 @@
 
 /// base type definitions
 mod ty;
-pub use ty::{Scheme, Ty, TyLit, TyVar};
+pub use ty::{FinalArgMultiplicity, Scheme, Ty, TyLit, TyVar};
 
 pub use gardswag_subst::{FreeVars, Substitutable};
 
 /// type constraint data structures
 mod collect;
-pub use collect::Context as CollectContext;
+pub use collect::{ArgMultiplicity, ArgMultiplicityId, Context as CollectContext};
 
 /// type constraint solver + data structures
 pub mod constraint;

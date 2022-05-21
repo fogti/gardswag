@@ -22,7 +22,7 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                           ty:
                             Record:
                               chan_recv:
-                                Arrow:
+                                Arrow1:
                                   - ChanRecv:
                                       Var: 9
                                   - TaggedUnion:
@@ -31,26 +31,26 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                                       Some:
                                         Var: 9
                               chan_send:
-                                Arrow:
+                                Arrow1:
                                   - Var: 8
-                                  - Arrow:
+                                  - Arrow1:
                                       - ChanSend:
                                           Var: 8
                                       - Literal: Bool
                               eq:
-                                Arrow:
+                                Arrow1:
                                   - Var: 5
-                                  - Arrow:
+                                  - Arrow1:
                                       - Var: 6
                                       - Literal: Bool
                               leq:
-                                Arrow:
+                                Arrow1:
                                   - Literal: Int
-                                  - Arrow:
+                                  - Arrow1:
                                       - Literal: Int
                                       - Literal: Bool
                               make_chan:
-                                Arrow:
+                                Arrow0:
                                   - Literal: Unit
                                   - Record:
                                       recv:
@@ -60,37 +60,37 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                                         ChanSend:
                                           Var: 7
                               minus:
-                                Arrow:
+                                Arrow1:
                                   - Literal: Int
-                                  - Arrow:
+                                  - Arrow1:
                                       - Literal: Int
                                       - Literal: Int
                               mult:
-                                Arrow:
+                                Arrow1:
                                   - Literal: Int
-                                  - Arrow:
+                                  - Arrow1:
                                       - Literal: Int
                                       - Literal: Int
                               not:
-                                Arrow:
+                                Arrow1:
                                   - Literal: Bool
                                   - Literal: Bool
                               plus:
-                                Arrow:
+                                Arrow1:
                                   - Literal: Int
-                                  - Arrow:
+                                  - Arrow1:
                                       - Literal: Int
                                       - Literal: Int
                               spawn_thread:
-                                Arrow:
-                                  - Arrow:
+                                Arrow1:
+                                  - ArrowU:
                                       - Literal: Unit
                                       - Literal: Unit
                                   - Literal: Unit
                               stdio:
                                 Record:
                                   write:
-                                    Arrow:
+                                    Arrow1:
                                       - Literal: String
                                       - Literal: Unit
                           ident_multi: 0
@@ -102,7 +102,7 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                     ty:
                       Record:
                         write:
-                          Arrow:
+                          Arrow1:
                             - Literal: String
                             - Literal: Unit
                     ident_multi: 0
@@ -112,7 +112,7 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                   extra: ~
             extra:
               ty:
-                Arrow:
+                Arrow1:
                   - Literal: String
                   - Literal: Unit
               ident_multi: 0
@@ -137,6 +137,7 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
         ident_multi: 0
   term: ~
 - forall: []
+  forall_args: []
   ty:
     Literal: Unit
 

@@ -51,7 +51,7 @@ expression: x
                                                 ty:
                                                   Record:
                                                     chan_recv:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - ChanRecv:
                                                             Var: 11
                                                         - TaggedUnion:
@@ -60,26 +60,26 @@ expression: x
                                                             Some:
                                                               Var: 11
                                                     chan_send:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - Var: 10
-                                                        - Arrow:
+                                                        - Arrow1:
                                                             - ChanSend:
                                                                 Var: 10
                                                             - Literal: Bool
                                                     eq:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - Literal: Int
-                                                        - Arrow:
+                                                        - Arrow1:
                                                             - Literal: Int
                                                             - Literal: Bool
                                                     leq:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - Literal: Int
-                                                        - Arrow:
+                                                        - Arrow1:
                                                             - Literal: Int
                                                             - Literal: Bool
                                                     make_chan:
-                                                      Arrow:
+                                                      Arrow0:
                                                         - Literal: Unit
                                                         - Record:
                                                             recv:
@@ -89,37 +89,37 @@ expression: x
                                                               ChanSend:
                                                                 Var: 9
                                                     minus:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - Literal: Int
-                                                        - Arrow:
+                                                        - Arrow1:
                                                             - Literal: Int
                                                             - Literal: Int
                                                     mult:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - Literal: Int
-                                                        - Arrow:
+                                                        - Arrow1:
                                                             - Literal: Int
                                                             - Literal: Int
                                                     not:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - Literal: Bool
                                                         - Literal: Bool
                                                     plus:
-                                                      Arrow:
+                                                      Arrow1:
                                                         - Literal: Int
-                                                        - Arrow:
+                                                        - Arrow1:
                                                             - Literal: Int
                                                             - Literal: Int
                                                     spawn_thread:
-                                                      Arrow:
-                                                        - Arrow:
+                                                      Arrow1:
+                                                        - ArrowU:
                                                             - Literal: Unit
                                                             - Literal: Unit
                                                         - Literal: Unit
                                                     stdio:
                                                       Record:
                                                         write:
-                                                          Arrow:
+                                                          Arrow1:
                                                             - Literal: String
                                                             - Literal: Unit
                                                 ident_multi: 0
@@ -129,9 +129,9 @@ expression: x
                                               extra: ~
                                         extra:
                                           ty:
-                                            Arrow:
+                                            Arrow1:
                                               - Literal: Int
-                                              - Arrow:
+                                              - Arrow1:
                                                   - Literal: Int
                                                   - Literal: Bool
                                           ident_multi: 0
@@ -145,7 +145,7 @@ expression: x
                                           ident_multi: 0
                                   extra:
                                     ty:
-                                      Arrow:
+                                      Arrow1:
                                         - Literal: Int
                                         - Literal: Bool
                                     ident_multi: 0
@@ -183,7 +183,7 @@ expression: x
                                       Identifier: f
                                     extra:
                                       ty:
-                                        Arrow:
+                                        Arrow1:
                                           - Literal: Int
                                           - Literal: Int
                                       ident_multi: 0
@@ -205,13 +205,13 @@ expression: x
                         ident_multi: 0
                 extra:
                   ty:
-                    Arrow:
+                    Arrow1:
                       - Literal: Int
                       - Literal: Int
                   ident_multi: 1
           extra:
             ty:
-              Arrow:
+              Arrow1:
                 - Literal: Int
                 - Literal: Int
             ident_multi: 1
@@ -227,9 +227,7 @@ expression: x
                     Identifier: f
                   extra:
                     ty:
-                      Arrow:
-                        - Literal: Int
-                        - Literal: Int
+                      Var: 17
                     ident_multi: 0
                 arg:
                   offset: 81
@@ -248,6 +246,7 @@ expression: x
         Literal: Int
       ident_multi: 1
 - forall: []
+  forall_args: []
   ty:
     Literal: Int
 

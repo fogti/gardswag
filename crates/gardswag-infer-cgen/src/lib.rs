@@ -11,7 +11,9 @@
 use core::cell::RefCell;
 use gardswag_syntax::{self as synt, Annot};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
-use gardswag_typesys::{self as tysy, FreeVars, Substitutable, Ty, TyLit, TyVar};
+use gardswag_typesys::{
+    self as tysy, ArgMultiplicity as ArgMult, FreeVars, Substitutable, Ty, TyLit, TyVar,
+};
 use gardswag_varstack::VarStack;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -28,7 +30,8 @@ pub enum Error {
     Pattern(synt::Annot<PatternError>),
 }
 
-pub type Env<'s> = &'s VarStack<'s, 's, (tysy::Scheme, Rc<RefCell<usize>>)>;
+type IdentMeta = Rc<RefCell<(Vec<ArgMult>, usize)>>;
+pub type Env<'s> = &'s VarStack<'s, 's, (tysy::Scheme, IdentMeta)>;
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct InferExtra {
@@ -46,7 +49,7 @@ impl FreeVars<TyVar> for InferExtra {
 impl Substitutable<TyVar> for InferExtra {
     type Out = Ty;
     #[inline]
-    fn apply<F: Fn(&TyVar) -> Option<Ty>>(&mut self, f: &F) {
+    fn apply<F: FnMut(&TyVar) -> Option<Ty>>(&mut self, f: &mut F) {
         self.ty.apply(f);
     }
 }
@@ -108,7 +111,7 @@ fn infer(
             let vs = VarStack {
                 parent: Some(env),
                 name: &*lhs.inner,
-                value: (t2, Default::default()),
+                value: (t2, Rc::new(RefCell::new((vec![ArgMult::null()], 0)))),
             };
             let rest = infer_block(&vs, ctx, expr.offset, rest, None)?;
             let extra = InferExtra {
@@ -117,7 +120,7 @@ fn infer(
                     .as_ref()
                     .map(|i| i.extra.ty.clone())
                     .unwrap_or(Ty::Literal(TyLit::Unit)),
-                ident_multi: vs.value.1.take(),
+                ident_multi: vs.value.1.take().1,
             };
             Ok(Annot {
                 offset: expr.offset,
@@ -151,13 +154,33 @@ fn infer(
             or_else,
         } => {
             let cond = infer(env, ctx, cond, Some(Ty::Literal(TyLit::Bool)))?;
+            for (_, i) in env.iter() {
+                let mut im = i.1.borrow_mut();
+                let l = im.0.last().unwrap().clone();
+                im.0.push(l);
+            }
             let then = infer_block(env, ctx, expr.offset, then, res_ty.take())?;
             let t_then = then
                 .term
                 .as_ref()
                 .map(|i| i.extra.ty.clone())
                 .unwrap_or(Ty::Literal(TyLit::Unit));
+            for (_, i) in env.iter() {
+                let mut im = i.1.borrow_mut();
+                let l = im.0[im.0.len() - 2].clone();
+                im.0.push(l);
+            }
             let or_else = infer_block(env, ctx, expr.offset, or_else, Some(t_then.clone()))?;
+            for (_, i) in env.iter() {
+                let mut im = i.1.borrow_mut();
+                let l = im.0.pop().unwrap();
+                let l2 = im.0.pop().unwrap();
+                *im.0.last_mut().unwrap() = if l != l2 {
+                    ArgMult::Max(vec![l, l2])
+                } else {
+                    l
+                };
+            }
             Ok(Annot {
                 offset: expr.offset,
                 extra: InferExtra {
@@ -182,7 +205,7 @@ fn infer(
                         forall: Default::default(),
                         ty: tv.clone(),
                     },
-                    Default::default(),
+                    Rc::new(RefCell::new((vec![ArgMult::null()], 0))),
                 ),
             };
             let body: synt::Expr<InferExtra> = infer(
@@ -191,11 +214,32 @@ fn infer(
                 body,
                 None,
             )?;
+            let (mut ident_argm, ident_multi) = env2.value.1.take();
+            let ident_argm = ident_argm.pop().unwrap();
             Ok(Annot {
                 offset: expr.offset,
                 extra: InferExtra {
-                    ty: Ty::Arrow(Box::new(tv), Box::new(body.extra.ty.clone())),
-                    ident_multi: env2.value.1.take(),
+                    ty: match ident_argm.resolved(tv, body.extra.ty.clone()) {
+                        Ok(x) => x,
+                        Err((tv, bety)) => {
+                            let tv2 = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
+                            let argm = ctx.create_argmulti(expr.offset, ident_argm);
+                            ctx.bind(
+                                expr.offset,
+                                tv2,
+                                Tcg {
+                                    kind: Some(Tcgk::Arrow {
+                                        ty_arg: tv,
+                                        ty_ret: bety,
+                                        multi: argm,
+                                    }),
+                                    ..Default::default()
+                                },
+                            );
+                            Ty::Var(tv2)
+                        }
+                    },
+                    ident_multi,
                 },
                 inner: Ek::<InferExtra>::Lambda {
                     arg: arg.clone(),
@@ -214,7 +258,7 @@ fn infer(
                         forall: Default::default(),
                         ty: tv.clone(),
                     },
-                    Default::default(),
+                    Rc::new(RefCell::new((vec![ArgMult::null()], 0))),
                 ),
             };
             // unify {$tv -> x} & {$tv -> $tv}, inlined
@@ -228,7 +272,7 @@ fn infer(
                 offset: expr.offset,
                 extra: InferExtra {
                     ty: tv,
-                    ident_multi: env2.value.1.take(),
+                    ident_multi: env2.value.1.take().1,
                 },
                 inner: Ek::Fix {
                     arg: arg.clone(),
@@ -242,24 +286,45 @@ fn infer(
             // tyvar allocations which otherwise clutter up cg listings
             let (ty, inner) = {
                 let prim = infer(env, ctx, prim, None)?;
+                for (_, i) in env.iter() {
+                    let mut im = i.1.borrow_mut();
+                    let l = im.0.last().unwrap().clone();
+                    im.0.push(l);
+                }
                 let arg = infer(env, ctx, arg, None)?;
+                let (argmult, ty) = if let Some((fam, tp_arg, tp_ret)) = prim.extra.ty.as_arrow() {
+                    // optimized by 1x unfolding
+                    ctx.unify(expr.offset, (*tp_arg).clone(), arg.extra.ty.clone());
+                    (fam.into(), (*tp_ret).clone())
+                } else {
+                    let tvout = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
+                    let tva = maybe_new_tyvar(expr.offset, prim.extra.ty.clone(), ctx);
+                    let argm = ctx.fresh_argmulti();
+                    ctx.bind(
+                        expr.offset,
+                        tva,
+                        Tcg {
+                            kind: Some(Tcgk::Arrow {
+                                multi: argm,
+                                ty_arg: arg.extra.ty.clone(),
+                                ty_ret: Ty::Var(tvout),
+                            }),
+                            ..Default::default()
+                        },
+                    );
+                    (ArgMult::Var(argm), Ty::Var(tvout))
+                };
+                for (_, i) in env.iter() {
+                    let mut im = i.1.borrow_mut();
+                    let l = im.0.pop().unwrap();
+                    let lm = im.0.last_mut().unwrap();
+                    if l != *lm {
+                        // variable was accessed
+                        *lm = ArgMult::Prod(vec![l, argmult.clone()]);
+                    }
+                }
                 (
-                    match prim.extra.ty.clone() {
-                        Ty::Arrow(tp_arg, tp_ret) => {
-                            // optimized by 1x unfolding
-                            ctx.unify(expr.offset, *tp_arg, arg.extra.ty.clone());
-                            *tp_ret
-                        }
-                        t_prim => {
-                            let tvout = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
-                            ctx.unify(
-                                expr.offset,
-                                t_prim,
-                                Ty::Arrow(Box::new(arg.extra.ty.clone()), Box::new(Ty::Var(tvout))),
-                            );
-                            Ty::Var(tvout)
-                        }
-                    },
+                    ty,
                     Ek::Call {
                         prim: Box::new(prim),
                         arg: Box::new(arg),
@@ -377,7 +442,7 @@ fn infer(
             Ok(Annot {
                 offset: expr.offset,
                 extra: InferExtra {
-                    ty: Ty::Arrow(Box::new(Ty::Var(tvinp)), Box::new(Ty::Var(tvout))),
+                    ty: Ty::Arrow1(Box::new(Ty::Var(tvinp)), Box::new(Ty::Var(tvout))),
                     ident_multi: 0,
                 },
                 inner: Ek::Tagger { key: key.clone() },
@@ -415,7 +480,18 @@ fn infer(
 
         Ek::Identifier(id) => {
             if let Some((x, cnt)) = env.find(id) {
-                *cnt.borrow_mut() += 1;
+                let mut cntm = cnt.borrow_mut();
+                cntm.1 += 1;
+                let cntm0lm = cntm.0.last_mut().unwrap();
+                *cntm0lm = match core::mem::replace(cntm0lm, ArgMult::Unrestricted) {
+                    // 0 + 1 = 1
+                    ArgMult::Sum(xs) if xs.is_empty() => ArgMult::Linear,
+                    // 1 + (1 | ω) = ω
+                    ArgMult::Linear | ArgMult::Unrestricted => ArgMult::Unrestricted,
+                    // TODO: product might be 0
+                    ArgMult::Prod(_) => ArgMult::Unrestricted,
+                    y => unreachable!("{:?}", y),
+                };
                 Ok(Annot {
                     offset: expr.offset,
                     extra: InferExtra {
