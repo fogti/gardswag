@@ -1127,6 +1127,8 @@ impl Context {
             Some(ret)
         }
 
+        tracing::trace!("notify_argmultis");
+
         // scanner run
         let mut finm: BTreeMap<_, _> = self
             .a
@@ -1154,6 +1156,7 @@ impl Context {
                     continue;
                 }
                 if let Some(v2) = resolve_argmulti(v, &finm) {
+                    tracing::trace!("argmultis: resolved {} <- {:?}", k, v2);
                     finm.insert(*k, v2);
                 }
             }
@@ -1162,7 +1165,7 @@ impl Context {
 
         let mut g_modified = false;
         let mut to_unify = Vec::new();
-        for i in self.g.values_mut() {
+        for (k, i) in &mut self.g {
             let ty_new = match i.kind.take() {
                 Some(Tcgk::Arrow {
                     multi,
@@ -1189,6 +1192,7 @@ impl Context {
                     continue;
                 }
             };
+            tracing::trace!("argmultis/g: resolved {} <- {:?}", k, ty_new);
             if let Some(x) = &i.ty {
                 to_unify.push((x.clone(), ty_new));
             } else {
