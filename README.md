@@ -6,7 +6,7 @@ the feasibility of type checking and byte code caching.
 
 (examples are inside `docs/examples`)
 
-(rough language reference)[docs/language_gardswag.txt]
+[rough language reference](docs/language_gardswag.txt)
 
 ## Running the interpreter
 
