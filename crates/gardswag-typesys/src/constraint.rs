@@ -1074,7 +1074,11 @@ impl Context {
 
     pub fn notify_argmultis(&mut self) -> Result<(), UnifyError> {
         use crate::FinalArgMultiplicity as Fam;
-        fn resolve_argmulti(v: &mut ArgMult, finm: &BTreeMap<ArgMultId, Fam>, ign: ArgMultId) -> Option<Fam> {
+        fn resolve_argmulti(
+            v: &mut ArgMult,
+            finm: &BTreeMap<ArgMultId, Fam>,
+            ign: ArgMultId,
+        ) -> Option<Fam> {
             v.normalize();
             let ret = match v {
                 ArgMult::Linear => Fam::Linear,

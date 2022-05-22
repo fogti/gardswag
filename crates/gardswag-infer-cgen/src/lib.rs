@@ -95,7 +95,11 @@ fn maybe_new_tyvar_opt(offset: usize, t: Option<Ty>, ctx: &mut tysy::CollectCont
     }
 }
 
-fn maybe_new_argmulti(offset: usize, a: ArgMult, ctx: &mut tysy::CollectContext) -> gardswag_typesys::ArgMultiplicityId {
+fn maybe_new_argmulti(
+    offset: usize,
+    a: ArgMult,
+    ctx: &mut tysy::CollectContext,
+) -> gardswag_typesys::ArgMultiplicityId {
     match a {
         ArgMult::Var(x) => x,
         _ => ctx.create_argmulti(offset, a),

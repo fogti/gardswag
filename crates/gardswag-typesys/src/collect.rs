@@ -277,10 +277,12 @@ impl ArgMultiplicity {
             Self::Sum(xs) => {
                 recur(&mut xs[..]);
                 // filter 0s
-                xs.retain(|i| if let Self::Sum(xs2) = i {
-                    !xs2.is_empty()
-                } else {
-                    true
+                xs.retain(|i| {
+                    if let Self::Sum(xs2) = i {
+                        !xs2.is_empty()
+                    } else {
+                        true
+                    }
                 });
                 if xs.len() == 1 {
                     let x = xs.pop().unwrap();
@@ -288,13 +290,7 @@ impl ArgMultiplicity {
                 } else if xs.iter().any(|i| matches!(i, Self::Sum(_))) {
                     *xs = core::mem::take(xs)
                         .into_iter()
-                        .flat_map(|i| {
-                            if let Self::Sum(x) = i {
-                                x
-                            } else {
-                                vec![i]
-                            }
-                        })
+                        .flat_map(|i| if let Self::Sum(x) = i { x } else { vec![i] })
                         .collect();
                 }
             }
@@ -308,13 +304,7 @@ impl ArgMultiplicity {
                 } else if xs.iter().any(|i| matches!(i, Self::Max(_))) {
                     *xs = core::mem::take(xs)
                         .into_iter()
-                        .flat_map(|i| {
-                            if let Self::Max(x) = i {
-                                x
-                            } else {
-                                vec![i]
-                            }
-                        })
+                        .flat_map(|i| if let Self::Max(x) = i { x } else { vec![i] })
                         .collect();
                 }
             }
@@ -328,13 +318,7 @@ impl ArgMultiplicity {
                 } else if xs.iter().any(|i| matches!(i, Self::Prod(_))) {
                     *xs = core::mem::take(xs)
                         .into_iter()
-                        .flat_map(|i| {
-                            if let Self::Prod(x) = i {
-                                x
-                            } else {
-                                vec![i]
-                            }
-                        })
+                        .flat_map(|i| if let Self::Prod(x) = i { x } else { vec![i] })
                         .collect();
                 }
             }
