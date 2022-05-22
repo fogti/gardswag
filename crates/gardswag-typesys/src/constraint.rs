@@ -999,7 +999,8 @@ impl Context {
                 if let Some(lhs_ty) = self.g.get(&lhs_tcgid).unwrap().resolved() {
                     // avoid unnecessary allocation of tcgid
                     if let Some(rhs_ty) = tcg.ty {
-                        return self.unify(&lhs_ty.clone(), &rhs_ty);
+                        let lhs_ty = lhs_ty.clone();
+                        return self.unify(&lhs_ty, &rhs_ty);
                     }
                 }
                 let rhs_tcgid = rhs_tcgid(&mut self.tycg_cnt, &mut self.g, v, tcg);
