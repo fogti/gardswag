@@ -8,7 +8,7 @@ mod interp;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, PartialEq, clap::ArgEnum)]
+#[derive(Clone, PartialEq, Eq, clap::ArgEnum)]
 enum Mode {
     /// check if the file passes parsing + type-check
     Check,

@@ -5,7 +5,7 @@ use crate::{
 use gardswag_subst::{FreeVars, Substitutable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Block<X> {
     pub stmts: Vec<Expr<X>>,
     pub term: Option<Box<Expr<X>>>,

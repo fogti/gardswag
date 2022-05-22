@@ -4,7 +4,7 @@ use gardswag_varstack::VarStack;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub enum Builtin {
     Plus,
     Minus,

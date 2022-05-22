@@ -25,7 +25,7 @@ mod tests;
 
 pub type Error = Annot<ErrorKind>;
 
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ErrorKind {
     #[error("(lexer) {0}")]
     Lex(#[from] lex::ErrorKind),
@@ -43,7 +43,7 @@ pub enum ErrorKind {
 pub type Identifier<X> = Annot<String, X>;
 pub type Expr<X> = Annot<ExprKind<X>, X>;
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum ExprKind<X> {
     Let {
         lhs: Identifier<()>,
@@ -358,7 +358,7 @@ impl<In, X: Substitutable<In>> Substitutable<In> for ExprKind<X> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Case<X> {
     pub pat: Pattern<X>,
     pub body: Expr<X>,
@@ -394,7 +394,7 @@ impl<In, X: Substitutable<In>> Substitutable<In> for Case<X> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Pattern<X> {
     Unit,
     Identifier(Identifier<X>),

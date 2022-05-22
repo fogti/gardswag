@@ -19,7 +19,7 @@ enum LvlKind {
 
 pub type Error = Annot<ErrorKind>;
 
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ErrorKind {
     #[error("unhandled character '{0}'")]
     UnhandledChar(char),

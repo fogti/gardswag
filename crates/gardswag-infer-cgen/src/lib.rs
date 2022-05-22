@@ -33,7 +33,7 @@ pub enum Error {
 type IdentMeta = Rc<RefCell<(Vec<ArgMult>, usize)>>;
 pub type Env<'s> = &'s VarStack<'s, 's, (tysy::Scheme, IdentMeta)>;
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct InferExtra {
     pub ty: Ty,
     pub ident_multi: usize,
