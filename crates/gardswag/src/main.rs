@@ -160,9 +160,13 @@ fn main_check(
     for (k, v) in &ctx2.m {
         trace!("\t${}:\t{}", k, v);
     }
+    trace!("--AM--");
+    for (k, v) in &ctx2.a {
+        trace!("\t{}:\t{:?}", k, v);
+    }
     trace!("--CG--");
     for (k, v) in &ctx2.g {
-        trace!("\t${}:\t{:?}", k, v);
+        trace!("\t{}:\t{:?}", k, v);
     }
     let tgx = ctx2.export_scheme(tg);
     tracing::info!("=G> {:#?}", tgx);
