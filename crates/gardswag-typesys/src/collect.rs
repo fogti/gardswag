@@ -285,15 +285,37 @@ impl ArgMultiplicity {
                 if xs.len() == 1 {
                     let x = xs.pop().unwrap();
                     *self = x;
+                } else if xs.iter().any(|i| matches!(i, Self::Sum(_))) {
+                    *xs = core::mem::take(xs)
+                        .into_iter()
+                        .flat_map(|i| {
+                            if let Self::Sum(x) = i {
+                                x
+                            } else {
+                                vec![i]
+                            }
+                        })
+                        .collect();
                 }
             }
             Self::Max(xs) => {
                 recur(&mut xs[..]);
-                if xs.iter().find(|i| matches!(i, Self::Unrestricted)).is_some() {
+                if xs.iter().any(|i| matches!(i, Self::Unrestricted)) {
                     *self = Self::Unrestricted;
                 } else if xs.len() == 1 {
                     let x = xs.pop().unwrap();
                     *self = x;
+                } else if xs.iter().any(|i| matches!(i, Self::Max(_))) {
+                    *xs = core::mem::take(xs)
+                        .into_iter()
+                        .flat_map(|i| {
+                            if let Self::Max(x) = i {
+                                x
+                            } else {
+                                vec![i]
+                            }
+                        })
+                        .collect();
                 }
             }
             Self::Prod(xs) => {
@@ -303,6 +325,17 @@ impl ArgMultiplicity {
                 if xs.len() == 1 {
                     let x = xs.pop().unwrap();
                     *self = x;
+                } else if xs.iter().any(|i| matches!(i, Self::Prod(_))) {
+                    *xs = core::mem::take(xs)
+                        .into_iter()
+                        .flat_map(|i| {
+                            if let Self::Prod(x) = i {
+                                x
+                            } else {
+                                vec![i]
+                            }
+                        })
+                        .collect();
                 }
             }
         }

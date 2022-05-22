@@ -1074,7 +1074,7 @@ impl Context {
 
     pub fn notify_argmultis(&mut self) -> Result<(), UnifyError> {
         use crate::FinalArgMultiplicity as Fam;
-        fn resolve_argmulti(v: &mut ArgMult, finm: &BTreeMap<ArgMultId, Fam>) -> Option<Fam> {
+        fn resolve_argmulti(v: &mut ArgMult, finm: &BTreeMap<ArgMultId, Fam>, ign: ArgMultId) -> Option<Fam> {
             v.normalize();
             let ret = match v {
                 ArgMult::Linear => Fam::Linear,
@@ -1089,7 +1089,11 @@ impl Context {
                         _ => true,
                     });
                     for i in xs {
-                        sum = match (resolve_argmulti(i, finm)?, sum) {
+                        if *i == ArgMult::Var(ign) {
+                            tracing::debug!("notify_argmultis ignored loop around {:?}", ign);
+                            continue;
+                        }
+                        sum = match (resolve_argmulti(i, finm, ign)?, sum) {
                             (Fam::Erased, x) | (x, Fam::Erased) => x,
                             (_, _) => Fam::Unrestricted,
                         };
@@ -1099,7 +1103,11 @@ impl Context {
                 ArgMult::Max(xs) => {
                     let mut max = None;
                     for i in xs {
-                        let j = resolve_argmulti(i, finm)?;
+                        if *i == ArgMult::Var(ign) {
+                            tracing::debug!("notify_argmultis ignored loop around {:?}", ign);
+                            continue;
+                        }
+                        let j = resolve_argmulti(i, finm, ign)?;
                         max = Some(match max {
                             // we can't assume anything if any branch mismatches
                             Some(k) if k != j => Fam::Unrestricted,
@@ -1113,7 +1121,11 @@ impl Context {
                     // remove all elements which are one
                     xs.retain(|i| i != &ArgMult::Linear);
                     for i in xs {
-                        prod = match (prod, resolve_argmulti(i, finm)?) {
+                        if *i == ArgMult::Var(ign) {
+                            tracing::debug!("notify_argmultis ignored loop around {:?}", ign);
+                            continue;
+                        }
+                        prod = match (prod, resolve_argmulti(i, finm, ign)?) {
                             (Fam::Erased, _) | (_, Fam::Erased) => Fam::Erased,
                             (Fam::Linear, x) | (x, Fam::Linear) => x,
                             (_, _) => Fam::Unrestricted,
@@ -1158,8 +1170,8 @@ impl Context {
                 if finm.contains_key(k) {
                     continue;
                 }
-                if let Some(v2) = resolve_argmulti(v, &finm) {
-                    tracing::trace!("argmultis: resolved {} <- {:?}", k, v2);
+                if let Some(v2) = resolve_argmulti(v, &finm, *k) {
+                    tracing::debug!("argmultis: resolved {} <- {:?}", k, v2);
                     finm.insert(*k, v2);
                 }
             }

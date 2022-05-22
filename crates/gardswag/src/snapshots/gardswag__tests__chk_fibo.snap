@@ -356,7 +356,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                                 - Literal: Int
                                                                                 - ArrowU:
                                                                                     - Literal: Int
-                                                                                    - Var: 46
+                                                                                    - ArrowU:
+                                                                                        - Literal: Int
+                                                                                        - Literal: Int
                                                                             ident_multi: 0
                                                                         arg:
                                                                           offset: 217
@@ -370,7 +372,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                       ty:
                                                                         ArrowU:
                                                                           - Literal: Int
-                                                                          - Var: 46
+                                                                          - ArrowU:
+                                                                              - Literal: Int
+                                                                              - Literal: Int
                                                                       ident_multi: 0
                                                                   arg:
                                                                     offset: 219
@@ -382,7 +386,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                                                       ident_multi: 0
                                                               extra:
                                                                 ty:
-                                                                  Var: 46
+                                                                  ArrowU:
+                                                                    - Literal: Int
+                                                                    - Literal: Int
                                                                 ident_multi: 0
                                                             arg:
                                                               offset: 225
@@ -532,13 +538,17 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                                     ident_multi: 0
                             extra:
                               ty:
-                                Var: 46
+                                ArrowU:
+                                  - Literal: Int
+                                  - Literal: Int
                               ident_multi: 2
                       extra:
                         ty:
                           ArrowU:
                             - Literal: Int
-                            - Var: 46
+                            - ArrowU:
+                                - Literal: Int
+                                - Literal: Int
                         ident_multi: 2
                 extra:
                   ty:
@@ -546,7 +556,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                       - Literal: Int
                       - ArrowU:
                           - Literal: Int
-                          - Var: 46
+                          - ArrowU:
+                              - Literal: Int
+                              - Literal: Int
                   ident_multi: 1
           extra:
             ty:
@@ -554,7 +566,9 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
                 - Literal: Int
                 - ArrowU:
                     - Literal: Int
-                    - Var: 46
+                    - ArrowU:
+                        - Literal: Int
+                        - Literal: Int
             ident_multi: 1
         rest:
           stmts: []
@@ -576,13 +590,11 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
       listeners: []
       kind:
         Arrow:
-          multi: 1
+          multi: 0
           ty_arg:
             Literal: Int
           ty_ret:
-            ArrowU:
-              - Literal: Int
-              - Var: 1
+            Var: 1
     - ty: ~
       oneof: []
       listeners: []
@@ -592,15 +604,17 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
           ty_arg:
             Literal: Int
           ty_ret:
-            Literal: Int
+            ArrowU:
+              - Literal: Int
+              - Literal: Int
   forall_args:
     - Linear
     - Linear
     - Max:
         - Prod:
             - Unrestricted
-            - Var: 28
-        - Var: 18
+            - Var: 15
+        - Var: 16
   ty:
     Var: 0
 

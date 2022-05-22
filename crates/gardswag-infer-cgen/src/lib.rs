@@ -95,6 +95,13 @@ fn maybe_new_tyvar_opt(offset: usize, t: Option<Ty>, ctx: &mut tysy::CollectCont
     }
 }
 
+fn maybe_new_argmulti(offset: usize, a: ArgMult, ctx: &mut tysy::CollectContext) -> gardswag_typesys::ArgMultiplicityId {
+    match a {
+        ArgMult::Var(x) => x,
+        _ => ctx.create_argmulti(offset, a),
+    }
+}
+
 fn infer(
     env: Env<'_>,
     ctx: &mut tysy::CollectContext,
@@ -223,7 +230,7 @@ fn infer(
                         Ok(x) => x,
                         Err((tv, bety)) => {
                             let tv2 = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
-                            let argm = ctx.create_argmulti(expr.offset, ident_argm);
+                            let argm = maybe_new_argmulti(expr.offset, ident_argm, ctx);
                             ctx.bind(
                                 expr.offset,
                                 tv2,

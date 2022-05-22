@@ -356,7 +356,9 @@ expression: x
                                                                                 - Literal: Int
                                                                                 - ArrowU:
                                                                                     - Literal: Int
-                                                                                    - Var: 46
+                                                                                    - ArrowU:
+                                                                                        - Literal: Int
+                                                                                        - Literal: Int
                                                                             ident_multi: 0
                                                                         arg:
                                                                           offset: 217
@@ -370,7 +372,9 @@ expression: x
                                                                       ty:
                                                                         ArrowU:
                                                                           - Literal: Int
-                                                                          - Var: 46
+                                                                          - ArrowU:
+                                                                              - Literal: Int
+                                                                              - Literal: Int
                                                                       ident_multi: 0
                                                                   arg:
                                                                     offset: 219
@@ -382,7 +386,9 @@ expression: x
                                                                       ident_multi: 0
                                                               extra:
                                                                 ty:
-                                                                  Var: 46
+                                                                  ArrowU:
+                                                                    - Literal: Int
+                                                                    - Literal: Int
                                                                 ident_multi: 0
                                                             arg:
                                                               offset: 225
@@ -532,13 +538,17 @@ expression: x
                                     ident_multi: 0
                             extra:
                               ty:
-                                Var: 46
+                                ArrowU:
+                                  - Literal: Int
+                                  - Literal: Int
                               ident_multi: 2
                       extra:
                         ty:
                           ArrowU:
                             - Literal: Int
-                            - Var: 46
+                            - ArrowU:
+                                - Literal: Int
+                                - Literal: Int
                         ident_multi: 2
                 extra:
                   ty:
@@ -546,7 +556,9 @@ expression: x
                       - Literal: Int
                       - ArrowU:
                           - Literal: Int
-                          - Var: 46
+                          - ArrowU:
+                              - Literal: Int
+                              - Literal: Int
                   ident_multi: 1
           extra:
             ty:
@@ -554,7 +566,9 @@ expression: x
                 - Literal: Int
                 - ArrowU:
                     - Literal: Int
-                    - Var: 46
+                    - ArrowU:
+                        - Literal: Int
+                        - Literal: Int
             ident_multi: 1
         rest:
           stmts: []
@@ -580,7 +594,9 @@ expression: x
                                     - Literal: Int
                                     - ArrowU:
                                         - Literal: Int
-                                        - Var: 99
+                                        - ArrowU:
+                                            - Literal: Int
+                                            - Literal: Int
                                 ident_multi: 0
                             arg:
                               offset: 278
@@ -594,7 +610,9 @@ expression: x
                           ty:
                             ArrowU:
                               - Literal: Int
-                              - Var: 99
+                              - ArrowU:
+                                  - Literal: Int
+                                  - Literal: Int
                           ident_multi: 0
                       arg:
                         offset: 280
@@ -606,7 +624,9 @@ expression: x
                           ident_multi: 0
                   extra:
                     ty:
-                      Var: 99
+                      ArrowU:
+                        - Literal: Int
+                        - Literal: Int
                     ident_multi: 0
                 arg:
                   offset: 282
