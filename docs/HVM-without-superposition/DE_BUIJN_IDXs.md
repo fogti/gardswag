@@ -7,17 +7,17 @@ dup a b = λ(body)
 ------------------ Dup-Lam
 a <- λ b0
 b <- λ b1
-dup b0 b1 = body
+dup[0] b0 b1 = body
 ```
 
 ```javascript
 dup a b = λ λ (Pair @1 @0)
 (Pair a b)
 ------------------ Dup-Lam
-dup a b = λ (Pair @1 @0)
+dup[0] a b = λ (Pair @1 @0)
 (Pair (λ a) (λ b))
 ------------------ Dup-Lam
-dup a b = (Pair @1 @0)
+dup[1] a b = (Pair @1 @0)
 (Pair
   (λ (λ a))
   (λ (λ b))
@@ -39,9 +39,9 @@ dup f g = ((λ λ (Pair (+ @1 @1) @0)) 2)
 dup f g = (λ (Pair (+ 2 2) @0))
 (Pair (f 10) (g 20))
 -------------------------------------- Dup-Lam
-dup f g = (Pair (+ 2 2) @0)
+dup[0] f g = (Pair (+ 2 2) @0)
 (Pair ((λ f) 10) ((λ g) 20))
--------------------------------------- Dup-Ctr
+-------------------------------------- Dup-Ctr (App-Lam is inhibited by the presence of the dup as the lambda body)
 dup a b = (+ 2 2)
 (Pair ((λ (Pair a @0)) 10) ((λ (Pair b @0)) 20))
 -------------------------------------- App-Lam
