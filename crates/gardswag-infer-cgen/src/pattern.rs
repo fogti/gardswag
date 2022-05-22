@@ -494,8 +494,9 @@ pub fn infer_match(
     }
     for (_, i) in env.iter() {
         let mut im = i.1.borrow_mut();
-        let coll: Vec<_> = (0..cases2.len()).map(|_| im.0.pop().unwrap()).collect();
-        *im.0.last_mut().unwrap() = ArgMultiplicity::Max(coll);
+        let mut coll = ArgMultiplicity::Max((0..cases2.len()).map(|_| im.0.pop().unwrap()).collect());
+        coll.normalize();
+        *im.0.last_mut().unwrap() = coll;
     }
     Ok(Annot {
         offset,

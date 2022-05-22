@@ -600,9 +600,7 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
         - Prod:
             - Unrestricted
             - Var: 28
-        - Prod:
-            - Linear
-            - Var: 18
+        - Var: 18
   ty:
     Var: 0
 

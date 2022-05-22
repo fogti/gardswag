@@ -269,6 +269,44 @@ impl ArgMultiplicity {
             None => Err((a, b)),
         }
     }
+
+    pub fn normalize(&mut self) {
+        let recur = |xs: &mut [Self]| xs.iter_mut().for_each(|i| i.normalize());
+        match self {
+            Self::Linear | Self::Unrestricted | Self::Var(_) => {}
+            Self::Sum(xs) => {
+                recur(&mut xs[..]);
+                // filter 0s
+                xs.retain(|i| if let Self::Sum(xs2) = i {
+                    !xs2.is_empty()
+                } else {
+                    true
+                });
+                if xs.len() == 1 {
+                    let x = xs.pop().unwrap();
+                    *self = x;
+                }
+            }
+            Self::Max(xs) => {
+                recur(&mut xs[..]);
+                if xs.iter().find(|i| matches!(i, Self::Unrestricted)).is_some() {
+                    *self = Self::Unrestricted;
+                } else if xs.len() == 1 {
+                    let x = xs.pop().unwrap();
+                    *self = x;
+                }
+            }
+            Self::Prod(xs) => {
+                recur(&mut xs[..]);
+                // filter 1s
+                xs.retain(|i| !matches!(i, Self::Linear));
+                if xs.len() == 1 {
+                    let x = xs.pop().unwrap();
+                    *self = x;
+                }
+            }
+        }
+    }
 }
 
 impl From<Fam> for ArgMultiplicity {

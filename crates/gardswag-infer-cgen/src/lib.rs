@@ -321,6 +321,7 @@ fn infer(
                     if l != *lm {
                         // variable was accessed
                         *lm = ArgMult::Prod(vec![l, argmult.clone()]);
+                        lm.normalize();
                     }
                 }
                 (
@@ -488,9 +489,11 @@ fn infer(
                     ArgMult::Sum(xs) if xs.is_empty() => ArgMult::Linear,
                     // 1 + (1 | ω) = ω
                     ArgMult::Linear | ArgMult::Unrestricted => ArgMult::Unrestricted,
-                    // TODO: product might be 0
-                    ArgMult::Prod(_) => ArgMult::Unrestricted,
-                    y => unreachable!("{:?}", y),
+                    y => {
+                        let mut tmp = ArgMult::Sum(vec![y, ArgMult::Linear]);
+                        tmp.normalize();
+                        tmp
+                    }
                 };
                 Ok(Annot {
                     offset: expr.offset,

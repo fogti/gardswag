@@ -1075,6 +1075,7 @@ impl Context {
     pub fn notify_argmultis(&mut self) -> Result<(), UnifyError> {
         use crate::FinalArgMultiplicity as Fam;
         fn resolve_argmulti(v: &mut ArgMult, finm: &BTreeMap<ArgMultId, Fam>) -> Option<Fam> {
+            v.normalize();
             let ret = match v {
                 ArgMult::Linear => Fam::Linear,
                 ArgMult::Unrestricted => Fam::Unrestricted,
@@ -1109,6 +1110,8 @@ impl Context {
                 }
                 ArgMult::Prod(xs) => {
                     let mut prod = Fam::Linear;
+                    // remove all elements which are one
+                    xs.retain(|i| i != &ArgMult::Linear);
                     for i in xs {
                         prod = match (prod, resolve_argmulti(i, finm)?) {
                             (Fam::Erased, _) | (_, Fam::Erased) => Fam::Erased,
@@ -1163,7 +1166,8 @@ impl Context {
             finmlen = finm.len();
         }
 
-        let mut g_modified = false;
+        //let mut g_modified = false;
+        let mut notify_cgs = BTreeSet::default();
         let mut to_unify = Vec::new();
         for (k, i) in &mut self.g {
             let ty_new = match i.kind.take() {
@@ -1198,14 +1202,21 @@ impl Context {
             } else {
                 i.ty = Some(ty_new);
             }
-            g_modified = true;
+            //g_modified = true;
+            notify_cgs.extend(i.listeners.iter().copied());
         }
+        let notify_cgs = notify_cgs
+            .into_iter()
+            .flat_map(|i| self.m.get(&i))
+            .copied()
+            .collect();
         for (i, j) in to_unify {
             self.unify(&i, &j)?;
         }
-        if g_modified {
-            self.self_resolve()?;
-        }
+        self.notify_cgs(notify_cgs)?;
+        //if g_modified {
+        //    self.self_resolve()?;
+        //}
         Ok(())
     }
 }
