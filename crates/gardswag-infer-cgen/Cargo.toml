@@ -3,7 +3,7 @@ name = "gardswag-infer-cgen"
 description = "type constraint inference engine for gardswag (populates CollectContext)"
 version = "0.1.0"
 edition = "2021"
-license = "Apache-2.0"
+license = "CC BY-NC-SA 4.0"
 
 [dependencies]
 gardswag-syntax.path = "../gardswag-syntax"

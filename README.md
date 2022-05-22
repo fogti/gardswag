@@ -8,6 +8,18 @@ the feasibility of type checking and byte code caching.
 
 [rough language reference](docs/language_gardswag.txt)
 
+## License
+
+The most important code is licensed under [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0) and [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+This causes this to be partially non-free (
+ because commercial usage of the most interesting parts not allowed;
+ but should this program ever gain a compiler, the output artifacts
+ won't be not affected by this, and can be used commercially when the
+ license of the associated/input source code allows this
+).
+Utilitiy crates are licensed under Apache 2.0, and if particularly simple,
+also under MIT.
+
 ## Running the interpreter
 
 The interpreter (and the rest of the code base) is written in [Rust](https://www.rust-lang.org/),

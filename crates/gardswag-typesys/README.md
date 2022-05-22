@@ -5,6 +5,8 @@ this implementation is primarily derived from:
 (huge shout-out to Stephen Diehl for the Haskell implementation,
   which was imo much easier to understand
   than the usually used Ocaml implementations)
+Author of primary reference: Stephen Diehl
+License: [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 the book "Types and Programming Languages" by "Benjamin C. Pierce"
 was used as reference, suggestion and for cross-checking
