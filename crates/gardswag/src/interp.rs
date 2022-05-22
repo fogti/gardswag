@@ -142,7 +142,7 @@ pub fn run_block<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
 fn run_stacksave<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, I, X: XInterp>(
     env: Env<'envout, 'envin>,
     expr: &'a Expr<X>,
-    stack: &'s VarStack<'s, 'a, Value<'a, X>>,
+    stack: Option<&'s VarStack<'s, 'a, Value<'a, X>>>,
     mut stacksave: I,
 ) -> Value<'a, X>
 where
@@ -152,14 +152,14 @@ where
         Some((name, value)) => run_stacksave(
             env,
             expr,
-            &VarStack {
-                parent: Some(stack),
+            Some(&VarStack {
+                parent: stack,
                 name,
                 value,
-            },
+            }),
             stacksave,
         ),
-        None => run(env, expr, stack),
+        None => run(env, expr, stack.unwrap()),
     }
 }
 
@@ -295,13 +295,13 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                                             match run_stacksave(
                                                 Env { thscope },
                                                 f,
-                                                &VarStack {
+                                                Some(&VarStack {
                                                     parent: None,
                                                     // this may end up as "" (an empty string),
                                                     // but that shouldn't lead to any misbehavoir
                                                     name: argname,
                                                     value: Value::Unit,
-                                                },
+                                                }),
                                                 stacksave.into_iter(),
                                             ) {
                                                 Value::Unit => {}
@@ -372,12 +372,10 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                 } => run_stacksave(
                     env,
                     f,
-                    &VarStack {
-                        parent: Some(stack),
-                        name: argname,
-                        value: v_arg,
-                    },
-                    stacksave.into_iter(),
+                    None,
+                    stacksave
+                        .into_iter()
+                        .chain(core::iter::once((argname, v_arg))),
                 ),
                 Value::Tagger { key } => Value::Tagged {
                     key,
@@ -456,7 +454,7 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                     res = Some(run_stacksave(
                         env,
                         &i.body,
-                        stack,
+                        Some(stack),
                         coll.into_iter().map(|(key, value)| (key, (*value).clone())),
                     ));
                     break;
