@@ -3,7 +3,7 @@ use gardswag_typesys::CollectContext as TyCollectCtx;
 use std::path::PathBuf;
 use tracing::{debug, trace};
 
-mod interp;
+mod interp_ast;
 
 #[cfg(test)]
 mod tests;
@@ -173,11 +173,10 @@ fn main_check(
     Ok((parsed, tgx))
 }
 
-fn main_interp<'a: 'envout + 'envin, 'envout, 'envin>(
-    s: &'envout crossbeam_utils::thread::Scope<'envin>,
+fn main_interp_ast<'a>(
     parsed: &'a gardswag_syntax::Block<crate::infer::InferExtra>,
-) -> interp::Value<'a, crate::infer::InferExtra> {
-    use interp::{Builtin as Bi, Value as Val};
+) -> interp_ast::Value<'a, crate::infer::InferExtra> {
+    use interp_ast::{Builtin as Bi, Value as Val};
 
     let stack: gardswag_varstack::VarStack<'a, 'static, Val<'a, _>> = gardswag_varstack::VarStack {
         parent: None,
@@ -204,7 +203,10 @@ fn main_interp<'a: 'envout + 'envin, 'envout, 'envin>(
         ),
     };
 
-    interp::run_block(interp::Env { thscope: s }, parsed, &stack)
+    crossbeam_utils::thread::scope(|s| {
+        interp_ast::run_block(interp_ast::Env { thscope: s }, parsed, &stack)
+    })
+    .expect("unable to join threads")
 }
 
 fn main() {
@@ -221,7 +223,6 @@ fn main() {
         return;
     }
 
-    let result = crossbeam_utils::thread::scope(|s| main_interp(s, &parsed))
-        .expect("unable to join threads");
+    let result = main_interp_ast(&parsed);
     println!("result: {:?}", result);
 }

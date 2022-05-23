@@ -8,8 +8,7 @@ fn dflsubscr() -> impl tracing::subscriber::Subscriber {
 
 macro_rules! assert_interp {
     ($x:expr) => {{
-        let result =
-            crossbeam_utils::thread::scope(|s| main_interp(s, $x)).expect("unable to join threads");
+        let result = main_interp_ast($x);
         insta::assert_debug_snapshot!(result);
     }};
 }
@@ -205,8 +204,7 @@ proptest::proptest! {
     #[test]
     fn doesnt_crash(s in "[ -~]+") {
         if let Ok(x) = main_check(&s) {
-            let _ = crossbeam_utils::thread::scope(|s| main_interp(s, &x.0))
-                .expect("unable to join threads");
+            let _ = main_interp_ast(&x.0);
         }
     }
 }
