@@ -69,6 +69,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "gardswag-interner" = rec {
+      packageId = "gardswag-interner";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "gardswag-interner";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "gardswag-subst" = rec {
       packageId = "gardswag-subst";
       build = internal.buildRustCrateWithFeatures {
@@ -519,6 +529,10 @@ rec {
             packageId = "gardswag-infer-cgen";
           }
           {
+            name = "gardswag-interner";
+            packageId = "gardswag-interner";
+          }
+          {
             name = "gardswag-syntax";
             packageId = "gardswag-syntax";
           }
@@ -618,6 +632,20 @@ rec {
         ];
 
       };
+      "gardswag-interner" = rec {
+        crateName = "gardswag-interner";
+        version = "0.1.0";
+        edition = "2021";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-interner; };
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+        ];
+
+      };
       "gardswag-subst" = rec {
         crateName = "gardswag-subst";
         version = "0.1.0";
@@ -644,6 +672,10 @@ rec {
           {
             name = "gardswag-annotated";
             packageId = "gardswag-annotated";
+          }
+          {
+            name = "gardswag-interner";
+            packageId = "gardswag-interner";
           }
           {
             name = "gardswag-subst";

@@ -139,6 +139,7 @@ dependencies = [
  "crossbeam-channel",
  "crossbeam-utils",
  "gardswag-infer-cgen",
+ "gardswag-interner",
  "gardswag-syntax",
  "gardswag-typesys",
  "gardswag-varstack",
@@ -172,6 +173,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gardswag-interner"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "gardswag-subst"
 version = "0.1.0"
 dependencies = [
@@ -183,6 +191,7 @@ name = "gardswag-syntax"
 version = "0.1.0"
 dependencies = [
  "gardswag-annotated",
+ "gardswag-interner",
  "gardswag-subst",
  "insta",
  "proptest",
