@@ -155,7 +155,17 @@ impl Context {
         let cgid = *self.m.get(&i)?;
         let j = lowest_tvi_for_cg(&self.m, i);
         let ret = self.g.get(&cgid).and_then(|k| k.ty.clone()).map(|mut k| {
-            k.apply(&mut |&l| self.on_apply(l));
+            k.apply(&mut |&l| {
+                if l == i {
+                    panic!(
+                        "on_apply: unmarked infinite type warped at ${} = {:?}",
+                        i,
+                        self.g.get(&cgid).unwrap().ty.clone()
+                    )
+                } else {
+                    self.on_apply(l)
+                }
+            });
             k
         });
         //tracing::trace!(%i, %j, ?ret, "on_apply");

@@ -144,21 +144,24 @@ impl fmt::Debug for Ty {
 
 impl FreeVars<TyVar> for Ty {
     fn fv(&self, accu: &mut BTreeSet<TyVar>, do_add: bool) {
-        match self {
-            Ty::Literal(_) => {}
-            Ty::Var(tv) => {
-                tv.fv(accu, do_add);
-            }
-            Ty::Arrow0(arg, ret) | Ty::Arrow1(arg, ret) | Ty::ArrowU(arg, ret) => {
-                arg.fv(accu, do_add);
-                ret.fv(accu, do_add);
-            }
-            Ty::ChanSend(x) | Ty::ChanRecv(x) => x.fv(accu, do_add),
-            Ty::Record(rcm) => {
-                rcm.values().for_each(|i| i.fv(accu, do_add));
-            }
-            Ty::TaggedUnion(rcm) => {
-                rcm.values().for_each(|i| i.fv(accu, do_add));
+        let mut xs = vec![self];
+        while let Some(x) = xs.pop() {
+            match x {
+                Ty::Literal(_) => {}
+                Ty::Var(tv) => {
+                    tv.fv(accu, do_add);
+                }
+                Ty::Arrow0(arg, ret) | Ty::Arrow1(arg, ret) | Ty::ArrowU(arg, ret) => {
+                    xs.push(&*arg);
+                    xs.push(&*ret);
+                }
+                Ty::ChanSend(x) | Ty::ChanRecv(x) => xs.push(&*x),
+                Ty::Record(rcm) => {
+                    xs.extend(rcm.values());
+                }
+                Ty::TaggedUnion(rcm) => {
+                    xs.extend(rcm.values());
+                }
             }
         }
     }
@@ -180,10 +183,14 @@ impl Substitutable<TyVar> for Ty {
             }
             Ty::ChanSend(x) | Ty::ChanRecv(x) => x.apply(f),
             Ty::Record(rcm) => {
-                rcm.values_mut().for_each(|i| i.apply(f));
+                for i in rcm.values_mut() {
+                    i.apply(f);
+                }
             }
             Ty::TaggedUnion(rcm) => {
-                rcm.values_mut().for_each(|i| i.apply(f));
+                for i in rcm.values_mut() {
+                    i.apply(f);
+                }
             }
         }
     }

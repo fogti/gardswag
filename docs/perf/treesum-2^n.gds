@@ -1,0 +1,37 @@
+(*
+based upon the following HVM code
+
+// Creates a tree with `2^n` elements
+(Gen 0) = (Leaf 1)
+(Gen n) = (Node (Gen(- n 1)) (Gen(- n 1)))
+
+// Adds all elements of a tree
+(Sum (Leaf x))   = x
+(Sum (Node a b)) = (+ (Sum a) (Sum b))
+
+// Performs 2^n additions in parallel
+(Main n) = (Sum (Gen n))
+ *)
+
+let rec gen = \n {
+  if (std.eq 0 n) {
+    (.Leaf 1)
+  } {
+    let nm1 = std.minus n 1;
+    let nm1g = gen nm1;
+    (.Node (.{
+      lhs = nm1g;
+      rhs = nm1g;
+    }))
+  }
+};
+
+let rec sum = \x (
+  match x
+  | .Leaf y => y
+  | .Node .{ lhs; rhs; } => (std.plus (sum lhs) (sum rhs))
+);
+
+let main = \n (gen n |> sum);
+
+(main 30)
