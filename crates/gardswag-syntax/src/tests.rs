@@ -1,4 +1,7 @@
-use super::*;
+fn parse(s: &str) -> Result<(gardswag_interner::Interner, super::Block<()>), super::Error> {
+    let mut itn = gardswag_interner::Interner::default();
+    super::parse(&mut itn, s).map(|res| (itn, res))
+}
 
 #[test]
 fn block_term() {

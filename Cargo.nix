@@ -529,10 +529,6 @@ rec {
             packageId = "gardswag-infer-cgen";
           }
           {
-            name = "gardswag-interner";
-            packageId = "gardswag-interner";
-          }
-          {
             name = "gardswag-syntax";
             packageId = "gardswag-syntax";
           }
@@ -719,6 +715,10 @@ rec {
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./crates/gardswag-typesys; };
         dependencies = [
+          {
+            name = "gardswag-interner";
+            packageId = "gardswag-interner";
+          }
           {
             name = "gardswag-subst";
             packageId = "gardswag-subst";

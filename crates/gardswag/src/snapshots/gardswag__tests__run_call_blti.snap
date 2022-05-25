@@ -2,6 +2,23 @@
 source: crates/gardswag/src/tests.rs
 expression: x
 ---
+- - std
+  - plus
+  - minus
+  - mult
+  - eq
+  - leq
+  - not
+  - spawn_thread
+  - make_chan
+  - send
+  - recv
+  - chan_send
+  - chan_recv
+  - None
+  - Some
+  - stdio
+  - write
 - stmts: []
   term:
     offset: 20
@@ -18,86 +35,86 @@ expression: x
                     prim:
                       offset: 17
                       inner:
-                        Identifier: std
+                        Identifier: 1
                       extra:
                         ty:
                           Record:
-                            chan_recv:
+                            2:
                               Arrow1:
-                                - ChanRecv:
-                                    Var: 9
-                                - TaggedUnion:
-                                    None:
-                                      Literal: Unit
-                                    Some:
-                                      Var: 9
-                            chan_send:
+                                - Literal: Int
+                                - Arrow1:
+                                    - Literal: Int
+                                    - Literal: Int
+                            3:
+                              Arrow1:
+                                - Literal: Int
+                                - Arrow1:
+                                    - Literal: Int
+                                    - Literal: Int
+                            4:
+                              Arrow1:
+                                - Literal: Int
+                                - Arrow1:
+                                    - Literal: Int
+                                    - Literal: Int
+                            5:
+                              Arrow1:
+                                - Var: 5
+                                - Arrow1:
+                                    - Var: 6
+                                    - Literal: Bool
+                            6:
+                              Arrow1:
+                                - Literal: Int
+                                - Arrow1:
+                                    - Literal: Int
+                                    - Literal: Bool
+                            7:
+                              Arrow1:
+                                - Literal: Bool
+                                - Literal: Bool
+                            8:
+                              Arrow1:
+                                - ArrowU:
+                                    - Literal: Unit
+                                    - Literal: Unit
+                                - Literal: Unit
+                            9:
+                              Arrow0:
+                                - Literal: Unit
+                                - Record:
+                                    10:
+                                      ChanSend:
+                                        Var: 7
+                                    11:
+                                      ChanRecv:
+                                        Var: 7
+                            12:
                               Arrow1:
                                 - Var: 8
                                 - Arrow1:
                                     - ChanSend:
                                         Var: 8
                                     - Literal: Bool
-                            eq:
+                            13:
                               Arrow1:
-                                - Var: 5
-                                - Arrow1:
-                                    - Var: 6
-                                    - Literal: Bool
-                            leq:
-                              Arrow1:
-                                - Literal: Int
-                                - Arrow1:
-                                    - Literal: Int
-                                    - Literal: Bool
-                            make_chan:
-                              Arrow0:
-                                - Literal: Unit
-                                - Record:
-                                    recv:
-                                      ChanRecv:
-                                        Var: 7
-                                    send:
-                                      ChanSend:
-                                        Var: 7
-                            minus:
-                              Arrow1:
-                                - Literal: Int
-                                - Arrow1:
-                                    - Literal: Int
-                                    - Literal: Int
-                            mult:
-                              Arrow1:
-                                - Literal: Int
-                                - Arrow1:
-                                    - Literal: Int
-                                    - Literal: Int
-                            not:
-                              Arrow1:
-                                - Literal: Bool
-                                - Literal: Bool
-                            plus:
-                              Arrow1:
-                                - Literal: Int
-                                - Arrow1:
-                                    - Literal: Int
-                                    - Literal: Int
-                            spawn_thread:
-                              Arrow1:
-                                - ArrowU:
-                                    - Literal: Unit
-                                    - Literal: Unit
-                                - Literal: Unit
-                            stdio:
+                                - ChanRecv:
+                                    Var: 9
+                                - TaggedUnion:
+                                    14:
+                                      Literal: Unit
+                                    15:
+                                      Var: 9
+                            16:
                               Record:
-                                write:
+                                17:
                                   Arrow1:
                                     - Literal: String
                                     - Literal: Unit
                         ident_multi: 0
                     key:
                       offset: 21
-                      inner: plus
+                      inner: 2
                       extra: ~
                 extra:
                   ty:

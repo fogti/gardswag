@@ -1,4 +1,4 @@
-use crate::{FinalArgMultiplicity as Fam, FreeVars, Substitutable, Ty, TyVar};
+use crate::{FinalArgMultiplicity as Fam, FreeVars, Substitutable, Symbol, Ty, TyVar};
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -61,7 +61,7 @@ pub enum TyConstraintGroupKind {
     /// type should be a record
     Record {
         /// with at least some specific fields
-        partial: BTreeMap<String, Ty>,
+        partial: BTreeMap<Symbol, Ty>,
 
         /// the current type is the result of applying (orig // ovrd).
         /// which means that the resulting type is a copy of ovrd,
@@ -72,7 +72,7 @@ pub enum TyConstraintGroupKind {
     /// type should be a discriminated/tagged union
     TaggedUnion {
         /// with at least some specific fields
-        partial: BTreeMap<String, Ty>,
+        partial: BTreeMap<Symbol, Ty>,
     },
 }
 

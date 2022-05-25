@@ -2,6 +2,7 @@ use crate::{
     lex, parse_expr_greedy, unexpect_eoe, Annot, AnnotFmap, Error, ErrorKind, Expr, ParseResult,
     ParseResult::*, PeekLexer,
 };
+use gardswag_interner::{Interner, Symbol};
 use gardswag_subst::{FreeVars, Substitutable};
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +13,7 @@ pub struct Block<X> {
 }
 
 impl<X> Block<X> {
-    pub fn is_var_accessed(&self, v: &str) -> bool {
+    pub fn is_var_accessed(&self, v: Symbol) -> bool {
         self.stmts
             .iter()
             .chain(self.term.as_ref().into_iter().map(|a| &**a))
@@ -53,6 +54,7 @@ impl<In, X: Substitutable<In>> Substitutable<In> for Block<X> {
 
 pub(crate) fn parse_block(
     super_offset: usize,
+    itn: &mut Interner,
     lxr: &mut PeekLexer<'_>,
 ) -> Result<Block<()>, Error> {
     use lex::TokenKind as Tk;
@@ -99,7 +101,7 @@ pub(crate) fn parse_block(
             break;
         }
 
-        let expr = match parse_expr_greedy(lxr) {
+        let expr = match parse_expr_greedy(itn, lxr) {
             PNone if !expect_close_brack => {
                 // no terminator
                 break;

@@ -1,5 +1,5 @@
 use crossbeam_utils::thread;
-use gardswag_syntax::{self as synt, Block, Expr};
+use gardswag_syntax::{self as synt, Block, Expr, Interner, Symbol};
 use gardswag_varstack::VarStack;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -39,14 +39,14 @@ pub enum Value<'a, X> {
     Integer(i32),
     PureString(String),
 
-    Record(BTreeMap<&'a str, Value<'a, X>>),
+    Record(BTreeMap<Symbol, Value<'a, X>>),
 
     Tagger {
-        key: &'a str,
+        key: Symbol,
     },
 
     Tagged {
-        key: &'a str,
+        key: Symbol,
         value: Box<Value<'a, X>>,
     },
 
@@ -55,12 +55,12 @@ pub enum Value<'a, X> {
         args: Vec<Value<'a, X>>,
     },
     Lambda {
-        argname: &'a str,
+        argname: Symbol,
         f: &'a Expr<X>,
-        stacksave: BTreeMap<&'a str, Value<'a, X>>,
+        stacksave: BTreeMap<Symbol, Value<'a, X>>,
     },
     FixLambda {
-        argname: &'a str,
+        argname: Symbol,
         f: &'a Expr<X>,
     },
 
@@ -123,14 +123,15 @@ impl<T: Clone + core::fmt::Debug + core::cmp::PartialEq + core::marker::Sync> XI
 
 pub fn run_block<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
     env: Env<'envout, 'envin>,
+    itn: &'a Interner,
     blk: &'a Block<X>,
-    stack: &'s VarStack<'s, 'a, Value<'a, X>>,
+    stack: &'s VarStack<'s, Symbol, Value<'a, X>>,
 ) -> Value<'a, X> {
     for i in &blk.stmts {
-        let _ = run(env, i, stack);
+        let _ = run(env, itn, i, stack);
     }
     if let Some(i) = &blk.term {
-        run(env, i, stack)
+        run(env, itn, i, stack)
     } else {
         Value::Unit
     }
@@ -141,16 +142,18 @@ pub fn run_block<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
 /// because it otherwise would be prohibitively costly...
 fn run_stacksave<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, I, X: XInterp>(
     env: Env<'envout, 'envin>,
+    itn: &'a Interner,
     expr: &'a Expr<X>,
-    stack: Option<&'s VarStack<'s, 'a, Value<'a, X>>>,
+    stack: Option<&'s VarStack<'s, Symbol, Value<'a, X>>>,
     mut stacksave: I,
 ) -> Value<'a, X>
 where
-    I: Iterator<Item = (&'a str, Value<'a, X>)>,
+    I: Iterator<Item = (Symbol, Value<'a, X>)>,
 {
     match stacksave.next() {
         Some((name, value)) => run_stacksave(
             env,
+            itn,
             expr,
             Some(&VarStack {
                 parent: stack,
@@ -159,22 +162,21 @@ where
             }),
             stacksave,
         ),
-        None => run(env, expr, stack.unwrap()),
+        None => run(env, itn, expr, stack.unwrap()),
     }
 }
 
 fn run_pat<'a, 'b, X: core::fmt::Debug>(
-    coll: &mut BTreeMap<&'a str, &'b Value<'a, X>>,
+    coll: &mut BTreeMap<Symbol, &'b Value<'a, X>>,
     pat: &'a synt::Pattern<X>,
     inp: &'b Value<'a, X>,
 ) -> Option<()> {
     tracing::trace!("pat {:?}", pat);
-
     use synt::Pattern;
 
     match pat {
         Pattern::Identifier(i) => {
-            coll.insert(&*i.inner, inp);
+            coll.insert(i.inner, inp);
             Some(())
         }
         Pattern::Tagged { key, value } => match inp {
@@ -187,7 +189,7 @@ fn run_pat<'a, 'b, X: core::fmt::Debug>(
         Pattern::Record(synt::Annot { inner: rcpat, .. }) => match inp {
             Value::Record(rcm) if rcpat.len() <= rcm.len() => {
                 for (key, value) in rcpat {
-                    let got_value = rcm.get(&**key)?;
+                    let got_value = rcm.get(key)?;
                     run_pat(coll, value, got_value)?;
                 }
                 Some(())
@@ -203,55 +205,57 @@ fn run_pat<'a, 'b, X: core::fmt::Debug>(
 
 pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
     env: Env<'envout, 'envin>,
+    itn: &'a Interner,
     expr: &'a Expr<X>,
-    stack: &'s VarStack<'s, 'a, Value<'a, X>>,
+    stack: &'s VarStack<'s, Symbol, Value<'a, X>>,
 ) -> Value<'a, X> {
     tracing::debug!("expr@{} : {}", expr.offset, expr.inner.typ());
     tracing::trace!("stack={:?}", stack);
     use gardswag_syntax::ExprKind as Ek;
     let res = match &expr.inner {
         Ek::Let { lhs, rhs, rest } => {
-            let v_rhs = run(env, rhs, stack);
+            let v_rhs = run(env, itn, rhs, stack);
             run_block(
                 env,
+                itn,
                 rest,
                 &VarStack {
                     parent: Some(stack),
-                    name: &lhs.inner,
+                    name: lhs.inner,
                     value: v_rhs,
                 },
             )
         }
-        Ek::Block(blk) => run_block(env, blk, stack),
+        Ek::Block(blk) => run_block(env, itn, blk, stack),
         Ek::If {
             cond,
             then,
             or_else,
         } => {
-            let v_cond = match run(env, cond, stack) {
+            let v_cond = match run(env, itn, cond, stack) {
                 Value::Boolean(x) => x,
                 x => panic!("invalid if condition: {:?}", x),
             };
-            run_block(env, if v_cond { then } else { or_else }, stack)
+            run_block(env, itn, if v_cond { then } else { or_else }, stack)
         }
         Ek::Lambda { arg, body } => {
             let mut stacksave = std::collections::BTreeMap::new();
             for (k, v) in stack.iter() {
-                if stacksave.contains_key(k) || k == arg.inner || !body.inner.is_var_accessed(k) {
+                if stacksave.contains_key(&k) || k == arg.inner || !body.inner.is_var_accessed(k) {
                     continue;
                 }
                 stacksave.insert(k, (*v).clone());
             }
 
             Value::Lambda {
-                argname: &arg.inner,
+                argname: arg.inner,
                 f: body,
                 stacksave,
             }
         }
         Ek::Call { prim, arg } => {
-            let v_arg = run(env, arg, stack);
-            let v_prim = run(env, prim, stack);
+            let v_arg = run(env, itn, arg, stack);
+            let v_prim = run(env, itn, prim, stack);
             match v_prim {
                 Value::Builtin { f, mut args } => {
                     args.push(v_arg);
@@ -294,6 +298,7 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                                             // luckily, we can rely on stacksave here
                                             match run_stacksave(
                                                 Env { thscope },
+                                                itn,
                                                 f,
                                                 Some(&VarStack {
                                                     parent: None,
@@ -321,8 +326,8 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                                     let (s, r) = crossbeam_channel::unbounded();
                                     Value::Record(
                                         [
-                                            ("send", Value::ChanSend(s)),
-                                            ("recv", Value::ChanRecv(r)),
+                                            (itn.get_already_interned("send"), Value::ChanSend(s)),
+                                            (itn.get_already_interned("recv"), Value::ChanRecv(r)),
                                         ]
                                         .into_iter()
                                         .collect(),
@@ -345,11 +350,11 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                             Bi::ChanRecv => match args.get(0).unwrap() {
                                 Value::ChanRecv(r) => match r.recv() {
                                     Ok(x) => Value::Tagged {
-                                        key: "Some",
+                                        key: itn.get_already_interned("Some"),
                                         value: Box::new(x),
                                     },
                                     Err(_) => Value::Tagged {
-                                        key: "None",
+                                        key: itn.get_already_interned("None"),
                                         value: Box::new(Value::Unit),
                                     },
                                 },
@@ -371,6 +376,7 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                     stacksave,
                 } => run_stacksave(
                     env,
+                    itn,
                     f,
                     None,
                     stacksave
@@ -384,20 +390,21 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                 f => panic!("called non-callable {:?} with argument {:?}", f, v_arg),
             }
         }
-        Ek::Dot { prim, key } => match run(env, prim, stack) {
+        Ek::Dot { prim, key } => match run(env, itn, prim, stack) {
             Value::Record(mut rcm) => rcm
-                .remove(&*key.inner)
+                .remove(&key.inner)
                 .expect("unable to find key in record"),
-            x => panic!("called .{} on non-record {:?}", key.inner, x),
+            x => panic!("called .{:?} on non-record {:?}", key.inner, x),
         },
         Ek::Fix { arg, body } => run(
             env,
+            itn,
             body,
             &VarStack {
                 parent: Some(stack),
-                name: &arg.inner,
+                name: arg.inner,
                 value: Value::FixLambda {
-                    argname: &arg.inner,
+                    argname: arg.inner,
                     f: body,
                 },
             },
@@ -406,7 +413,7 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
             let mut r = String::new();
             for i in fsts {
                 use core::fmt::Write;
-                match run(env, i, stack) {
+                match run(env, itn, i, stack) {
                     Value::PureString(s) => r += &s,
                     Value::Integer(i) => write!(&mut r, "{}", i).unwrap(),
                     Value::Boolean(b) => write!(&mut r, "_{}", if b { '1' } else { '0' }).unwrap(),
@@ -419,13 +426,13 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
         Ek::Record(rcde) => {
             let mut rcd = BTreeMap::new();
             for (k, v) in rcde {
-                rcd.insert(&**k, run(env, v, stack));
+                rcd.insert(*k, run(env, itn, v, stack));
             }
             Value::Record(rcd)
         }
         Ek::Update { orig, ovrd } => {
-            let v_orig = run(env, orig, stack);
-            match run(env, ovrd, stack) {
+            let v_orig = run(env, itn, orig, stack);
+            match run(env, itn, ovrd, stack) {
                 Value::Record(mut rcd) => {
                     match v_orig {
                         Value::Record(rcd_pull) => {
@@ -444,15 +451,16 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
                 v => panic!("invoked record update (rhs) on non-record {:?}", v),
             }
         }
-        Ek::Tagger { key } => Value::Tagger { key: &*key },
+        Ek::Tagger(key) => Value::Tagger { key: *key },
         Ek::Match { inp, cases } => {
-            let v_inp = run(env, inp, stack);
+            let v_inp = run(env, itn, inp, stack);
             let mut res = None;
             for i in cases {
                 let mut coll = Default::default();
                 if let Some(()) = run_pat(&mut coll, &i.pat, &v_inp) {
                     res = Some(run_stacksave(
                         env,
+                        itn,
                         &i.body,
                         Some(stack),
                         coll.into_iter().map(|(key, value)| (key, (*value).clone())),
@@ -467,11 +475,15 @@ pub fn run<'a: 'envout + 'envin + 's, 'envout, 'envin, 's, X: XInterp>(
             if let Value::FixLambda { argname, f } = r {
                 run(
                     env,
+                    itn,
                     f,
                     &VarStack {
                         parent: Some(stack),
-                        name: argname,
-                        value: Value::FixLambda { argname, f },
+                        name: *argname,
+                        value: Value::FixLambda {
+                            argname: *argname,
+                            f,
+                        },
                     },
                 )
             } else {

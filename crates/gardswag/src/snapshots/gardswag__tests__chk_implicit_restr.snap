@@ -2,6 +2,26 @@
 source: crates/gardswag/src/tests.rs
 expression: "main_check(r#\"\n                \\x\n                let id = \\y y;\n                .{\n                  id;\n                  x;\n                  y = \"{x}\";\n                }\n            \"#).unwrap()"
 ---
+- - id
+  - y
+  - x
+  - std
+  - plus
+  - minus
+  - mult
+  - eq
+  - leq
+  - not
+  - spawn_thread
+  - make_chan
+  - send
+  - recv
+  - chan_send
+  - chan_recv
+  - None
+  - Some
+  - stdio
+  - write
 - stmts: []
   term:
     offset: 17
@@ -9,7 +29,7 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
       Lambda:
         arg:
           offset: 18
-          inner: x
+          inner: 3
           extra: ~
         body:
           offset: 36
@@ -17,7 +37,7 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
             Let:
               lhs:
                 offset: 40
-                inner: id
+                inner: 1
                 extra: ~
               rhs:
                 offset: 45
@@ -25,12 +45,12 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                   Lambda:
                     arg:
                       offset: 46
-                      inner: y
+                      inner: 2
                       extra: ~
                     body:
                       offset: 48
                       inner:
-                        Identifier: y
+                        Identifier: 2
                       extra:
                         ty:
                           Var: 6
@@ -47,25 +67,17 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                   offset: 67
                   inner:
                     Record:
-                      id:
+                      1:
                         offset: 88
                         inner:
-                          Identifier: id
+                          Identifier: 1
                         extra:
                           ty:
                             Arrow1:
                               - Var: 7
                               - Var: 7
                           ident_multi: 0
-                      x:
-                        offset: 110
-                        inner:
-                          Identifier: x
-                        extra:
-                          ty:
-                            Var: 5
-                          ident_multi: 0
-                      y:
+                      2:
                         offset: 135
                         inner:
                           FormatString:
@@ -76,7 +88,7 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                                   term:
                                     offset: 137
                                     inner:
-                                      Identifier: x
+                                      Identifier: 3
                                     extra:
                                       ty:
                                         Var: 5
@@ -89,43 +101,51 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                           ty:
                             Literal: String
                           ident_multi: 0
+                      3:
+                        offset: 110
+                        inner:
+                          Identifier: 3
+                        extra:
+                          ty:
+                            Var: 5
+                          ident_multi: 0
                   extra:
                     ty:
                       Record:
-                        id:
+                        1:
                           Arrow1:
                             - Var: 7
                             - Var: 7
-                        x:
-                          Var: 5
-                        y:
+                        2:
                           Literal: String
+                        3:
+                          Var: 5
                     ident_multi: 0
           extra:
             ty:
               Record:
-                id:
+                1:
                   Arrow1:
                     - Var: 7
                     - Var: 7
-                x:
-                  Var: 5
-                y:
+                2:
                   Literal: String
+                3:
+                  Var: 5
             ident_multi: 1
     extra:
       ty:
         ArrowU:
           - Var: 5
           - Record:
-              id:
+              1:
                 Arrow1:
                   - Var: 7
                   - Var: 7
-              x:
-                Var: 5
-              y:
+              2:
                 Literal: String
+              3:
+                Var: 5
       ident_multi: 2
 - forall:
     - ty: ~
@@ -145,12 +165,12 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
     ArrowU:
       - Var: 0
       - Record:
-          id:
+          1:
             Arrow1:
               - Var: 1
               - Var: 1
-          x:
-            Var: 0
-          y:
+          2:
             Literal: String
+          3:
+            Var: 0
 

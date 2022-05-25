@@ -1,4 +1,4 @@
-use crate::{ArgMultiplicityId as ArgMultId, FreeVars, Substitutable, Ty, TyVar};
+use crate::{ArgMultiplicityId as ArgMultId, FreeVars, Substitutable, Symbol, Ty, TyVar};
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,7 +30,7 @@ pub enum UnifyError {
 
     #[error("partial row constraint failed while merging container type {container:?} and value type {value:} at key {key:?}")]
     Partial {
-        key: String,
+        key: Symbol,
         value: Ty,
         container: Ty,
     },
@@ -548,7 +548,7 @@ impl Context {
                                 if rcm.contains_key(k) {
                                     continue;
                                 }
-                                rcm.insert(k.clone(), v.clone());
+                                rcm.insert(*k, v.clone());
                             }
                             let rcm_ty = Ty::Record(rcm);
                             if let Some(ty) = &g.ty {

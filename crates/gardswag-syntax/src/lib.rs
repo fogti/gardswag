@@ -8,15 +8,14 @@
 )]
 #![deny(unused_variables)]
 
+pub use gardswag_annotated::{Annot, AnnotFmap};
+pub use gardswag_interner::{Interner, Symbol};
+use gardswag_subst::{FreeVars, Substitutable};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub mod lex;
-
-pub use gardswag_annotated::{Annot, AnnotFmap};
-use gardswag_subst::{FreeVars, Substitutable};
-
 mod block;
+pub mod lex;
 use block::parse_block;
 pub use block::Block;
 
@@ -40,7 +39,7 @@ pub enum ErrorKind {
     DuplicateKey(String),
 }
 
-pub type Identifier<X> = Annot<String, X>;
+pub type Identifier<X> = Annot<Symbol, X>;
 pub type Expr<X> = Annot<ExprKind<X>, X>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -75,7 +74,7 @@ pub enum ExprKind<X> {
 
     // record stuff
     // - introduction
-    Record(BTreeMap<String, Expr<X>>),
+    Record(BTreeMap<Symbol, Expr<X>>),
     // - elimination
     Dot {
         prim: Box<Expr<X>>,
@@ -89,9 +88,7 @@ pub enum ExprKind<X> {
 
     // discriminated/tagged union stuff
     // - introduction
-    Tagger {
-        key: String,
-    },
+    Tagger(Symbol),
 
     // R & DU - elimination
     Match {
@@ -102,7 +99,7 @@ pub enum ExprKind<X> {
     FormatString(Vec<Expr<X>>),
 
     // literal stuff
-    Identifier(String),
+    Identifier(Symbol),
     Unit,
     Boolean(bool),
     Integer(i32),
@@ -133,7 +130,7 @@ impl<X> ExprKind<X> {
     }
 
     /// checks if a variable is used anywhere in a expression
-    pub fn is_var_accessed(&self, v: &str) -> bool {
+    pub fn is_var_accessed(&self, v: Symbol) -> bool {
         match self {
             Self::Let { lhs, rhs, rest } => {
                 rhs.inner.is_var_accessed(v) || (lhs.inner != v && rest.is_var_accessed(v))
@@ -166,8 +163,8 @@ impl<X> ExprKind<X> {
                         .any(|i| !i.pat.is_var_defined(v) && i.body.inner.is_var_accessed(v))
             }
             Self::FormatString(exs) => exs.iter().any(|i| i.inner.is_var_accessed(v)),
-            Self::Identifier(id) => id == v,
-            Self::Tagger { key: _ }
+            Self::Identifier(id) => id == &v,
+            Self::Tagger(_)
             | Self::Unit
             | Self::Boolean(_)
             | Self::Integer(_)
@@ -227,7 +224,7 @@ impl<X, NewExtra> AnnotFmap<NewExtra> for ExprKind<X> {
                 ovrd: ovrd.map(f),
             },
 
-            ExprKind::Tagger { key } => ExprKind::Tagger { key },
+            ExprKind::Tagger(key) => ExprKind::Tagger(key),
 
             ExprKind::Match { inp, cases } => ExprKind::Match {
                 inp: inp.map(f),
@@ -283,7 +280,7 @@ impl<In, X: FreeVars<In>> FreeVars<In> for ExprKind<X> {
                 ovrd.fv(accu, do_add);
             }
 
-            ExprKind::Tagger { key: _ } => {}
+            ExprKind::Tagger(_) => {}
 
             ExprKind::Match { inp, cases } => {
                 inp.fv(accu, do_add);
@@ -340,7 +337,7 @@ impl<In, X: Substitutable<In>> Substitutable<In> for ExprKind<X> {
                 ovrd.apply(f);
             }
 
-            ExprKind::Tagger { key: _ } => {}
+            ExprKind::Tagger(_) => {}
 
             ExprKind::Match { inp, cases } => {
                 inp.apply(f);
@@ -402,7 +399,7 @@ pub enum Pattern<X> {
         key: Identifier<()>,
         value: Box<Pattern<X>>,
     },
-    Record(Annot<BTreeMap<String, Pattern<X>>>),
+    Record(Annot<BTreeMap<Symbol, Pattern<X>>>),
 }
 
 impl<X, NewExtra> AnnotFmap<NewExtra> for Pattern<X> {
@@ -479,7 +476,7 @@ impl<In, X: Substitutable<In>> Substitutable<In> for Pattern<X> {
 
 impl<X> Pattern<X> {
     /// checks if a variable is defined anywhere in the pattern
-    pub fn is_var_defined(&self, v: &str) -> bool {
+    pub fn is_var_defined(&self, v: Symbol) -> bool {
         match self {
             Self::Unit => false,
             Self::Identifier(x) => x.inner == v,
@@ -645,15 +642,16 @@ fn handle_wildcard(s: String) -> String {
 /// ` .{ key1: value1; key2: value2; } `
 fn try_parse_record<'a, T, F, Fi, Fr>(
     super_offset: usize,
+    itn: &mut Interner,
     lxr: &mut PeekLexer<'a>,
     f: F,
     mkid: Fi,
     mkrec: Fr,
 ) -> ParseResult<T, ErrorKind>
 where
-    F: Fn(&mut PeekLexer<'a>) -> ParseResult<T, ErrorKind>,
-    Fi: Fn(Identifier<()>) -> T,
-    Fr: Fn(Annot<BTreeMap<String, T>>) -> T,
+    F: Fn(&mut Interner, &mut PeekLexer<'a>) -> ParseResult<T, ErrorKind>,
+    Fi: Fn(&mut Interner, Annot<&str, ()>) -> T,
+    Fr: Fn(Annot<BTreeMap<Symbol, T>>) -> T,
 {
     use lex::{Token, TokenKind as Tk};
     let backtrack = lxr.clone();
@@ -696,26 +694,31 @@ where
                 }
             }
         ));
+        let id_orig = id;
+        let id = itn.get_or_intern(&id_orig);
         let value = if dcd {
-            let value = xtry!(unexpect_eoe(offset, f(lxr)));
+            let value = xtry!(unexpect_eoe(offset, f(itn, lxr)));
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
             value
         } else {
-            mkid(Annot {
-                offset,
-                inner: id.clone(),
-                extra: (),
-            })
+            mkid(
+                itn,
+                Annot {
+                    offset,
+                    inner: &id_orig,
+                    extra: (),
+                },
+            )
         };
         use std::collections::btree_map::Entry;
         match rcd.entry(id) {
             Entry::Vacant(v) => {
                 v.insert(value);
             }
-            Entry::Occupied(occ) => {
+            Entry::Occupied(_) => {
                 return PErr(Annot {
                     offset,
-                    inner: ErrorKind::DuplicateKey(occ.key().to_string()),
+                    inner: ErrorKind::DuplicateKey(id_orig),
                     extra: (),
                 });
             }
@@ -729,21 +732,26 @@ where
     }))
 }
 
-fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern<()>, ErrorKind> {
+fn parse_pattern(
+    itn: &mut Interner,
+    lxr: &mut PeekLexer<'_>,
+) -> ParseResult<Pattern<()>, ErrorKind> {
     use lex::TokenKind as Tk;
     let Annot { offset, inner, .. } = xtry!(lxr.next());
     match inner {
         Tk::Identifier(x) => POk(Pattern::Identifier(Annot {
             offset,
-            inner: handle_wildcard(x),
+            inner: itn.get_or_intern(&handle_wildcard(x)),
             extra: (),
         })),
         Tk::Dot => {
             match try_parse_record(
                 offset,
+                itn,
                 lxr,
                 parse_pattern,
-                |Annot {
+                |itn,
+                 Annot {
                      offset,
                      inner,
                      extra,
@@ -751,7 +759,7 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern<()>, ErrorKind>
                     Pattern::Identifier(Annot {
                         offset,
                         extra,
-                        inner: handle_wildcard(inner),
+                        inner: itn.get_or_intern(&handle_wildcard(inner.to_string())),
                     })
                 },
                 Pattern::Record,
@@ -783,11 +791,11 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern<()>, ErrorKind>
                     }),
                 }
             ));
-            let value = xtry!(unexpect_eoe(offset, parse_pattern(lxr)));
+            let value = xtry!(unexpect_eoe(offset, parse_pattern(itn, lxr)));
             POk(Pattern::Tagged {
                 key: Annot {
                     offset,
-                    inner: key,
+                    inner: itn.get_or_intern(&key),
                     extra,
                 },
                 value: Box::new(value),
@@ -808,7 +816,7 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern<()>, ErrorKind>
             {
                 Pattern::Unit
             } else {
-                let inner = xtry!(unexpect_eoe(offset, parse_pattern(lxr)));
+                let inner = xtry!(unexpect_eoe(offset, parse_pattern(itn, lxr)));
                 let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
                 inner
             },
@@ -825,7 +833,7 @@ fn parse_pattern(lxr: &mut PeekLexer<'_>) -> ParseResult<Pattern<()>, ErrorKind>
     }
 }
 
-fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
+fn parse_expr(itn: &mut Interner, lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
     use lex::{Keyword as Kw, Token, TokenKind as Tk};
     let Token {
         mut offset, inner, ..
@@ -858,18 +866,18 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                     extra,
                 } => Ok(Identifier {
                     offset,
-                    inner,
+                    inner: itn.get_or_intern(&handle_wildcard(inner)),
                     extra
                 }),
                 _ => Err(t),
             }));
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::EqSym));
-            let mut rhs = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+            let mut rhs = xtry!(unexpect_eoe(offset, parse_expr_greedy(itn, lxr)));
             let blk_offset = xtry!(expect_token_exact(offset, lxr, Tk::SemiColon));
             let rest = if lxr.peek().is_none() {
                 Block::default()
             } else {
-                xtry!(parse_block(blk_offset, lxr))
+                xtry!(parse_block(blk_offset, itn, lxr))
             };
             if is_rec {
                 // desugar `let rec` to `fix`
@@ -889,8 +897,8 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
             })
         }
         Tk::Keyword(Kw::If) => {
-            let cond = xtry!(unexpect_eoe(offset, parse_expr(lxr)));
-            let then = xtry!(parse_block(offset, lxr));
+            let cond = xtry!(unexpect_eoe(offset, parse_expr(itn, lxr)));
+            let then = xtry!(parse_block(offset, itn, lxr));
             let or_else = if let Some(Ok(Annot {
                 inner: Tk::SemiColon,
                 ..
@@ -899,7 +907,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
             {
                 Block::default()
             } else {
-                xtry!(parse_block(offset, lxr))
+                xtry!(parse_block(offset, itn, lxr))
             };
             Ok(ExprKind::If {
                 cond: Box::new(cond),
@@ -908,7 +916,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
             })
         }
         Tk::Keyword(Kw::Match) => {
-            let inp = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+            let inp = xtry!(unexpect_eoe(offset, parse_expr_greedy(itn, lxr)));
             let mut cases = Vec::new();
             while let Some(Ok(Token {
                 offset: c_offset,
@@ -923,9 +931,9 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                     })
                 )
             }) {
-                let pat = xtry!(unexpect_eoe(c_offset, parse_pattern(lxr)));
+                let pat = xtry!(unexpect_eoe(c_offset, parse_pattern(itn, lxr)));
                 let _ = xtry!(expect_token_exact(c_offset, lxr, Tk::CaseThen));
-                let body = xtry!(unexpect_eoe(c_offset, parse_expr_greedy(lxr)));
+                let body = xtry!(unexpect_eoe(c_offset, parse_expr_greedy(itn, lxr)));
                 cases.push(Case { pat, body });
             }
             if cases.is_empty() {
@@ -937,19 +945,27 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                 cases,
             })
         }
-        Tk::Lambda(lam) => {
-            let expr = xtry!(unexpect_eoe(offset, parse_expr_calls(lxr)));
+        Tk::Lambda(Annot {
+            inner: arg,
+            offset: arg_offset,
+            ..
+        }) => {
+            let expr = xtry!(unexpect_eoe(offset, parse_expr_calls(itn, lxr)));
             Ok(ExprKind::Lambda {
-                arg: lam,
+                arg: Annot {
+                    inner: itn.get_or_intern(&handle_wildcard(arg)),
+                    offset: arg_offset,
+                    extra: (),
+                },
                 body: Box::new(expr),
             })
         }
-        Tk::Identifier(id) => Ok(ExprKind::Identifier(id)),
+        Tk::Identifier(id) => Ok(ExprKind::Identifier(itn.get_or_intern(&id))),
         Tk::Keyword(Kw::False) => Ok(ExprKind::Boolean(false)),
         Tk::Keyword(Kw::True) => Ok(ExprKind::Boolean(true)),
         Tk::Integer(i) => Ok(ExprKind::Integer(i)),
         Tk::LcBracket => {
-            let block = xtry!(parse_block(offset, lxr));
+            let block = xtry!(parse_block(offset, itn, lxr));
             let _ = xtry!(expect_token_exact(offset, lxr, Tk::RcBracket));
             Ok(ExprKind::Block(block))
         }
@@ -972,7 +988,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                     inner,
                     offset: new_offset,
                     ..
-                } = xtry!(unexpect_eoe(offset, parse_expr_greedy(lxr)));
+                } = xtry!(unexpect_eoe(offset, parse_expr_greedy(itn, lxr)));
                 let _ = xtry!(expect_token_exact(offset, lxr, Tk::RParen));
                 offset = new_offset;
                 inner
@@ -1002,7 +1018,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                     });
                     continue;
                 }
-                match parse_expr_greedy(lxr) {
+                match parse_expr_greedy(itn, lxr) {
                     PNone => break,
                     PErr(e) => return PErr(e),
                     POk(x) => parts.push(x),
@@ -1013,15 +1029,17 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
         }
         Tk::Dot => match try_parse_record(
             offset,
+            itn,
             lxr,
             &parse_expr_greedy,
-            |Annot {
+            |itn,
+             Annot {
                  offset,
                  inner,
                  extra,
              }| Annot {
                 offset,
-                inner: ExprKind::Identifier(inner),
+                inner: ExprKind::Identifier(itn.get_or_intern(&handle_wildcard(inner.to_string()))),
                 extra,
             },
             |Annot {
@@ -1056,7 +1074,7 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                     }
                 ))
                 .inner;
-                Ok(ExprKind::Tagger { key })
+                Ok(ExprKind::Tagger(itn.get_or_intern(&key)))
             }
             PErr(e) => return PErr(e),
             POk(y) => Ok(y.inner),
@@ -1085,7 +1103,11 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
             {
                 let new_offset = *new_offset;
                 let _ = lxr.next();
-                let key = xtry!(expect_token_noeof(new_offset, lxr, |t| match t {
+                let Annot {
+                    inner: key,
+                    offset: key_offset,
+                    ..
+                } = xtry!(expect_token_noeof(new_offset, lxr, |t| match t {
                     Token {
                         inner: Tk::Identifier(id),
                         offset,
@@ -1103,7 +1125,11 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
                         inner,
                         extra: (),
                     }),
-                    key,
+                    key: Annot {
+                        offset: key_offset,
+                        inner: itn.get_or_intern(&key),
+                        extra: (),
+                    },
                 };
                 offset = new_offset;
             }
@@ -1121,16 +1147,19 @@ fn parse_expr(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
     }
 }
 
-fn parse_expr_calls(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
+fn parse_expr_calls(
+    itn: &mut Interner,
+    lxr: &mut PeekLexer<'_>,
+) -> ParseResult<Expr<()>, ErrorKind> {
     let Annot {
         mut inner,
         offset,
         extra: (),
-    } = xtry!(parse_expr(lxr));
+    } = xtry!(parse_expr(itn, lxr));
     // hanble arguments
     loop {
         let save_lxr = (*lxr).clone();
-        let expr = match parse_expr(lxr) {
+        let expr = match parse_expr(itn, lxr) {
             PNone => break,
             PErr(e) => {
                 if let ErrorKind::UnexpectedToken(..) = e.inner {
@@ -1159,9 +1188,12 @@ fn parse_expr_calls(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind>
     })
 }
 
-fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind> {
+fn parse_expr_greedy(
+    itn: &mut Interner,
+    lxr: &mut PeekLexer<'_>,
+) -> ParseResult<Expr<()>, ErrorKind> {
     use lex::TokenKind as Tk;
-    let mut ret = xtry!(parse_expr_calls(lxr));
+    let mut ret = xtry!(parse_expr_calls(itn, lxr));
     // handle pipes and updates
     while let Some(x) = lxr.next_if(|i| {
         matches!(
@@ -1173,7 +1205,7 @@ fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind
         )
     }) {
         let x = xtry!(x);
-        let expr = xtry!(unexpect_eoe(x.offset, parse_expr_calls(lxr)));
+        let expr = xtry!(unexpect_eoe(x.offset, parse_expr_calls(itn, lxr)));
         ret = Annot {
             offset: x.offset,
             inner: match x.inner {
@@ -1194,7 +1226,7 @@ fn parse_expr_greedy(lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<()>, ErrorKind
 }
 
 #[inline]
-pub fn parse(inp: &str) -> Result<Block<()>, Error> {
+pub fn parse(itn: &mut Interner, inp: &str) -> Result<Block<()>, Error> {
     let mut lxr = lex::Lexer::new(inp).peekable();
-    parse_block(0, &mut lxr)
+    parse_block(0, itn, &mut lxr)
 }

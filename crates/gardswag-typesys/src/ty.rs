@@ -1,4 +1,4 @@
-use crate::{FreeVars, Substitutable};
+use crate::{FreeVars, Substitutable, Symbol};
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -46,9 +46,9 @@ pub enum Ty {
     /// receiver end of channels
     ChanRecv(Box<Ty>),
 
-    Record(BTreeMap<String, Ty>),
+    Record(BTreeMap<Symbol, Ty>),
 
-    TaggedUnion(BTreeMap<String, Ty>),
+    TaggedUnion(BTreeMap<Symbol, Ty>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]

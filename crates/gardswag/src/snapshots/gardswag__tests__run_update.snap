@@ -2,6 +2,26 @@
 source: crates/gardswag/src/tests.rs
 expression: x
 ---
+- - a
+  - b
+  - c
+  - std
+  - plus
+  - minus
+  - mult
+  - eq
+  - leq
+  - not
+  - spawn_thread
+  - make_chan
+  - send
+  - recv
+  - chan_send
+  - chan_recv
+  - None
+  - Some
+  - stdio
+  - write
 - stmts: []
   term:
     offset: 120
@@ -11,7 +31,7 @@ expression: x
           offset: 17
           inner:
             Record:
-              a:
+              1:
                 offset: 42
                 inner:
                   FormatString:
@@ -26,7 +46,7 @@ expression: x
                   ty:
                     Literal: String
                   ident_multi: 0
-              b:
+              2:
                 offset: 72
                 inner:
                   Integer: 1
@@ -34,7 +54,7 @@ expression: x
                   ty:
                     Literal: Int
                   ident_multi: 0
-              c:
+              3:
                 offset: 97
                 inner:
                   Record: {}
@@ -45,18 +65,18 @@ expression: x
           extra:
             ty:
               Record:
-                a:
+                1:
                   Literal: String
-                b:
+                2:
                   Literal: Int
-                c:
+                3:
                   Record: {}
             ident_multi: 0
         ovrd:
           offset: 123
           inner:
             Record:
-              b:
+              2:
                 offset: 148
                 inner:
                   FormatString:
@@ -71,7 +91,7 @@ expression: x
                   ty:
                     Literal: String
                   ident_multi: 0
-              c:
+              3:
                 offset: 176
                 inner:
                   Integer: 50
@@ -82,29 +102,29 @@ expression: x
           extra:
             ty:
               Record:
-                b:
+                2:
                   Literal: String
-                c:
+                3:
                   Literal: Int
             ident_multi: 0
     extra:
       ty:
         Record:
-          a:
+          1:
             Literal: String
-          b:
+          2:
             Literal: String
-          c:
+          3:
             Literal: Int
       ident_multi: 0
 - forall: []
   forall_args: []
   ty:
     Record:
-      a:
+      1:
         Literal: String
-      b:
+      2:
         Literal: String
-      c:
+      3:
         Literal: Int
 

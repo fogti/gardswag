@@ -139,7 +139,6 @@ dependencies = [
  "crossbeam-channel",
  "crossbeam-utils",
  "gardswag-infer-cgen",
- "gardswag-interner",
  "gardswag-syntax",
  "gardswag-typesys",
  "gardswag-varstack",
@@ -205,6 +204,7 @@ dependencies = [
 name = "gardswag-typesys"
 version = "0.1.0"
 dependencies = [
+ "gardswag-interner",
  "gardswag-subst",
  "serde",
  "thiserror",

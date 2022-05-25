@@ -8,27 +8,58 @@
 )]
 #![deny(unused_variables)]
 
+// TODO: make it possible to merge multiple interners
+
+use core::fmt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Interner(Vec<Box<str>>);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize,
+)]
 pub struct Symbol(u32);
+
+impl Symbol {
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+}
 
 impl Interner {
     pub fn get_or_intern(&mut self, s: &str) -> Symbol {
         if s.is_empty() {
-            return Symbol(0);
+            return Symbol::empty();
         }
         for (n, i) in self.0.iter().enumerate() {
             if &**i == s {
-                return Symbol(n.try_into().unwrap());
+                return Symbol((n + 1).try_into().unwrap());
             }
         }
-        let ret = Symbol((self.0.len() + 1).try_into().expect("Interner out of indices"));
+        let ret = Symbol(
+            (self.0.len() + 1)
+                .try_into()
+                .expect("Interner out of indices"),
+        );
         self.0.push(s.to_string().into_boxed_str());
         ret
+    }
+
+    pub fn get_already_interned(&self, s: &str) -> Symbol {
+        if s.is_empty() {
+            return Symbol::empty();
+        }
+        for (n, i) in self.0.iter().enumerate() {
+            if &**i == s {
+                return Symbol((n + 1).try_into().unwrap());
+            }
+        }
+        panic!("symbol {:?} not yet interned", s)
     }
 
     #[inline]
@@ -38,6 +69,12 @@ impl Interner {
         } else {
             ""
         }
+    }
+}
+
+impl fmt::Display for Interner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.0.iter().enumerate()).finish()
     }
 }
 
@@ -51,6 +88,9 @@ mod tests {
         let y = itn.get_or_intern("");
         assert!(itn.0.is_empty());
         assert_eq!(itn.get(y), "");
+        assert_eq!(Symbol::empty(), y);
+        let z = itn.get_already_interned("");
+        assert_eq!(z, y);
     }
 
     #[test]
@@ -60,5 +100,7 @@ mod tests {
         let y = itn.get_or_intern(x);
         assert_eq!(itn.0.len(), 1);
         assert_eq!(itn.get(y), x);
+        let z = itn.get_already_interned(x);
+        assert_eq!(z, y);
     }
 }

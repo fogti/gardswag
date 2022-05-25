@@ -12,6 +12,7 @@
 mod ty;
 pub use ty::{FinalArgMultiplicity, Scheme, Ty, TyLit, TyVar};
 
+use gardswag_interner::Symbol;
 pub use gardswag_subst::{FreeVars, Substitutable};
 
 /// type constraint data structures

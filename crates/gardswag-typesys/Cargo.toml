@@ -6,6 +6,7 @@ edition = "2021"
 license = "CC BY-NC-SA 4.0"
 
 [dependencies]
+gardswag-interner.path = "../gardswag-interner"
 gardswag-subst.path = "../gardswag-subst"
 thiserror = "1.0"
 tracing = "0.1"

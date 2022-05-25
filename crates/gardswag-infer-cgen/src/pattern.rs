@@ -1,5 +1,5 @@
 use core::iter::once;
-use gardswag_syntax::{self as synt, Annot, AnnotFmap, Case, Expr, Pattern as Pat};
+use gardswag_syntax::{self as synt, Annot, AnnotFmap, Case, Expr, Pattern as Pat, Symbol};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
 use gardswag_typesys::{self as tysy, ArgMultiplicity, CollectContext, Ty, TyLit, TyVar};
 use gardswag_varstack::VarStack;
@@ -15,49 +15,52 @@ pub enum PatternError {
     #[error("unreachable pattern: {0}")]
     Unreachable2(String),
 
-    #[error("pattern kind mismatch: expected {expected}, got {got:?}")]
-    KindMismatchSingle { expected: String, got: Pat<()> },
+    #[error("pattern kind mismatch: expected {expected:?}, got {got:?}")]
+    KindMismatchSingle { expected: PatNodeKind, got: Pat<()> },
 
-    #[error("pattern kind mismatch: lhs {lhs}, rhs {rhs}")]
-    KindMismatchMerge { lhs: String, rhs: String },
+    #[error("pattern kind mismatch: lhs {lhs:?}, rhs {rhs:?}")]
+    KindMismatchMerge { lhs: PatNodeKind, rhs: PatNodeKind },
 
-    #[error("pattern record {record} has invalid/mismatching key '{key}'")]
-    RecordInvalidKey { record: String, key: String },
+    #[error("pattern record {record:?} has invalid/mismatching key {key:?}")]
+    RecordInvalidKey {
+        record: BTreeMap<Symbol, PatNode>,
+        key: Symbol,
+    },
 
-    #[error("pattern contains identifier '{ident}' multiple times: @{offset1}, @{offset2}")]
+    #[error("pattern contains identifier {ident:?} multiple times: @{offset1}, @{offset2}")]
     IdentAmbiguous {
-        ident: String,
+        ident: Symbol,
         offset1: usize,
         offset2: usize,
     },
 }
 
-type ICaseVars<'a> = BTreeMap<&'a str, (usize, Rc<RefCell<Option<Ty>>>)>;
+type ICaseVars = BTreeMap<Symbol, (usize, Rc<RefCell<Option<Ty>>>)>;
 
 #[derive(Clone, Debug)]
 struct ICase<'a> {
-    vars: ICaseVars<'a>,
+    vars: ICaseVars,
     pat: &'a Pat<()>,
     body: &'a Expr<()>,
 }
 
 #[derive(Clone, Debug)]
-struct PatNode<'a> {
+pub struct PatNode {
     offset: usize,
-    kind: Option<PatNodeKind<'a>>,
+    kind: Option<PatNodeKind>,
     wildcard_witn: Option<Rc<RefCell<Option<Ty>>>>,
 }
 
 #[derive(Clone, Debug)]
-enum PatNodeKind<'a> {
-    TaggedUnion(BTreeMap<&'a str, PatNode<'a>>),
-    Record(BTreeMap<&'a str, PatNode<'a>>),
+pub enum PatNodeKind {
+    TaggedUnion(BTreeMap<Symbol, PatNode>),
+    Record(BTreeMap<Symbol, PatNode>),
     Unit,
 }
 
 use PatNodeKind as Pnk;
 
-impl<'a> PatNode<'a> {
+impl PatNode {
     fn push(&mut self, oth: Self) -> Result<(), PatternError> {
         if self.wildcard_witn.is_some() {
             return Err(PatternError::Unreachable2(format!("{:?}", oth)));
@@ -72,7 +75,7 @@ impl<'a> PatNode<'a> {
     }
 }
 
-impl<'a> PatNodeKind<'a> {
+impl PatNodeKind {
     fn push(&mut self, oth: Self) -> Result<(), PatternError> {
         use std::collections::btree_map::Entry;
         match (self, oth) {
@@ -96,18 +99,18 @@ impl<'a> PatNodeKind<'a> {
                         }
                         Entry::Vacant(_) => {
                             return Err(PatternError::RecordInvalidKey {
-                                record: format!("{:?}", rc1),
-                                key: key.to_string(),
+                                record: rc1.clone(),
+                                key,
                             });
                         }
                     }
                 }
             }
             (PatNodeKind::Unit, PatNodeKind::Unit) => {}
-            (a, b) => {
+            (lhs, rhs) => {
                 return Err(PatternError::KindMismatchMerge {
-                    lhs: format!("{:?}", a),
-                    rhs: format!("{:?}", b),
+                    lhs: lhs.clone(),
+                    rhs,
                 })
             }
         }
@@ -115,15 +118,11 @@ impl<'a> PatNodeKind<'a> {
     }
 }
 
-fn pattern2node<'a>(
-    vars: &mut ICaseVars<'a>,
-    offset: usize,
-    pat: &'a Pat<()>,
-) -> Result<PatNode<'a>, Error> {
+fn pattern2node(vars: &mut ICaseVars, offset: usize, pat: &Pat<()>) -> Result<PatNode, Error> {
     let kind = match pat {
         Pat::Identifier(x) => {
             use std::collections::btree_map::Entry;
-            return match vars.entry(&*x.inner) {
+            return match vars.entry(x.inner) {
                 Entry::Vacant(vac) => {
                     let t_x = Default::default();
                     vac.insert((x.offset, Rc::clone(&t_x)));
@@ -136,7 +135,7 @@ fn pattern2node<'a>(
                 Entry::Occupied(occ) => Err(Error::Pattern(Annot {
                     offset,
                     inner: PatternError::IdentAmbiguous {
-                        ident: x.inner.to_string(),
+                        ident: x.inner,
                         offset1: occ.get().0,
                         offset2: x.offset,
                     },
@@ -145,12 +144,12 @@ fn pattern2node<'a>(
             };
         }
         Pat::Tagged { key, value } => PatNodeKind::TaggedUnion(
-            once((&*key.inner, pattern2node(vars, offset, &**value)?)).collect(),
+            once((key.inner, pattern2node(vars, offset, &**value)?)).collect(),
         ),
         Pat::Record(rcd) => PatNodeKind::Record({
             let mut rcpat = BTreeMap::default();
             for (key, value) in &rcd.inner {
-                rcpat.insert(&**key, pattern2node(vars, offset, &*value)?);
+                rcpat.insert(*key, pattern2node(vars, offset, &*value)?);
             }
             rcpat
         }),
@@ -163,7 +162,7 @@ fn pattern2node<'a>(
     })
 }
 
-fn cases2nodetree<'c, 'a>(cases: &'c mut [ICase<'a>]) -> Result<PatNode<'a>, Error> {
+fn cases2nodetree(cases: &mut [ICase<'_>]) -> Result<PatNode, Error> {
     let mut cases = cases.iter_mut();
 
     // build case tree, first detect type
@@ -199,7 +198,7 @@ fn cases2nodetree<'c, 'a>(cases: &'c mut [ICase<'a>]) -> Result<PatNode<'a>, Err
                     extra: (),
                 }));
             }
-            (Pat::Identifier(x), _) => match vars.entry(&x.inner) {
+            (Pat::Identifier(x), _) => match vars.entry(x.inner) {
                 Entry::Vacant(vac) => {
                     let t_x = Default::default();
                     vac.insert((x.offset, Rc::clone(&t_x)));
@@ -210,7 +209,7 @@ fn cases2nodetree<'c, 'a>(cases: &'c mut [ICase<'a>]) -> Result<PatNode<'a>, Err
                     return Err(Error::Pattern(Annot {
                         offset,
                         inner: PatternError::IdentAmbiguous {
-                            ident: x.inner.to_string(),
+                            ident: x.inner,
                             offset1: occ.get().0,
                             offset2: x.offset,
                         },
@@ -220,7 +219,7 @@ fn cases2nodetree<'c, 'a>(cases: &'c mut [ICase<'a>]) -> Result<PatNode<'a>, Err
             },
             (Pat::Tagged { key, value }, Pnk::TaggedUnion(tupat)) => {
                 let subpnt = pattern2node(vars, offset, &*value)?;
-                match tupat.entry(&key.inner) {
+                match tupat.entry(key.inner) {
                     Entry::Vacant(vac) => {
                         vac.insert(subpnt);
                     }
@@ -249,7 +248,7 @@ fn cases2nodetree<'c, 'a>(cases: &'c mut [ICase<'a>]) -> Result<PatNode<'a>, Err
                 return Err(Error::Pattern(Annot {
                     offset,
                     inner: PatternError::KindMismatchSingle {
-                        expected: format!("{:?}", expected),
+                        expected: expected.clone(),
                         got: (**got).clone().map(&mut |_| ()),
                     },
                     extra: (),
@@ -279,7 +278,7 @@ fn infer_pat(
         offset,
         kind,
         wildcard_witn,
-    }: PatNode<'_>,
+    }: PatNode,
 ) -> Result<Ty, Error> {
     let ret = if let Some(kind) = kind {
         #[derive(Clone)]
@@ -301,7 +300,7 @@ fn infer_pat(
             Pnk::TaggedUnion(tud) => {
                 let pre = tud
                     .into_iter()
-                    .map(|(key, i)| Ok((key.to_string(), infer_pat(ctx, None, i)?)))
+                    .map(|(key, i)| Ok((key, infer_pat(ctx, None, i)?)))
                     .collect::<Result<_, _>>()?;
                 match inptv.unwrap() {
                     MaybeWldc::Wildcard(inptv) => {
@@ -324,7 +323,7 @@ fn infer_pat(
             Pnk::Record(rcd) => {
                 let pre = rcd
                     .into_iter()
-                    .map(|(key, i)| Ok((key.to_string(), infer_pat(ctx, None, i)?)))
+                    .map(|(key, i)| Ok((key, infer_pat(ctx, None, i)?)))
                     .collect::<Result<_, _>>()?;
                 let inp = match inptv.unwrap() {
                     MaybeWldc::Wildcard(inptv) => Ty::Var(inptv),
@@ -359,7 +358,7 @@ fn infer_pat(
     Ok(ret)
 }
 
-fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<&str, (Ty, IdentMeta)>) -> Pat<InferExtra> {
+fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<Symbol, (Ty, IdentMeta)>) -> Pat<InferExtra> {
     match pat {
         Pat::Unit => Pat::Unit,
         Pat::Identifier(Annot {
@@ -369,13 +368,13 @@ fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<&str, (Ty, IdentMeta)>) -> Pat<In
         }) => Pat::Identifier(Annot {
             offset: *offset,
             extra: {
-                let v = vars.get(&**inner).unwrap();
+                let v = vars.get(inner).unwrap();
                 InferExtra {
                     ty: v.0.clone(),
                     ident_multi: v.1.take().1,
                 }
             },
-            inner: inner.clone(),
+            inner: *inner,
         }),
         Pat::Tagged { key, value } => Pat::Tagged {
             key: key.clone(),
@@ -390,21 +389,21 @@ fn apply_idents(pat: &Pat<()>, vars: &BTreeMap<&str, (Ty, IdentMeta)>) -> Pat<In
             extra: (),
             inner: inner
                 .iter()
-                .map(|(k, v)| (k.clone(), apply_idents(v, vars)))
+                .map(|(k, v)| (*k, apply_idents(v, vars)))
                 .collect(),
         }),
     }
 }
 
-fn infer_w_stack_vars<'a, 's, I>(
-    env: Env<'s>,
+fn infer_w_stack_vars<I>(
+    env: Env<'_>,
     ctx: &mut CollectContext,
-    body: &'a synt::Expr<()>,
+    body: &synt::Expr<()>,
     resty: TyVar,
     mut items: I,
 ) -> Result<synt::Expr<InferExtra>, Error>
 where
-    I: Iterator<Item = (&'a str, Ty, IdentMeta)>,
+    I: Iterator<Item = (Symbol, Ty, IdentMeta)>,
 {
     match items.next() {
         Some((name, ty, ident_multi)) => infer_w_stack_vars(

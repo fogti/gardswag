@@ -2,82 +2,86 @@
 source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"\n                \"{\n                  let a = 1;\n                  std.stdio.write(\"{a}\\n\");\n                  a\n                }\"\n            \"#).unwrap()"
 ---
-stmts: []
-term:
-  offset: 17
-  inner:
-    FormatString:
-      - offset: 18
-        inner:
-          Block:
-            stmts: []
-            term:
-              offset: 38
-              inner:
-                Let:
-                  lhs:
-                    offset: 42
-                    inner: a
-                    extra: ~
-                  rhs:
-                    offset: 46
-                    inner:
-                      Integer: 1
-                    extra: ~
-                  rest:
-                    stmts:
-                      - offset: 76
-                        inner:
-                          Call:
-                            prim:
-                              offset: 76
-                              inner:
-                                Dot:
-                                  prim:
-                                    offset: 70
-                                    inner:
-                                      Dot:
-                                        prim:
-                                          offset: 67
-                                          inner:
-                                            Identifier: std
-                                          extra: ~
-                                        key:
-                                          offset: 71
-                                          inner: stdio
-                                          extra: ~
-                                    extra: ~
-                                  key:
-                                    offset: 77
-                                    inner: write
-                                    extra: ~
-                              extra: ~
-                            arg:
-                              offset: 83
-                              inner:
-                                FormatString:
-                                  - offset: 84
-                                    inner:
-                                      Block:
-                                        stmts: []
-                                        term:
-                                          offset: 85
-                                          inner:
-                                            Identifier: a
-                                          extra: ~
-                                    extra: ~
-                                  - offset: 87
-                                    inner:
-                                      PureString: "\n"
-                                    extra: ~
-                              extra: ~
-                        extra: ~
-                    term:
-                      offset: 111
-                      inner:
-                        Identifier: a
+- - a
+  - std
+  - stdio
+  - write
+- stmts: []
+  term:
+    offset: 17
+    inner:
+      FormatString:
+        - offset: 18
+          inner:
+            Block:
+              stmts: []
+              term:
+                offset: 38
+                inner:
+                  Let:
+                    lhs:
+                      offset: 42
+                      inner: 1
                       extra: ~
-              extra: ~
-        extra: ~
-  extra: ~
+                    rhs:
+                      offset: 46
+                      inner:
+                        Integer: 1
+                      extra: ~
+                    rest:
+                      stmts:
+                        - offset: 76
+                          inner:
+                            Call:
+                              prim:
+                                offset: 76
+                                inner:
+                                  Dot:
+                                    prim:
+                                      offset: 70
+                                      inner:
+                                        Dot:
+                                          prim:
+                                            offset: 67
+                                            inner:
+                                              Identifier: 2
+                                            extra: ~
+                                          key:
+                                            offset: 71
+                                            inner: 3
+                                            extra: ~
+                                      extra: ~
+                                    key:
+                                      offset: 77
+                                      inner: 4
+                                      extra: ~
+                                extra: ~
+                              arg:
+                                offset: 83
+                                inner:
+                                  FormatString:
+                                    - offset: 84
+                                      inner:
+                                        Block:
+                                          stmts: []
+                                          term:
+                                            offset: 85
+                                            inner:
+                                              Identifier: 1
+                                            extra: ~
+                                      extra: ~
+                                    - offset: 87
+                                      inner:
+                                        PureString: "\n"
+                                      extra: ~
+                                extra: ~
+                          extra: ~
+                      term:
+                        offset: 111
+                        inner:
+                          Identifier: 1
+                        extra: ~
+                extra: ~
+          extra: ~
+    extra: ~
 

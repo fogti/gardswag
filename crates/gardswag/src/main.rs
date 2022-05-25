@@ -1,4 +1,5 @@
 use gardswag_infer_cgen as infer;
+use gardswag_syntax::{Interner, Symbol};
 use gardswag_typesys::CollectContext as TyCollectCtx;
 use std::path::PathBuf;
 use tracing::{debug, trace};
@@ -29,7 +30,7 @@ struct Args {
     mode: Mode,
 }
 
-fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
+fn mk_env_std(itn: &mut Interner, ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
     use gardswag_typesys::{FinalArgMultiplicity as Fam, Scheme as TyScheme, Ty, TyLit};
 
     macro_rules! tl {
@@ -61,14 +62,14 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
     macro_rules! tr {
         ({ $($key:ident: $value:expr),* $(,)? }) => {{
             Ty::Record([
-                $((stringify!($key).to_string(), $value)),*
+                $((itn.get_or_intern(stringify!($key)), $value)),*
             ].into_iter().collect())
         }};
     }
     macro_rules! ttu {
         ($($key:ident: $value:expr),* $(,)?) => {{
             Ty::TaggedUnion([
-                $((stringify!($key).to_string(), $value)),*
+                $((itn.get_or_intern(stringify!($key)), $value)),*
             ].into_iter().collect())
         }}
     }
@@ -112,24 +113,28 @@ fn mk_env_std(ctx: &mut TyCollectCtx) -> gardswag_typesys::Scheme {
 fn main_check(
     dat: &str,
 ) -> anyhow::Result<(
+    Interner,
     gardswag_syntax::Block<crate::infer::InferExtra>,
     gardswag_typesys::constraint::SchemeSer,
 )> {
-    let parsed = gardswag_syntax::parse(dat)?;
+    let mut itn = Interner::default();
+    let parsed = gardswag_syntax::parse(&mut itn, dat)?;
     let mut ctx = TyCollectCtx::default();
 
     let env = gardswag_varstack::VarStack {
         parent: None,
-        name: "std",
+        name: itn.get_or_intern("std"),
         value: (
-            mk_env_std(&mut ctx),
+            mk_env_std(&mut itn, &mut ctx),
             std::rc::Rc::new(core::cell::RefCell::new((vec![Default::default()], 0))),
         ),
     };
 
-    let mut parsed = infer::infer_block(&env, &mut ctx, 0, &parsed, None)?;
+    let mut parsed = infer::infer_block(&env, &mut ctx, 0, &parsed, None)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     debug!("type inference constraints generated");
     debug!("=TyAst> {:?}", parsed);
+    debug!("--interned--\n{:#}", itn);
     debug!("--constraints-- {}", ctx.constraints.len());
     for v in &ctx.constraints {
         debug!("\t{:?}", v);
@@ -170,32 +175,40 @@ fn main_check(
     }
     let tgx = ctx2.export_scheme(tg);
     tracing::info!("=G> {:#?}", tgx);
-    Ok((parsed, tgx))
+    Ok((itn, parsed, tgx))
 }
 
 fn main_interp_ast<'a>(
+    itn: &'a Interner,
     parsed: &'a gardswag_syntax::Block<crate::infer::InferExtra>,
 ) -> interp_ast::Value<'a, crate::infer::InferExtra> {
     use interp_ast::{Builtin as Bi, Value as Val};
 
-    let stack: gardswag_varstack::VarStack<'a, 'static, Val<'a, _>> = gardswag_varstack::VarStack {
+    let stack: gardswag_varstack::VarStack<'a, Symbol, Val<'a, _>> = gardswag_varstack::VarStack {
         parent: None,
-        name: "std",
+        name: itn.get_already_interned("std"),
         value: Val::Record(
             [
-                ("plus", Bi::Plus.into()),
-                ("minus", Bi::Minus.into()),
-                ("mult", Bi::Mult.into()),
-                ("eq", Bi::Eq.into()),
-                ("leq", Bi::Leq.into()),
-                ("not", Bi::Not.into()),
-                ("spawn_thread", Bi::SpawnThread.into()),
-                ("make_chan", Bi::MakeChan.into()),
-                ("chan_send", Bi::ChanSend.into()),
-                ("chan_recv", Bi::ChanRecv.into()),
+                (itn.get_already_interned("plus"), Bi::Plus.into()),
+                (itn.get_already_interned("minus"), Bi::Minus.into()),
+                (itn.get_already_interned("mult"), Bi::Mult.into()),
+                (itn.get_already_interned("eq"), Bi::Eq.into()),
+                (itn.get_already_interned("leq"), Bi::Leq.into()),
+                (itn.get_already_interned("not"), Bi::Not.into()),
                 (
-                    "stdio",
-                    Val::Record([("write", Bi::StdioWrite.into())].into_iter().collect()),
+                    itn.get_already_interned("spawn_thread"),
+                    Bi::SpawnThread.into(),
+                ),
+                (itn.get_already_interned("make_chan"), Bi::MakeChan.into()),
+                (itn.get_already_interned("chan_send"), Bi::ChanSend.into()),
+                (itn.get_already_interned("chan_recv"), Bi::ChanRecv.into()),
+                (
+                    itn.get_already_interned("stdio"),
+                    Val::Record(
+                        [(itn.get_already_interned("write"), Bi::StdioWrite.into())]
+                            .into_iter()
+                            .collect(),
+                    ),
                 ),
             ]
             .into_iter()
@@ -204,7 +217,7 @@ fn main_interp_ast<'a>(
     };
 
     crossbeam_utils::thread::scope(|s| {
-        interp_ast::run_block(interp_ast::Env { thscope: s }, parsed, &stack)
+        interp_ast::run_block(interp_ast::Env { thscope: s }, itn, parsed, &stack)
     })
     .expect("unable to join threads")
 }
@@ -217,12 +230,12 @@ fn main() {
 
     tracing_subscriber::fmt::init();
 
-    let (parsed, _) = main_check(&dat).expect("unable to parse + type-check file");
+    let (itn, parsed, _) = main_check(&dat).expect("unable to parse + type-check file");
 
     if args.mode == Mode::Check {
         return;
     }
 
-    let result = main_interp_ast(&parsed);
+    let result = main_interp_ast(&itn, &parsed);
     println!("result: {:?}", result);
 }

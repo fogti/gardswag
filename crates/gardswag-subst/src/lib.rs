@@ -127,7 +127,7 @@ impl<In, K: core::hash::Hash + cmp::Eq, V: Substitutable<In>> Substitutable<In> 
 }
 
 #[cfg(feature = "gardswag-varstack")]
-impl<In, V: FreeVars<In>> FreeVars<In> for gardswag_varstack::VarStack<'_, '_, V> {
+impl<In, S: Copy, V: FreeVars<In>> FreeVars<In> for gardswag_varstack::VarStack<'_, S, V> {
     fn fv(&self, accu: &mut BTreeSet<In>, do_add: bool) {
         self.iter().for_each(|(_, i)| i.fv(accu, do_add))
     }

@@ -2,53 +2,56 @@
 source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"\n                .{\n                  a = 1;\n                  b = \"what\";\n                  c = .{};\n                } // .{\n                  b = 50;\n                  c = \"now\";\n                }\n            \"#).unwrap()"
 ---
-stmts: []
-term:
-  offset: 120
-  inner:
-    Update:
-      orig:
-        offset: 17
-        inner:
-          Record:
-            a:
-              offset: 42
-              inner:
-                Integer: 1
-              extra: ~
-            b:
-              offset: 67
-              inner:
-                FormatString:
-                  - offset: 68
-                    inner:
-                      PureString: what
-                    extra: ~
-              extra: ~
-            c:
-              offset: 97
-              inner:
-                Record: {}
-              extra: ~
-        extra: ~
-      ovrd:
-        offset: 123
-        inner:
-          Record:
-            b:
-              offset: 148
-              inner:
-                Integer: 50
-              extra: ~
-            c:
-              offset: 174
-              inner:
-                FormatString:
-                  - offset: 175
-                    inner:
-                      PureString: now
-                    extra: ~
-              extra: ~
-        extra: ~
-  extra: ~
+- - a
+  - b
+  - c
+- stmts: []
+  term:
+    offset: 120
+    inner:
+      Update:
+        orig:
+          offset: 17
+          inner:
+            Record:
+              1:
+                offset: 42
+                inner:
+                  Integer: 1
+                extra: ~
+              2:
+                offset: 67
+                inner:
+                  FormatString:
+                    - offset: 68
+                      inner:
+                        PureString: what
+                      extra: ~
+                extra: ~
+              3:
+                offset: 97
+                inner:
+                  Record: {}
+                extra: ~
+          extra: ~
+        ovrd:
+          offset: 123
+          inner:
+            Record:
+              2:
+                offset: 148
+                inner:
+                  Integer: 50
+                extra: ~
+              3:
+                offset: 174
+                inner:
+                  FormatString:
+                    - offset: 175
+                      inner:
+                        PureString: now
+                      extra: ~
+                extra: ~
+          extra: ~
+    extra: ~
 

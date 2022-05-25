@@ -2,76 +2,80 @@
 source: crates/gardswag-syntax/src/tests.rs
 expression: "parse(r#\"\n                let id = \\x x;\n                let torben = id 1;\n                .{\n                   id;\n                   id2 = id;\n                   torben;\n                }\n            \"#).unwrap()"
 ---
-stmts: []
-term:
-  offset: 17
-  inner:
-    Let:
-      lhs:
-        offset: 21
-        inner: id
-        extra: ~
-      rhs:
-        offset: 26
-        inner:
-          Lambda:
-            arg:
-              offset: 27
-              inner: x
-              extra: ~
-            body:
-              offset: 29
-              inner:
-                Identifier: x
-              extra: ~
-        extra: ~
-      rest:
-        stmts: []
-        term:
-          offset: 48
+- - id
+  - x
+  - torben
+  - id2
+- stmts: []
+  term:
+    offset: 17
+    inner:
+      Let:
+        lhs:
+          offset: 21
+          inner: 1
+          extra: ~
+        rhs:
+          offset: 26
           inner:
-            Let:
-              lhs:
-                offset: 52
-                inner: torben
+            Lambda:
+              arg:
+                offset: 27
+                inner: 2
                 extra: ~
-              rhs:
-                offset: 61
+              body:
+                offset: 29
                 inner:
-                  Call:
-                    prim:
-                      offset: 61
-                      inner:
-                        Identifier: id
-                      extra: ~
-                    arg:
-                      offset: 64
-                      inner:
-                        Integer: 1
-                      extra: ~
+                  Identifier: 2
                 extra: ~
-              rest:
-                stmts: []
-                term:
-                  offset: 83
+          extra: ~
+        rest:
+          stmts: []
+          term:
+            offset: 48
+            inner:
+              Let:
+                lhs:
+                  offset: 52
+                  inner: 3
+                  extra: ~
+                rhs:
+                  offset: 61
                   inner:
-                    Record:
-                      id:
-                        offset: 105
+                    Call:
+                      prim:
+                        offset: 61
                         inner:
-                          Identifier: id
+                          Identifier: 1
                         extra: ~
-                      id2:
-                        offset: 134
+                      arg:
+                        offset: 64
                         inner:
-                          Identifier: id
-                        extra: ~
-                      torben:
-                        offset: 157
-                        inner:
-                          Identifier: torben
+                          Integer: 1
                         extra: ~
                   extra: ~
-          extra: ~
-  extra: ~
+                rest:
+                  stmts: []
+                  term:
+                    offset: 83
+                    inner:
+                      Record:
+                        1:
+                          offset: 105
+                          inner:
+                            Identifier: 1
+                          extra: ~
+                        3:
+                          offset: 157
+                          inner:
+                            Identifier: 3
+                          extra: ~
+                        4:
+                          offset: 134
+                          inner:
+                            Identifier: 1
+                          extra: ~
+                    extra: ~
+            extra: ~
+    extra: ~
 

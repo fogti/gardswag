@@ -52,7 +52,7 @@ pub type Token = Annot<TokenKind>;
 pub enum TokenKind {
     Keyword(Keyword),
     Identifier(String),
-    Lambda(crate::Identifier<()>),
+    Lambda(Annot<String, ()>),
     Integer(i32),
     StringStart,
     StringEnd,

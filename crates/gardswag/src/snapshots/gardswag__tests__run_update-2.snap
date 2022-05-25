@@ -4,13 +4,19 @@ expression: result
 ---
 Record(
     {
-        "a": PureString(
+        Symbol(
+            1,
+        ): PureString(
             "what",
         ),
-        "b": PureString(
+        Symbol(
+            2,
+        ): PureString(
             "no",
         ),
-        "c": Integer(
+        Symbol(
+            3,
+        ): Integer(
             50,
         ),
     },

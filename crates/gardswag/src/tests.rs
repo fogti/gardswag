@@ -7,8 +7,8 @@ fn dflsubscr() -> impl tracing::subscriber::Subscriber {
 }
 
 macro_rules! assert_interp {
-    ($x:expr) => {{
-        let result = main_interp_ast($x);
+    ($itn:expr, $x:expr) => {{
+        let result = main_interp_ast($itn, $x);
         insta::assert_debug_snapshot!(result);
     }};
 }
@@ -53,7 +53,7 @@ fn run_fibo0() {
             "#,
         )
         .unwrap();
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -73,7 +73,7 @@ fn run_fibo1() {
             "#,
         )
         .unwrap();
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -94,7 +94,7 @@ fn run_fibo() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -127,7 +127,7 @@ fn run_id() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -141,7 +141,7 @@ fn run_call_blti() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -156,7 +156,7 @@ fn run_fix() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -177,7 +177,7 @@ fn run_update() {
         )
         .unwrap();
         insta::assert_yaml_snapshot!(x);
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -194,7 +194,7 @@ fn run_ctrl_match() {
         let x = main_check("match .this_is_a_variant 1 | .this_is_a_variant x => std.plus x 1")
             .unwrap();
         insta::assert_yaml_snapshot!(x);
-        assert_interp!(&x.0);
+        assert_interp!(&x.0, &x.1);
     });
 }
 
@@ -204,7 +204,7 @@ proptest::proptest! {
     #[test]
     fn doesnt_crash(s in "[ -~]+") {
         if let Ok(x) = main_check(&s) {
-            let _ = main_interp_ast(&x.0);
+            let _ = main_interp_ast(&x.0, &x.1);
         }
     }
 }

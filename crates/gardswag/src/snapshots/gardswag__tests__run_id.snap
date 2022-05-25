@@ -2,6 +2,25 @@
 source: crates/gardswag/src/tests.rs
 expression: x
 ---
+- - id
+  - x
+  - std
+  - plus
+  - minus
+  - mult
+  - eq
+  - leq
+  - not
+  - spawn_thread
+  - make_chan
+  - send
+  - recv
+  - chan_send
+  - chan_recv
+  - None
+  - Some
+  - stdio
+  - write
 - stmts: []
   term:
     offset: 17
@@ -9,7 +28,7 @@ expression: x
       Let:
         lhs:
           offset: 21
-          inner: id
+          inner: 1
           extra: ~
         rhs:
           offset: 26
@@ -17,12 +36,12 @@ expression: x
             Lambda:
               arg:
                 offset: 27
-                inner: x
+                inner: 2
                 extra: ~
               body:
                 offset: 29
                 inner:
-                  Identifier: x
+                  Identifier: 2
                 extra:
                   ty:
                     Var: 5
@@ -42,7 +61,7 @@ expression: x
                 prim:
                   offset: 48
                   inner:
-                    Identifier: id
+                    Identifier: 1
                   extra:
                     ty:
                       Arrow1:

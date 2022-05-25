@@ -9,7 +9,7 @@
 #![deny(unused_variables)]
 
 use core::cell::RefCell;
-use gardswag_syntax::{self as synt, Annot};
+use gardswag_syntax::{self as synt, Annot, Symbol};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
 use gardswag_typesys::{
     self as tysy, ArgMultiplicity as ArgMult, FreeVars, Substitutable, Ty, TyLit, TyVar,
@@ -23,7 +23,7 @@ use self::pattern::{infer_match, PatternError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("undefind variable used: {0}")]
+    #[error("undefind variable used: {0:?}")]
     UndefVar(synt::Identifier<()>),
 
     #[error("case {0:?}")]
@@ -31,7 +31,7 @@ pub enum Error {
 }
 
 type IdentMeta = Rc<RefCell<(Vec<ArgMult>, usize)>>;
-pub type Env<'s> = &'s VarStack<'s, 's, (tysy::Scheme, IdentMeta)>;
+pub type Env<'s> = &'s VarStack<'s, Symbol, (tysy::Scheme, IdentMeta)>;
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct InferExtra {
@@ -121,7 +121,7 @@ fn infer(
             let t2 = rhs.extra.ty.clone().generalize(env, lev..lev2);
             let vs = VarStack {
                 parent: Some(env),
-                name: &*lhs.inner,
+                name: lhs.inner,
                 value: (t2, Rc::new(RefCell::new((vec![ArgMult::null()], 0)))),
             };
             let rest = infer_block(&vs, ctx, expr.offset, rest, None)?;
@@ -210,7 +210,7 @@ fn infer(
             let tv = Ty::Var(ctx.fresh_tyvar());
             let env2 = VarStack {
                 parent: Some(env),
-                name: &arg.inner,
+                name: arg.inner,
                 value: (
                     tysy::Scheme {
                         forall: Default::default(),
@@ -263,7 +263,7 @@ fn infer(
             let tv = Ty::Var(maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx));
             let env2 = VarStack {
                 parent: Some(env),
-                name: &arg.inner,
+                name: arg.inner,
                 value: (
                     tysy::Scheme {
                         forall: Default::default(),
@@ -353,13 +353,9 @@ fn infer(
         Ek::Record(rcd) => {
             let rcd2 = rcd
                 .iter()
-                .map(|(k, v)| infer(env, ctx, v, None).map(|v| (k.clone(), v)))
+                .map(|(k, v)| infer(env, ctx, v, None).map(|v| (*k, v)))
                 .collect::<Result<BTreeMap<_, _>, _>>()?;
-            let ty = Ty::Record(
-                rcd2.iter()
-                    .map(|(k, v)| (k.clone(), v.extra.ty.clone()))
-                    .collect(),
-            );
+            let ty = Ty::Record(rcd2.iter().map(|(k, v)| (*k, v.extra.ty.clone())).collect());
             Ok(Annot {
                 offset: expr.offset,
                 extra: InferExtra { ty, ident_multi: 0 },
@@ -376,9 +372,7 @@ fn infer(
                 tvinp,
                 Tcg {
                     kind: Some(Tcgk::Record {
-                        partial: [(key.inner.to_string(), tvout.clone())]
-                            .into_iter()
-                            .collect(),
+                        partial: [(key.inner, tvout.clone())].into_iter().collect(),
                         update_info: None,
                     }),
                     ..Default::default()
@@ -437,16 +431,17 @@ fn infer(
             })
         }
 
-        Ek::Tagger { key } => {
+        Ek::Tagger(key) => {
             // .<tag> :: 't -> any.partial{<tag>: 't}
             let tvinp = ctx.fresh_tyvar();
             let tvout = ctx.fresh_tyvar();
+            let key = *key;
             ctx.bind(
                 expr.offset,
                 tvout,
                 Tcg {
                     kind: Some(Tcgk::TaggedUnion {
-                        partial: [(key.to_string(), Ty::Var(tvinp))].into_iter().collect(),
+                        partial: [(key, Ty::Var(tvinp))].into_iter().collect(),
                     }),
                     ..Default::default()
                 },
@@ -457,7 +452,7 @@ fn infer(
                     ty: Ty::Arrow1(Box::new(Ty::Var(tvinp)), Box::new(Ty::Var(tvout))),
                     ident_multi: 0,
                 },
-                inner: Ek::Tagger { key: key.clone() },
+                inner: Ek::Tagger(key),
             })
         }
         Ek::Match { inp, cases } => infer_match(env, ctx, expr.offset, &*inp, &cases[..]),
@@ -512,12 +507,12 @@ fn infer(
                         ty: x.instantiate(ctx),
                         ident_multi: 0,
                     },
-                    inner: Ek::Identifier(id.clone()),
+                    inner: Ek::Identifier(*id),
                 })
             } else {
                 Err(Error::UndefVar(synt::Annot {
                     offset: expr.offset,
-                    inner: id.clone(),
+                    inner: *id,
                     extra: (),
                 }))
             }
