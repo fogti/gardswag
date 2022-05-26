@@ -153,22 +153,25 @@ impl Context {
 
     pub fn on_apply(&self, i: TyVar) -> Option<Ty> {
         let cgid = *self.m.get(&i)?;
+        let span = tracing::span!(tracing::Level::TRACE, "on_apply", %i);
+        let _enter = span.enter();
         let j = lowest_tvi_for_cg(&self.m, i);
         let ret = self.g.get(&cgid).and_then(|k| k.ty.clone()).map(|mut k| {
             k.apply(&mut |&l| {
                 if l == i {
-                    panic!(
+                    tracing::error!(
                         "on_apply: unmarked infinite type warped at ${} = {:?}",
                         i,
                         self.g.get(&cgid).unwrap().ty.clone()
-                    )
+                    );
+                    panic!("on_apply: unmarked infinite type warped at ${}", i);
                 } else {
                     self.on_apply(l)
                 }
             });
             k
         });
-        //tracing::trace!(%i, %j, ?ret, "on_apply");
+        tracing::trace!(%j, "{:?}", ret);
         Some(if let Some(x) = ret { x } else { Ty::Var(j) })
     }
 
@@ -366,6 +369,7 @@ impl Context {
         use core::mem::take;
         let mut constraints = constrs.constraints;
         for (offset, constr) in take(&mut constraints) {
+            tracing::trace!("***solve*** @{} {:?}", offset, constr);
             let tmp = match constr {
                 Constraint::Unify(a, b) => self.unify(&a, &b),
                 Constraint::Bind(tv, cg) => self.bind(tv, cg),
@@ -416,6 +420,21 @@ impl Context {
             }
             (Ty::ChanSend(x), Ty::ChanSend(y)) => self.unify(x, y),
             (Ty::ChanRecv(x), Ty::ChanRecv(y)) => self.unify(x, y),
+            (Ty::Var(a), Ty::Var(b)) => {
+                let tcgid = match (self.m.get(a), self.m.get(b)) {
+                    (None, None) => {
+                        let tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
+                        let tmp = self.g.insert(tcgid, Default::default());
+                        assert_eq!(tmp, None);
+                        tcgid
+                    }
+                    (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,
+                    (Some(&vcg), Some(&ycg)) => return self.unify_constraint_groups(vcg, ycg),
+                };
+                self.m.insert(*a, tcgid);
+                self.m.insert(*b, tcgid);
+                Ok(())
+            }
             (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
                 *a,
                 TyGroup {
@@ -786,10 +805,9 @@ impl Context {
                         },
                     ) => {
                         self.unify(&lhs_ty_arg, &rhs_ty_arg)?;
-                        let mut ty_arg = lhs_ty_arg;
-                        ty_arg.apply(&mut |&i| self.on_apply(i));
                         self.unify(&lhs_ty_ret, &rhs_ty_ret)?;
-                        let mut ty_ret = lhs_ty_ret;
+                        let (mut ty_arg, mut ty_ret) = (lhs_ty_arg, lhs_ty_ret);
+                        ty_arg.apply(&mut |&i| self.on_apply(i));
                         ty_ret.apply(&mut |&i| self.on_apply(i));
                         let multi = if lhs_multi != rhs_multi {
                             let min_multi = ArgMultId(core::cmp::min(lhs_multi.0, rhs_multi.0));
@@ -966,19 +984,7 @@ impl Context {
     fn bind(&mut self, v: TyVar, tcg: TyGroup) -> Result<(), UnifyError> {
         if let Some(t) = tcg.resolved() {
             if let Ty::Var(y) = t {
-                let tcgid = match (self.m.get(&v), self.m.get(y)) {
-                    (None, None) => {
-                        let tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
-                        let tmp = self.g.insert(tcgid, Default::default());
-                        assert_eq!(tmp, None);
-                        tcgid
-                    }
-                    (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,
-                    (Some(&vcg), Some(&ycg)) => return self.unify_constraint_groups(vcg, ycg),
-                };
-                self.m.insert(v, tcgid);
-                self.m.insert(*y, tcgid);
-                return Ok(());
+                return self.unify(&Ty::Var(v), &Ty::Var(*y));
             }
             let tfv = {
                 let mut tfv = Default::default();
