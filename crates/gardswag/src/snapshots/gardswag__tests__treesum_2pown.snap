@@ -1,0 +1,1196 @@
+---
+source: crates/gardswag/src/tests.rs
+expression: "main_check(r#\"\n                let rec gen = \\n {\n                  if (std.eq 0 n) {\n                    (.Leaf 1)\n                  } {\n                    let nm1 = std.minus n 1;\n                    let nm1g = gen nm1;\n                    (.Node (.{\n                      lhs = nm1g;\n                      rhs = nm1g;\n                    }))\n                  }\n                };\n\n                let rec sum = \\x (\n                  match x\n                  | .Leaf y => y\n                  | .Node .{ lhs; rhs; } => (std.plus (sum lhs) (sum rhs))\n                );\n\n                let main = \\n (gen n |> sum);\n                (main 10)\n        \"#).map_err(|e|\n        e.to_string())"
+---
+Ok:
+  - - gen
+    - std
+    - eq
+    - n
+    - Leaf
+    - nm1
+    - minus
+    - nm1g
+    - Node
+    - lhs
+    - rhs
+    - sum
+    - x
+    - y
+    - plus
+    - main
+    - mult
+    - leq
+    - not
+    - spawn_thread
+    - make_chan
+    - send
+    - recv
+    - chan_send
+    - chan_recv
+    - None
+    - Some
+    - stdio
+    - write
+  - stmts: []
+    term:
+      offset: 17
+      inner:
+        Let:
+          lhs:
+            offset: 25
+            inner: 1
+            extra: ~
+          rhs:
+            offset: 31
+            inner:
+              Fix:
+                arg:
+                  offset: 25
+                  inner: 1
+                  extra: ~
+                body:
+                  offset: 31
+                  inner:
+                    Lambda:
+                      arg:
+                        offset: 32
+                        inner: 4
+                        extra: ~
+                      body:
+                        offset: 34
+                        inner:
+                          Block:
+                            stmts: []
+                            term:
+                              offset: 54
+                              inner:
+                                If:
+                                  cond:
+                                    offset: 61
+                                    inner:
+                                      Call:
+                                        prim:
+                                          offset: 61
+                                          inner:
+                                            Call:
+                                              prim:
+                                                offset: 61
+                                                inner:
+                                                  Dot:
+                                                    prim:
+                                                      offset: 58
+                                                      inner:
+                                                        Identifier: 2
+                                                      extra:
+                                                        ty:
+                                                          Record:
+                                                            3:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      Literal: Int
+                                                                    ret:
+                                                                      Literal: Bool
+                                                            7:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      Literal: Int
+                                                                    ret:
+                                                                      Literal: Int
+                                                            15:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      Literal: Int
+                                                                    ret:
+                                                                      Literal: Int
+                                                            17:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      Literal: Int
+                                                                    ret:
+                                                                      Literal: Int
+                                                            18:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      Literal: Int
+                                                                    ret:
+                                                                      Literal: Bool
+                                                            19:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Bool
+                                                                ret:
+                                                                  Literal: Bool
+                                                            20:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Arrow:
+                                                                    arg_multi: Unrestricted
+                                                                    arg:
+                                                                      Literal: Unit
+                                                                    ret:
+                                                                      Literal: Unit
+                                                                ret:
+                                                                  Literal: Unit
+                                                            21:
+                                                              Arrow:
+                                                                arg_multi: Erased
+                                                                arg:
+                                                                  Literal: Unit
+                                                                ret:
+                                                                  Record:
+                                                                    22:
+                                                                      ChanSend:
+                                                                        Var: 9
+                                                                    23:
+                                                                      ChanRecv:
+                                                                        Var: 9
+                                                            24:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Var: 10
+                                                                ret:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      ChanSend:
+                                                                        Var: 10
+                                                                    ret:
+                                                                      Literal: Bool
+                                                            25:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  ChanRecv:
+                                                                    Var: 11
+                                                                ret:
+                                                                  TaggedUnion:
+                                                                    26:
+                                                                      Literal: Unit
+                                                                    27:
+                                                                      Var: 11
+                                                            28:
+                                                              Record:
+                                                                29:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      Literal: String
+                                                                    ret:
+                                                                      Literal: Unit
+                                                        ident_multi: 0
+                                                    key:
+                                                      offset: 62
+                                                      inner: 3
+                                                      extra: ~
+                                                extra:
+                                                  ty:
+                                                    Arrow:
+                                                      arg_multi: Linear
+                                                      arg:
+                                                        Literal: Int
+                                                      ret:
+                                                        Arrow:
+                                                          arg_multi: Linear
+                                                          arg:
+                                                            Literal: Int
+                                                          ret:
+                                                            Literal: Bool
+                                                  ident_multi: 0
+                                              arg:
+                                                offset: 65
+                                                inner:
+                                                  Integer: 0
+                                                extra:
+                                                  ty:
+                                                    Literal: Int
+                                                  ident_multi: 0
+                                          extra:
+                                            ty:
+                                              Arrow:
+                                                arg_multi: Linear
+                                                arg:
+                                                  Literal: Int
+                                                ret:
+                                                  Literal: Bool
+                                            ident_multi: 0
+                                        arg:
+                                          offset: 67
+                                          inner:
+                                            Identifier: 4
+                                          extra:
+                                            ty:
+                                              Literal: Int
+                                            ident_multi: 0
+                                    extra:
+                                      ty:
+                                        Literal: Bool
+                                      ident_multi: 0
+                                  then:
+                                    stmts: []
+                                    term:
+                                      offset: 93
+                                      inner:
+                                        Call:
+                                          prim:
+                                            offset: 93
+                                            inner:
+                                              Tagger: 5
+                                            extra:
+                                              ty:
+                                                Arrow:
+                                                  arg_multi: Linear
+                                                  arg:
+                                                    Literal: Int
+                                                  ret:
+                                                    Var: 17
+                                              ident_multi: 0
+                                          arg:
+                                            offset: 99
+                                            inner:
+                                              Integer: 1
+                                            extra:
+                                              ty:
+                                                Literal: Int
+                                              ident_multi: 0
+                                      extra:
+                                        ty:
+                                          Var: 17
+                                        ident_multi: 0
+                                  or_else:
+                                    stmts: []
+                                    term:
+                                      offset: 144
+                                      inner:
+                                        Let:
+                                          lhs:
+                                            offset: 148
+                                            inner: 6
+                                            extra: ~
+                                          rhs:
+                                            offset: 157
+                                            inner:
+                                              Call:
+                                                prim:
+                                                  offset: 157
+                                                  inner:
+                                                    Call:
+                                                      prim:
+                                                        offset: 157
+                                                        inner:
+                                                          Dot:
+                                                            prim:
+                                                              offset: 154
+                                                              inner:
+                                                                Identifier: 2
+                                                              extra:
+                                                                ty:
+                                                                  Record:
+                                                                    3:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Var: 18
+                                                                        ret:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              Var: 19
+                                                                            ret:
+                                                                              Literal: Bool
+                                                                    7:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Literal: Int
+                                                                        ret:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              Literal: Int
+                                                                            ret:
+                                                                              Literal: Int
+                                                                    15:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Literal: Int
+                                                                        ret:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              Literal: Int
+                                                                            ret:
+                                                                              Literal: Int
+                                                                    17:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Literal: Int
+                                                                        ret:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              Literal: Int
+                                                                            ret:
+                                                                              Literal: Int
+                                                                    18:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Literal: Int
+                                                                        ret:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              Literal: Int
+                                                                            ret:
+                                                                              Literal: Bool
+                                                                    19:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Literal: Bool
+                                                                        ret:
+                                                                          Literal: Bool
+                                                                    20:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Arrow:
+                                                                            arg_multi: Unrestricted
+                                                                            arg:
+                                                                              Literal: Unit
+                                                                            ret:
+                                                                              Literal: Unit
+                                                                        ret:
+                                                                          Literal: Unit
+                                                                    21:
+                                                                      Arrow:
+                                                                        arg_multi: Erased
+                                                                        arg:
+                                                                          Literal: Unit
+                                                                        ret:
+                                                                          Record:
+                                                                            22:
+                                                                              ChanSend:
+                                                                                Var: 20
+                                                                            23:
+                                                                              ChanRecv:
+                                                                                Var: 20
+                                                                    24:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Var: 21
+                                                                        ret:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              ChanSend:
+                                                                                Var: 21
+                                                                            ret:
+                                                                              Literal: Bool
+                                                                    25:
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          ChanRecv:
+                                                                            Var: 22
+                                                                        ret:
+                                                                          TaggedUnion:
+                                                                            26:
+                                                                              Literal: Unit
+                                                                            27:
+                                                                              Var: 22
+                                                                    28:
+                                                                      Record:
+                                                                        29:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              Literal: String
+                                                                            ret:
+                                                                              Literal: Unit
+                                                                ident_multi: 0
+                                                            key:
+                                                              offset: 158
+                                                              inner: 7
+                                                              extra: ~
+                                                        extra:
+                                                          ty:
+                                                            Arrow:
+                                                              arg_multi: Linear
+                                                              arg:
+                                                                Literal: Int
+                                                              ret:
+                                                                Arrow:
+                                                                  arg_multi: Linear
+                                                                  arg:
+                                                                    Literal: Int
+                                                                  ret:
+                                                                    Literal: Int
+                                                          ident_multi: 0
+                                                      arg:
+                                                        offset: 164
+                                                        inner:
+                                                          Identifier: 4
+                                                        extra:
+                                                          ty:
+                                                            Literal: Int
+                                                          ident_multi: 0
+                                                  extra:
+                                                    ty:
+                                                      Arrow:
+                                                        arg_multi: Linear
+                                                        arg:
+                                                          Literal: Int
+                                                        ret:
+                                                          Literal: Int
+                                                    ident_multi: 0
+                                                arg:
+                                                  offset: 166
+                                                  inner:
+                                                    Integer: 1
+                                                  extra:
+                                                    ty:
+                                                      Literal: Int
+                                                    ident_multi: 0
+                                            extra:
+                                              ty:
+                                                Literal: Int
+                                              ident_multi: 0
+                                          rest:
+                                            stmts: []
+                                            term:
+                                              offset: 189
+                                              inner:
+                                                Let:
+                                                  lhs:
+                                                    offset: 193
+                                                    inner: 8
+                                                    extra: ~
+                                                  rhs:
+                                                    offset: 200
+                                                    inner:
+                                                      Call:
+                                                        prim:
+                                                          offset: 200
+                                                          inner:
+                                                            Identifier: 1
+                                                          extra:
+                                                            ty:
+                                                              Arrow:
+                                                                arg_multi: Unrestricted
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Var: 17
+                                                            ident_multi: 0
+                                                        arg:
+                                                          offset: 204
+                                                          inner:
+                                                            Identifier: 6
+                                                          extra:
+                                                            ty:
+                                                              Literal: Int
+                                                            ident_multi: 0
+                                                    extra:
+                                                      ty:
+                                                        Var: 17
+                                                      ident_multi: 0
+                                                  rest:
+                                                    stmts: []
+                                                    term:
+                                                      offset: 230
+                                                      inner:
+                                                        Call:
+                                                          prim:
+                                                            offset: 230
+                                                            inner:
+                                                              Tagger: 9
+                                                            extra:
+                                                              ty:
+                                                                Arrow:
+                                                                  arg_multi: Linear
+                                                                  arg:
+                                                                    Record:
+                                                                      10:
+                                                                        Var: 17
+                                                                      11:
+                                                                        Var: 17
+                                                                  ret:
+                                                                    Var: 17
+                                                              ident_multi: 0
+                                                          arg:
+                                                            offset: 237
+                                                            inner:
+                                                              Record:
+                                                                10:
+                                                                  offset: 268
+                                                                  inner:
+                                                                    Identifier: 8
+                                                                  extra:
+                                                                    ty:
+                                                                      Var: 17
+                                                                    ident_multi: 0
+                                                                11:
+                                                                  offset: 302
+                                                                  inner:
+                                                                    Identifier: 8
+                                                                  extra:
+                                                                    ty:
+                                                                      Var: 17
+                                                                    ident_multi: 0
+                                                            extra:
+                                                              ty:
+                                                                Record:
+                                                                  10:
+                                                                    Var: 17
+                                                                  11:
+                                                                    Var: 17
+                                                              ident_multi: 0
+                                                      extra:
+                                                        ty:
+                                                          Var: 17
+                                                        ident_multi: 0
+                                              extra:
+                                                ty:
+                                                  Var: 17
+                                                ident_multi: 2
+                                      extra:
+                                        ty:
+                                          Var: 17
+                                        ident_multi: 1
+                              extra:
+                                ty:
+                                  Var: 17
+                                ident_multi: 0
+                        extra:
+                          ty:
+                            Var: 17
+                          ident_multi: 0
+                  extra:
+                    ty:
+                      Arrow:
+                        arg_multi: Unrestricted
+                        arg:
+                          Literal: Int
+                        ret:
+                          Var: 17
+                    ident_multi: 2
+            extra:
+              ty:
+                Arrow:
+                  arg_multi: Unrestricted
+                  arg:
+                    Literal: Int
+                  ret:
+                    Var: 17
+              ident_multi: 1
+          rest:
+            stmts: []
+            term:
+              offset: 388
+              inner:
+                Let:
+                  lhs:
+                    offset: 396
+                    inner: 12
+                    extra: ~
+                  rhs:
+                    offset: 402
+                    inner:
+                      Fix:
+                        arg:
+                          offset: 396
+                          inner: 12
+                          extra: ~
+                        body:
+                          offset: 402
+                          inner:
+                            Lambda:
+                              arg:
+                                offset: 403
+                                inner: 13
+                                extra: ~
+                              body:
+                                offset: 425
+                                inner:
+                                  Match:
+                                    inp:
+                                      offset: 431
+                                      inner:
+                                        Identifier: 13
+                                      extra:
+                                        ty:
+                                          Fix:
+                                            TaggedUnion:
+                                              5:
+                                                Literal: Int
+                                              9:
+                                                Record:
+                                                  10:
+                                                    DistanceVar: 0
+                                                  11:
+                                                    DistanceVar: 0
+                                        ident_multi: 0
+                                    cases:
+                                      - pat:
+                                          Tagged:
+                                            key:
+                                              offset: 454
+                                              inner: 5
+                                              extra: ~
+                                            value:
+                                              Identifier:
+                                                offset: 459
+                                                inner: 14
+                                                extra:
+                                                  ty:
+                                                    Literal: Int
+                                                  ident_multi: 1
+                                        body:
+                                          offset: 464
+                                          inner:
+                                            Identifier: 14
+                                          extra:
+                                            ty:
+                                              Literal: Int
+                                            ident_multi: 0
+                                      - pat:
+                                          Tagged:
+                                            key:
+                                              offset: 487
+                                              inner: 9
+                                              extra: ~
+                                            value:
+                                              Record:
+                                                offset: 493
+                                                inner:
+                                                  10:
+                                                    Identifier:
+                                                      offset: 495
+                                                      inner: 10
+                                                      extra:
+                                                        ty:
+                                                          Fix:
+                                                            TaggedUnion:
+                                                              5:
+                                                                Literal: Int
+                                                              9:
+                                                                Record:
+                                                                  10:
+                                                                    DistanceVar: 0
+                                                                  11:
+                                                                    DistanceVar: 0
+                                                        ident_multi: 1
+                                                  11:
+                                                    Identifier:
+                                                      offset: 500
+                                                      inner: 11
+                                                      extra:
+                                                        ty:
+                                                          Fix:
+                                                            TaggedUnion:
+                                                              5:
+                                                                Literal: Int
+                                                              9:
+                                                                Record:
+                                                                  10:
+                                                                    DistanceVar: 0
+                                                                  11:
+                                                                    DistanceVar: 0
+                                                        ident_multi: 1
+                                                extra: ~
+                                        body:
+                                          offset: 514
+                                          inner:
+                                            Call:
+                                              prim:
+                                                offset: 514
+                                                inner:
+                                                  Call:
+                                                    prim:
+                                                      offset: 514
+                                                      inner:
+                                                        Dot:
+                                                          prim:
+                                                            offset: 511
+                                                            inner:
+                                                              Identifier: 2
+                                                            extra:
+                                                              ty:
+                                                                Record:
+                                                                  3:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Var: 66
+                                                                      ret:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Var: 67
+                                                                          ret:
+                                                                            Literal: Bool
+                                                                  7:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Literal: Int
+                                                                      ret:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Literal: Int
+                                                                  15:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Literal: Int
+                                                                      ret:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Literal: Int
+                                                                  17:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Literal: Int
+                                                                      ret:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Literal: Int
+                                                                  18:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Literal: Int
+                                                                      ret:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Literal: Bool
+                                                                  19:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Literal: Bool
+                                                                      ret:
+                                                                        Literal: Bool
+                                                                  20:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Arrow:
+                                                                          arg_multi: Unrestricted
+                                                                          arg:
+                                                                            Literal: Unit
+                                                                          ret:
+                                                                            Literal: Unit
+                                                                      ret:
+                                                                        Literal: Unit
+                                                                  21:
+                                                                    Arrow:
+                                                                      arg_multi: Erased
+                                                                      arg:
+                                                                        Literal: Unit
+                                                                      ret:
+                                                                        Record:
+                                                                          22:
+                                                                            ChanSend:
+                                                                              Var: 68
+                                                                          23:
+                                                                            ChanRecv:
+                                                                              Var: 68
+                                                                  24:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        Var: 69
+                                                                      ret:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            ChanSend:
+                                                                              Var: 69
+                                                                          ret:
+                                                                            Literal: Bool
+                                                                  25:
+                                                                    Arrow:
+                                                                      arg_multi: Linear
+                                                                      arg:
+                                                                        ChanRecv:
+                                                                          Var: 70
+                                                                      ret:
+                                                                        TaggedUnion:
+                                                                          26:
+                                                                            Literal: Unit
+                                                                          27:
+                                                                            Var: 70
+                                                                  28:
+                                                                    Record:
+                                                                      29:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: String
+                                                                          ret:
+                                                                            Literal: Unit
+                                                              ident_multi: 0
+                                                          key:
+                                                            offset: 515
+                                                            inner: 15
+                                                            extra: ~
+                                                      extra:
+                                                        ty:
+                                                          Arrow:
+                                                            arg_multi: Linear
+                                                            arg:
+                                                              Literal: Int
+                                                            ret:
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Literal: Int
+                                                        ident_multi: 0
+                                                    arg:
+                                                      offset: 521
+                                                      inner:
+                                                        Call:
+                                                          prim:
+                                                            offset: 521
+                                                            inner:
+                                                              Identifier: 12
+                                                            extra:
+                                                              ty:
+                                                                Arrow:
+                                                                  arg_multi: Linear
+                                                                  arg:
+                                                                    Fix:
+                                                                      TaggedUnion:
+                                                                        5:
+                                                                          Literal: Int
+                                                                        9:
+                                                                          Record:
+                                                                            10:
+                                                                              DistanceVar: 0
+                                                                            11:
+                                                                              DistanceVar: 0
+                                                                  ret:
+                                                                    Literal: Int
+                                                              ident_multi: 0
+                                                          arg:
+                                                            offset: 525
+                                                            inner:
+                                                              Identifier: 10
+                                                            extra:
+                                                              ty:
+                                                                Fix:
+                                                                  TaggedUnion:
+                                                                    5:
+                                                                      Literal: Int
+                                                                    9:
+                                                                      Record:
+                                                                        10:
+                                                                          DistanceVar: 0
+                                                                        11:
+                                                                          DistanceVar: 0
+                                                              ident_multi: 0
+                                                      extra:
+                                                        ty:
+                                                          Literal: Int
+                                                        ident_multi: 0
+                                                extra:
+                                                  ty:
+                                                    Arrow:
+                                                      arg_multi: Linear
+                                                      arg:
+                                                        Literal: Int
+                                                      ret:
+                                                        Literal: Int
+                                                  ident_multi: 0
+                                              arg:
+                                                offset: 531
+                                                inner:
+                                                  Call:
+                                                    prim:
+                                                      offset: 531
+                                                      inner:
+                                                        Identifier: 12
+                                                      extra:
+                                                        ty:
+                                                          Arrow:
+                                                            arg_multi: Linear
+                                                            arg:
+                                                              Fix:
+                                                                TaggedUnion:
+                                                                  5:
+                                                                    Literal: Int
+                                                                  9:
+                                                                    Record:
+                                                                      10:
+                                                                        DistanceVar: 0
+                                                                      11:
+                                                                        DistanceVar: 0
+                                                            ret:
+                                                              Literal: Int
+                                                        ident_multi: 0
+                                                    arg:
+                                                      offset: 535
+                                                      inner:
+                                                        Identifier: 11
+                                                      extra:
+                                                        ty:
+                                                          Fix:
+                                                            TaggedUnion:
+                                                              5:
+                                                                Literal: Int
+                                                              9:
+                                                                Record:
+                                                                  10:
+                                                                    DistanceVar: 0
+                                                                  11:
+                                                                    DistanceVar: 0
+                                                        ident_multi: 0
+                                                extra:
+                                                  ty:
+                                                    Literal: Int
+                                                  ident_multi: 0
+                                          extra:
+                                            ty:
+                                              Literal: Int
+                                            ident_multi: 0
+                                extra:
+                                  ty:
+                                    Literal: Int
+                                  ident_multi: 0
+                          extra:
+                            ty:
+                              Arrow:
+                                arg_multi: Linear
+                                arg:
+                                  Fix:
+                                    TaggedUnion:
+                                      5:
+                                        Literal: Int
+                                      9:
+                                        Record:
+                                          10:
+                                            DistanceVar: 0
+                                          11:
+                                            DistanceVar: 0
+                                ret:
+                                  Literal: Int
+                            ident_multi: 1
+                    extra:
+                      ty:
+                        Arrow:
+                          arg_multi: Linear
+                          arg:
+                            Fix:
+                              TaggedUnion:
+                                5:
+                                  Literal: Int
+                                9:
+                                  Record:
+                                    10:
+                                      DistanceVar: 0
+                                    11:
+                                      DistanceVar: 0
+                          ret:
+                            Literal: Int
+                      ident_multi: 2
+                  rest:
+                    stmts: []
+                    term:
+                      offset: 577
+                      inner:
+                        Let:
+                          lhs:
+                            offset: 581
+                            inner: 16
+                            extra: ~
+                          rhs:
+                            offset: 588
+                            inner:
+                              Lambda:
+                                arg:
+                                  offset: 589
+                                  inner: 4
+                                  extra: ~
+                                body:
+                                  offset: 598
+                                  inner:
+                                    Call:
+                                      prim:
+                                        offset: 601
+                                        inner:
+                                          Identifier: 12
+                                        extra:
+                                          ty:
+                                            Arrow:
+                                              arg_multi: Linear
+                                              arg:
+                                                Fix:
+                                                  TaggedUnion:
+                                                    5:
+                                                      Literal: Int
+                                                    9:
+                                                      Record:
+                                                        10:
+                                                          DistanceVar: 0
+                                                        11:
+                                                          DistanceVar: 0
+                                              ret:
+                                                Literal: Int
+                                          ident_multi: 0
+                                      arg:
+                                        offset: 592
+                                        inner:
+                                          Call:
+                                            prim:
+                                              offset: 592
+                                              inner:
+                                                Identifier: 1
+                                              extra:
+                                                ty:
+                                                  Arrow:
+                                                    arg_multi: Unrestricted
+                                                    arg:
+                                                      Literal: Int
+                                                    ret:
+                                                      Fix:
+                                                        TaggedUnion:
+                                                          5:
+                                                            Literal: Int
+                                                          9:
+                                                            Record:
+                                                              10:
+                                                                DistanceVar: 0
+                                                              11:
+                                                                DistanceVar: 0
+                                                ident_multi: 0
+                                            arg:
+                                              offset: 596
+                                              inner:
+                                                Identifier: 4
+                                              extra:
+                                                ty:
+                                                  Literal: Int
+                                                ident_multi: 0
+                                        extra:
+                                          ty:
+                                            Fix:
+                                              TaggedUnion:
+                                                5:
+                                                  Literal: Int
+                                                9:
+                                                  Record:
+                                                    10:
+                                                      DistanceVar: 0
+                                                    11:
+                                                      DistanceVar: 0
+                                          ident_multi: 0
+                                  extra:
+                                    ty:
+                                      Literal: Int
+                                    ident_multi: 0
+                            extra:
+                              ty:
+                                Arrow:
+                                  arg_multi: Unrestricted
+                                  arg:
+                                    Literal: Int
+                                  ret:
+                                    Literal: Int
+                              ident_multi: 1
+                          rest:
+                            stmts: []
+                            term:
+                              offset: 624
+                              inner:
+                                Call:
+                                  prim:
+                                    offset: 624
+                                    inner:
+                                      Identifier: 16
+                                    extra:
+                                      ty:
+                                        Var: 225
+                                      ident_multi: 0
+                                  arg:
+                                    offset: 629
+                                    inner:
+                                      Integer: 10
+                                    extra:
+                                      ty:
+                                        Literal: Int
+                                      ident_multi: 0
+                              extra:
+                                ty:
+                                  Literal: Int
+                                ident_multi: 0
+                      extra:
+                        ty:
+                          Literal: Int
+                        ident_multi: 1
+              extra:
+                ty:
+                  Literal: Int
+                ident_multi: 1
+      extra:
+        ty:
+          Literal: Int
+        ident_multi: 1
+  - forall: []
+    forall_args: []
+    ty:
+      Literal: Int
+

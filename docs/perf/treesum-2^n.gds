@@ -34,4 +34,4 @@ let rec sum = \x (
 
 let main = \n (gen n |> sum);
 
-(main 30)
+(main 20)

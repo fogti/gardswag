@@ -141,7 +141,20 @@ impl Context {
                 .flat_map(|i| self.m.get(i))
                 .copied()
                 .collect();
-            self.notify_cgs(notify_cgs)?;
+            let mut subconstrs = Vec::new();
+            self.notify_cgs(&mut subconstrs, notify_cgs)?;
+            if !subconstrs.is_empty() {
+                tracing::trace!("self_resolve: remaining constraints: {}", subconstrs.len());
+            }
+            while let Some(x) = subconstrs.pop() {
+                match x {
+                    Constraint::Unify(a, b) => self.unify(&mut subconstrs, &a, &b, &mut Vec::new()),
+                    Constraint::Bind(tv, cg) => self.bind(&mut subconstrs, tv, cg),
+                    Constraint::BindArgMulti(amid, amdat) => {
+                        self.bind_argmulti(&mut subconstrs, amid, amdat)
+                    }
+                }?;
+            }
             let mut newg = self.g.clone();
             newg.apply(&mut |&i| self.on_apply(i));
             if newg == self.g {
@@ -370,20 +383,31 @@ impl Context {
         let mut constraints = constrs.constraints;
         for (offset, constr) in take(&mut constraints) {
             tracing::trace!("***solve*** @{} {:?}", offset, constr);
-            let tmp = match constr {
-                Constraint::Unify(a, b) => self.unify(&a, &b, &mut Vec::new()),
-                Constraint::Bind(tv, cg) => self.bind(tv, cg),
-                Constraint::BindArgMulti(amid, amdat) => self.bind_argmulti(amid, amdat),
-            };
-            match tmp {
-                Ok(()) => {}
-                Err(e) => return Err((offset, e)),
+            let mut subconstraints: Vec<Constraint> = vec![constr];
+            while let Some(x) = subconstraints.pop() {
+                match x {
+                    Constraint::Unify(a, b) => {
+                        self.unify(&mut subconstraints, &a, &b, &mut Vec::new())
+                    }
+                    Constraint::Bind(tv, cg) => self.bind(&mut subconstraints, tv, cg),
+                    Constraint::BindArgMulti(amid, amdat) => {
+                        self.bind_argmulti(&mut subconstraints, amid, amdat)
+                    }
+                }
+                .map_err(|e| (offset, e))?;
             }
+            self.self_resolve().map_err(|e| (offset, e))?;
         }
         Ok(())
     }
 
-    fn unify(&mut self, a: &Ty, b: &Ty, assumps: &mut Vec<(Ty, Ty)>) -> Result<(), UnifyError> {
+    fn unify(
+        &mut self,
+        constrs: &mut Vec<Constraint>,
+        a: &Ty,
+        b: &Ty,
+        assumps: &mut Vec<(Ty, Ty)>,
+    ) -> Result<(), UnifyError> {
         //tracing::trace!(%a, %b, ?self, "unify");
         // self clutters the output too much
         // TODO: only do this when absolutely necessary.
@@ -402,7 +426,7 @@ impl Context {
             tracing::trace!(%a, %b, ?assumps, "unify");
             let l = assumps.len();
             assumps.push((a.clone(), b.clone()));
-            let ret = self.unify_inner(a, b, assumps);
+            let ret = self.unify_inner(constrs, a, b, assumps);
             let _ = assumps.pop().unwrap();
             assert_eq!(l, assumps.len());
             ret
@@ -411,6 +435,7 @@ impl Context {
 
     fn unify_inner(
         &mut self,
+        constrs: &mut Vec<Constraint>,
         a: &Ty,
         b: &Ty,
         assumps: &mut Vec<(Ty, Ty)>,
@@ -425,7 +450,9 @@ impl Context {
                         tcgid
                     }
                     (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,
-                    (Some(&vcg), Some(&ycg)) => return self.unify_constraint_groups(vcg, ycg),
+                    (Some(&vcg), Some(&ycg)) => {
+                        return self.unify_constraint_groups(constrs, vcg, ycg)
+                    }
                 };
                 self.m.insert(*a, tcgid);
                 self.m.insert(*b, tcgid);
@@ -436,14 +463,15 @@ impl Context {
                 Ok(())
             }
             (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
+                constrs,
                 *a,
                 TyGroup {
                     ty: Some(t.clone()),
                     ..Default::default()
                 },
             ),
-            (Ty::Fix(l), r) => self.unify(&l.unfold_fixpoint(), r, assumps),
-            (l, Ty::Fix(r)) => self.unify(l, &r.unfold_fixpoint(), assumps),
+            (Ty::Fix(l), r) => self.unify(constrs, &l.unfold_fixpoint(), r, assumps),
+            (l, Ty::Fix(r)) => self.unify(constrs, l, &r.unfold_fixpoint(), assumps),
             (
                 Ty::Arrow {
                     arg_multi: am1,
@@ -456,11 +484,11 @@ impl Context {
                     ret: ret2,
                 },
             ) if am1 == am2 => {
-                self.unify(arg1, arg2, assumps)?;
+                self.unify(constrs, arg1, arg2, assumps)?;
                 let (mut rx1, mut rx2) = (ret1.clone(), ret2.clone());
                 rx1.apply(&mut |&i| self.on_apply(i));
                 rx2.apply(&mut |&i| self.on_apply(i));
-                self.unify(&rx1, &rx2, assumps)?;
+                self.unify(constrs, &rx1, &rx2, assumps)?;
                 Ok(())
             }
             (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
@@ -469,7 +497,7 @@ impl Context {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
-                    self.unify(v1, v2, assumps)?;
+                    self.unify(constrs, v1, v2, assumps)?;
                 }
                 Ok(())
             }
@@ -479,12 +507,12 @@ impl Context {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
-                    self.unify(v1, v2, assumps)?;
+                    self.unify(constrs, v1, v2, assumps)?;
                 }
                 Ok(())
             }
-            (Ty::ChanSend(x), Ty::ChanSend(y)) => self.unify(x, y, assumps),
-            (Ty::ChanRecv(x), Ty::ChanRecv(y)) => self.unify(x, y, assumps),
+            (Ty::ChanSend(x), Ty::ChanSend(y)) => self.unify(constrs, x, y, assumps),
+            (Ty::ChanRecv(x), Ty::ChanRecv(y)) => self.unify(constrs, x, y, assumps),
             (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
             (_, _) => Err(UnifyError::Mismatch {
                 t1: a.clone(),
@@ -498,22 +526,29 @@ impl Context {
         a: TyConstraintGroupId,
         b: TyConstraintGroupId,
         t: &Ty,
-    ) -> Result<(), UnifyError> {
+    ) -> BTreeSet<TyVar> {
+        let mut ret = BTreeSet::new();
         let mut fvaccu = Default::default();
         t.fv(&mut fvaccu, true);
         for i in fvaccu {
             if let Some(x) = self.m.get(&i) {
                 let x = *x;
                 if x == a {
-                    return Err(UnifyError::InfiniteConstraintGroup { c1: a, c2: b });
+                    ret.insert(i);
+                } else {
+                    debug_assert_ne!(x, b);
                 }
-                debug_assert_ne!(x, b);
             }
         }
-        Ok(())
+        ret
     }
 
-    fn unify_cgk_and_ty(&mut self, tcgk: &mut Tcgk, ty: &Ty) -> Result<(), UnifyError> {
+    fn unify_cgk_and_ty(
+        &mut self,
+        constrs: &mut Vec<Constraint>,
+        tcgk: &mut Tcgk,
+        ty: &Ty,
+    ) -> Result<(), UnifyError> {
         let tmp;
         let ty = match ty {
             Ty::Var(_) => return Ok(()),
@@ -535,9 +570,11 @@ impl Context {
                     ret,
                 } = ty
                 {
-                    self.bind_argmulti(*multi, (*arg_multi).into())?;
-                    self.unify(ty_arg, arg, &mut Vec::new())?;
-                    self.unify(ty_ret, ret, &mut Vec::new())?;
+                    constrs.extend([
+                        Constraint::BindArgMulti(*multi, (*arg_multi).into()),
+                        Constraint::Unify(ty_arg.clone(), (**arg).clone()),
+                        Constraint::Unify(ty_ret.clone(), (**ret).clone()),
+                    ]);
                 } else {
                     return Err(UnifyError::NotAnArrow(ty.clone()));
                 }
@@ -546,7 +583,7 @@ impl Context {
                 if let Ty::Record(rcm) = ty {
                     for (key, value) in core::mem::take(partial) {
                         if let Some(got_valty) = rcm.get(&key) {
-                            self.unify(got_valty, &value, &mut Vec::new())?;
+                            constrs.push(Constraint::Unify(got_valty.clone(), value));
                         } else {
                             return Err(UnifyError::Partial {
                                 key,
@@ -563,7 +600,7 @@ impl Context {
                 if let Ty::TaggedUnion(tum) = ty {
                     for (key, value) in core::mem::take(partial) {
                         if let Some(got_valty) = tum.get(&key) {
-                            self.unify(got_valty, &value, &mut Vec::new())?;
+                            constrs.push(Constraint::Unify(got_valty.clone(), value));
                         } else {
                             return Err(UnifyError::Partial {
                                 key,
@@ -580,7 +617,11 @@ impl Context {
         Ok(())
     }
 
-    fn notify_cgs(&mut self, mut cgs: BTreeSet<TyConstraintGroupId>) -> Result<(), UnifyError> {
+    fn notify_cgs(
+        &mut self,
+        constrs: &mut Vec<Constraint>,
+        mut cgs: BTreeSet<TyConstraintGroupId>,
+    ) -> Result<(), UnifyError> {
         loop {
             let cg = {
                 let mut it = core::mem::take(&mut cgs).into_iter();
@@ -597,7 +638,7 @@ impl Context {
                 tracing::trace!(?cg, ?g, "already resolved");
                 self.g.insert(cg, g);
                 // nothing to do
-                return Ok(());
+                continue;
             }
 
             // recheck constraints
@@ -633,7 +674,7 @@ impl Context {
                             }
                             let rcm_ty = Ty::Record(rcm);
                             if let Some(ty) = &g.ty {
-                                self.unify(&rcm_ty, ty, &mut Vec::new())?;
+                                constrs.push(Constraint::Unify(rcm_ty.clone(), ty.clone()));
                             }
                             modified = true;
                             *update_info = None;
@@ -700,19 +741,15 @@ impl Context {
                             }),
                         ) => {
                             // if an item is present in the override, we can already propagate it
-                            let mut unifiers = Vec::new();
                             for (k, v) in core::mem::take(partial) {
                                 match rcm_ovrd.get(&k).cloned() {
                                     Some(v2) => {
-                                        unifiers.push((v, v2));
+                                        constrs.push(Constraint::Unify(v, v2));
                                     }
                                     None => {
                                         partial.insert(k, v);
                                     }
                                 }
-                            }
-                            for (v1, v2) in unifiers {
-                                self.unify(&v1, &v2, &mut Vec::new())?;
                             }
                         }
                         (
@@ -746,7 +783,12 @@ impl Context {
                     let mut success = g.oneof.is_empty();
                     for j in &g.oneof {
                         let mut self_bak = self.clone();
-                        if self_bak.unify(ty, j, &mut Vec::new()).is_ok() {
+                        let mut xconstrs = Vec::new();
+                        if self_bak
+                            .unify(&mut xconstrs, ty, j, &mut Vec::new())
+                            .is_ok()
+                        {
+                            assert!(xconstrs.is_empty());
                             *self = self_bak;
                             success = true;
                             ty.apply(&mut |&i| self.on_apply(i));
@@ -762,7 +804,7 @@ impl Context {
                 }
 
                 if let Some(tcgk) = &mut g.kind {
-                    self.unify_cgk_and_ty(tcgk, ty)?;
+                    self.unify_cgk_and_ty(constrs, tcgk, ty)?;
                 }
             }
 
@@ -777,6 +819,7 @@ impl Context {
 
     fn unify_constraint_groups(
         &mut self,
+        constrs: &mut Vec<Constraint>,
         a: TyConstraintGroupId,
         b: TyConstraintGroupId,
     ) -> Result<(), UnifyError> {
@@ -808,15 +851,15 @@ impl Context {
         let mut res = match (lhs.resolved(), rhs.resolved()) {
             (Some(t_a), Some(t_b)) => {
                 tracing::trace!(?t_a, ?t_b, "unify-cgs");
-                self.ucg_check4inf(a, b, t_a)?;
-                self.ucg_check4inf(a, b, t_b)?;
-                self.unify(t_a, t_b, &mut Vec::new())?;
-                lhs.ty.as_mut().unwrap().apply(&mut |&i| self.on_apply(i));
-                debug_assert!({
-                    rhs.ty.as_mut().unwrap().apply(&mut |&i| self.on_apply(i));
-                    tracing::trace!(?lhs.ty, ?rhs.ty, "unify res");
-                    lhs.ty == rhs.ty
-                });
+                let mut infs = self.ucg_check4inf(a, b, t_a);
+                infs.extend(self.ucg_check4inf(a, b, t_b));
+                let (mut t_a, mut t_b) = (t_a.clone(), t_b.clone());
+                for i in infs {
+                    t_a.mark_potential_fixpoint(i);
+                    t_b.mark_potential_fixpoint(i);
+                }
+                constrs.push(Constraint::Unify(t_a.clone(), t_b));
+                lhs.ty = Some(t_a);
                 lhs
             }
             (None, None) => {
@@ -824,9 +867,8 @@ impl Context {
                 let mut ty = match (lhs.ty, rhs.ty) {
                     (None, None) => None,
                     (Some(t), None) | (None, Some(t)) => Some(t),
-                    (Some(mut t1), Some(t2)) => {
-                        self.unify(&t1, &t2, &mut Vec::new())?;
-                        t1.apply(&mut |&i| self.on_apply(i));
+                    (Some(t1), Some(t2)) => {
+                        constrs.push(Constraint::Unify(t1.clone(), t2));
                         Some(t1)
                     }
                 };
@@ -858,10 +900,9 @@ impl Context {
                 if oneof.len() == 1 {
                     let ty2 = oneof.remove(0);
                     if let Some(ty) = &mut ty {
-                        self.unify(ty, &ty2, &mut Vec::new())?;
-                        ty.apply(&mut |&i| self.on_apply(i));
+                        constrs.push(Constraint::Unify(ty.clone(), ty2));
                     } else {
-                        ty = Some(ty2.clone());
+                        ty = Some(ty2);
                     }
                 }
                 lhs.oneof.clear();
@@ -880,11 +921,9 @@ impl Context {
                             ty_ret: rhs_ty_ret,
                         },
                     ) => {
-                        self.unify(&lhs_ty_arg, &rhs_ty_arg, &mut Vec::new())?;
-                        self.unify(&lhs_ty_ret, &rhs_ty_ret, &mut Vec::new())?;
-                        let (mut ty_arg, mut ty_ret) = (lhs_ty_arg, lhs_ty_ret);
-                        ty_arg.apply(&mut |&i| self.on_apply(i));
-                        ty_ret.apply(&mut |&i| self.on_apply(i));
+                        constrs.push(Constraint::Unify(lhs_ty_arg.clone(), rhs_ty_arg));
+                        constrs.push(Constraint::Unify(lhs_ty_ret.clone(), rhs_ty_ret));
+                        let (ty_arg, ty_ret) = (lhs_ty_arg, lhs_ty_ret);
                         let multi = if lhs_multi != rhs_multi {
                             let min_multi = ArgMultId(core::cmp::min(lhs_multi.0, rhs_multi.0));
                             let max_multi = ArgMultId(core::cmp::max(lhs_multi.0, rhs_multi.0));
@@ -898,7 +937,7 @@ impl Context {
                             self.a.apply(&mut on_apply);
                             self.g.apply(&mut on_apply);
                             if let Some(max_multi) = self.a.remove(&max_multi) {
-                                self.bind_argmulti(min_multi, max_multi)?;
+                                constrs.push(Constraint::BindArgMulti(min_multi, max_multi));
                             }
                             min_multi
                         } else {
@@ -928,9 +967,8 @@ impl Context {
                             for (key, value) in rhs_partial {
                                 use std::collections::btree_map::Entry;
                                 match partial.entry(key) {
-                                    Entry::Occupied(mut occ) => {
-                                        self.unify(occ.get(), &value, &mut Vec::new())?;
-                                        occ.get_mut().apply(&mut |&i| self.on_apply(i));
+                                    Entry::Occupied(occ) => {
+                                        constrs.push(Constraint::Unify(occ.get().clone(), value));
                                     }
                                     Entry::Vacant(vac) => {
                                         vac.insert(value);
@@ -942,9 +980,11 @@ impl Context {
                         let update_info =
                             opt_merge(lhs_update_info, rhs_update_info, |(w, x), (y, z)| {
                                 use Ty::Var;
-                                self.unify(&Var(w), &Var(y), &mut Vec::new())?;
-                                self.unify(&Var(x), &Var(z), &mut Vec::new())?;
-                                Ok((lowest_tvi_for_cg(&self.m, w), lowest_tvi_for_cg(&self.m, x)))
+                                constrs.push(Constraint::Unify(Var(w), Var(y)));
+                                constrs.push(Constraint::Unify(Var(x), Var(z)));
+                                let update_lhs_min = core::cmp::min(w, y);
+                                let update_rhs_min = core::cmp::min(x, z);
+                                Ok((update_lhs_min, update_rhs_min))
                             })?;
 
                         Ok(Tcgk::Record {
@@ -968,9 +1008,8 @@ impl Context {
                             for (key, value) in rhs_partial {
                                 use std::collections::btree_map::Entry;
                                 match partial.entry(key) {
-                                    Entry::Occupied(mut occ) => {
-                                        self.unify(occ.get(), &value, &mut Vec::new())?;
-                                        occ.get_mut().apply(&mut |&i| self.on_apply(i));
+                                    Entry::Occupied(occ) => {
+                                        constrs.push(Constraint::Unify(occ.get().clone(), value));
                                     }
                                     Entry::Vacant(vac) => {
                                         vac.insert(value);
@@ -998,26 +1037,32 @@ impl Context {
                     (rhs.ty.as_ref().unwrap(), lhs)
                 };
                 tracing::trace!(?t, ?g, "unify-cg");
-                self.ucg_check4inf(a, b, t)?;
-                let tfv = {
-                    let mut tfv = Default::default();
+                let mut t = t.clone();
+                for i in self.ucg_check4inf(a, b, &t) {
+                    t.mark_potential_fixpoint(i);
+                }
+                let tfvie = {
+                    let mut tfv = BTreeSet::<TyVar>::new();
                     t.fv(&mut tfv, true);
-                    tfv
+                    tfv.is_empty()
                 };
-                if !tfv.is_empty() {
-                    for i in tfv {
-                        self.ucg_check4inf(a, b, &Ty::Var(i))?;
-                    }
-                } else if !g.oneof.is_empty() {
+                if tfvie && !g.oneof.is_empty() {
                     if g.oneof.len() == 1 {
                         let j = core::mem::take(&mut g.oneof).into_iter().next().unwrap();
-                        self.ucg_check4inf(a, b, &j)?;
-                        self.unify(t, &j, &mut Vec::new())?;
+                        for i in self.ucg_check4inf(a, b, &j) {
+                            t.mark_potential_fixpoint(i);
+                        }
+                        constrs.push(Constraint::Unify(t.clone(), j));
                     } else {
                         let mut success = false;
                         for j in &g.oneof {
+                            let mut xconstrs = Vec::new();
                             let mut self_bak = self.clone();
-                            if self_bak.unify(t, j, &mut Vec::new()).is_ok() {
+                            if self_bak
+                                .unify(&mut xconstrs, &t, j, &mut Vec::new())
+                                .is_ok()
+                            {
+                                assert!(xconstrs.is_empty());
                                 *self = self_bak;
                                 success = true;
                                 break;
@@ -1032,18 +1077,12 @@ impl Context {
                     }
                 }
                 if let Some(tcgk) = &mut g.kind {
-                    self.unify_cgk_and_ty(tcgk, t)?;
+                    self.unify_cgk_and_ty(constrs, tcgk, &t)?;
                 }
                 if let Some(old) = &g.ty {
-                    self.unify(old, t, &mut Vec::new())?;
+                    constrs.push(Constraint::Unify(old.clone(), t));
                 } else {
-                    g.ty = Some(t.clone());
-                }
-                let gty = g.ty.as_mut().unwrap();
-                for (k, v) in &self.m {
-                    if v == &a {
-                        gty.mark_potential_fixpoint(*k);
-                    }
+                    g.ty = Some(t);
                 }
                 g
             }
@@ -1059,14 +1098,20 @@ impl Context {
         let x = self.g.insert(a, res);
         assert_eq!(x, None);
         // propagate inference information
-        self.notify_cgs(notify_cgs)?;
+        self.notify_cgs(constrs, notify_cgs)?;
         Ok(())
     }
 
-    fn bind(&mut self, v: TyVar, tcg: TyGroup) -> Result<(), UnifyError> {
+    fn bind(
+        &mut self,
+        constrs: &mut Vec<Constraint>,
+        v: TyVar,
+        tcg: TyGroup,
+    ) -> Result<(), UnifyError> {
         if let Some(t) = tcg.resolved() {
             if let Ty::Var(y) = t {
-                return self.unify(&Ty::Var(v), &Ty::Var(*y), &mut Vec::new());
+                constrs.push(Constraint::Unify(Ty::Var(v), Ty::Var(*y)));
+                return Ok(());
             }
             let tfv = {
                 let mut tfv = BTreeSet::<TyVar>::new();
@@ -1098,26 +1143,31 @@ impl Context {
                     if let Some(lhs_ty) = lhs_tcg.resolved() {
                         // avoid unnecessary allocation of tcgid
                         if let Some(rhs_ty) = tcg.resolved() {
-                            let lhs_ty = lhs_ty.clone();
-                            return self.unify(&lhs_ty, rhs_ty, &mut Vec::new());
+                            constrs.push(Constraint::Unify(lhs_ty.clone(), rhs_ty.clone()));
+                            return Ok(());
                         }
                     }
                 }
                 let rhs_tcgid = rhs_tcgid(&mut self.tycg_cnt, &mut self.g, v, tcg);
-                self.unify_constraint_groups(lhs_tcgid, rhs_tcgid)
+                self.unify_constraint_groups(constrs, lhs_tcgid, rhs_tcgid)
             }
             Entry::Vacant(y) => {
                 let rhs_tcgid = rhs_tcgid(&mut self.tycg_cnt, &mut self.g, v, tcg);
                 y.insert(rhs_tcgid);
                 if self.g.values().flat_map(|i| &i.listeners).any(|&i| i == v) {
-                    self.notify_cgs(core::iter::once(rhs_tcgid).collect())?;
+                    self.notify_cgs(constrs, core::iter::once(rhs_tcgid).collect())?;
                 }
                 Ok(())
             }
         }
     }
 
-    fn bind_argmulti(&mut self, v: ArgMultId, dat: ArgMult) -> Result<(), UnifyError> {
+    fn bind_argmulti(
+        &mut self,
+        constrs: &mut Vec<Constraint>,
+        v: ArgMultId,
+        dat: ArgMult,
+    ) -> Result<(), UnifyError> {
         use std::collections::btree_map::Entry;
         match self.a.entry(v) {
             Entry::Occupied(occ) => {
@@ -1170,10 +1220,10 @@ impl Context {
         // and should be only done once,
         // but we would need to annotate more stuff with
         // location info to be able to have some sort of error <-> location bundling.
-        self.notify_argmultis()
+        self.notify_argmultis(constrs)
     }
 
-    pub fn notify_argmultis(&mut self) -> Result<(), UnifyError> {
+    pub fn notify_argmultis(&mut self, constrs: &mut Vec<Constraint>) -> Result<(), UnifyError> {
         use crate::FinalArgMultiplicity as Fam;
         fn resolve_argmulti(
             v: &mut ArgMult,
@@ -1328,9 +1378,9 @@ impl Context {
             .copied()
             .collect();
         for (i, j) in to_unify {
-            self.unify(&i, &j, &mut Vec::new())?;
+            self.unify(constrs, &i, &j, &mut Vec::new())?;
         }
-        self.notify_cgs(notify_cgs)?;
+        self.notify_cgs(constrs, notify_cgs)?;
         //if g_modified {
         //    self.self_resolve()?;
         //}

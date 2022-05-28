@@ -198,6 +198,38 @@ fn run_ctrl_match() {
     });
 }
 
+#[test]
+fn treesum_2pown() {
+    tracing::subscriber::with_default(dflsubscr(), || {
+        insta::assert_yaml_snapshot!(main_check(
+            r#"
+                let rec gen = \n {
+                  if (std.eq 0 n) {
+                    (.Leaf 1)
+                  } {
+                    let nm1 = std.minus n 1;
+                    let nm1g = gen nm1;
+                    (.Node (.{
+                      lhs = nm1g;
+                      rhs = nm1g;
+                    }))
+                  }
+                };
+
+                let rec sum = \x (
+                  match x
+                  | .Leaf y => y
+                  | .Node .{ lhs; rhs; } => (std.plus (sum lhs) (sum rhs))
+                );
+
+                let main = \n (gen n |> sum);
+                (main 10)
+        "#
+        )
+        .map_err(|e| e.to_string()));
+    });
+}
+
 proptest::proptest! {
     #![proptest_config(proptest::test_runner::Config::with_cases(8192))]
 

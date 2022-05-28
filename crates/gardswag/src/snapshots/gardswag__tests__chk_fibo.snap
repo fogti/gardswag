@@ -834,46 +834,59 @@ expression: "main_check(r#\"\n                let rec fib = \\x \\y \\n {\n     
               Identifier: 1
             extra:
               ty:
-                Var: 58
+                Arrow:
+                  arg_multi: Linear
+                  arg:
+                    Literal: Int
+                  ret:
+                    Arrow:
+                      arg_multi: Unrestricted
+                      arg:
+                        Literal: Int
+                      ret:
+                        Arrow:
+                          arg_multi: Unrestricted
+                          arg:
+                            Literal: Int
+                          ret:
+                            Literal: Int
               ident_multi: 0
     extra:
       ty:
-        Var: 58
+        Arrow:
+          arg_multi: Linear
+          arg:
+            Literal: Int
+          ret:
+            Arrow:
+              arg_multi: Unrestricted
+              arg:
+                Literal: Int
+              ret:
+                Arrow:
+                  arg_multi: Unrestricted
+                  arg:
+                    Literal: Int
+                  ret:
+                    Literal: Int
       ident_multi: 1
-- forall:
-    - ty: ~
-      oneof: []
-      listeners: []
-      kind:
+- forall: []
+  forall_args: []
+  ty:
+    Arrow:
+      arg_multi: Linear
+      arg:
+        Literal: Int
+      ret:
         Arrow:
-          multi: 0
-          ty_arg:
+          arg_multi: Unrestricted
+          arg:
             Literal: Int
-          ty_ret:
-            Var: 1
-    - ty: ~
-      oneof: []
-      listeners: []
-      kind:
-        Arrow:
-          multi: 2
-          ty_arg:
-            Literal: Int
-          ty_ret:
+          ret:
             Arrow:
               arg_multi: Unrestricted
               arg:
                 Literal: Int
               ret:
                 Literal: Int
-  forall_args:
-    - Linear
-    - Linear
-    - Max:
-        - Prod:
-            - Unrestricted
-            - Var: 15
-        - Var: 16
-  ty:
-    Var: 0
 
