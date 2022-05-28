@@ -166,8 +166,6 @@ impl Context {
 
     pub fn on_apply(&self, i: TyVar) -> Option<Ty> {
         let cgid = *self.m.get(&i)?;
-        let span = tracing::span!(tracing::Level::TRACE, "on_apply", %i);
-        let _enter = span.enter();
         let j = lowest_tvi_for_cg(&self.m, i);
         let ret = self.g.get(&cgid).and_then(|k| k.ty.clone()).map(|mut k| {
             k.apply(&mut |&l| {
@@ -184,7 +182,7 @@ impl Context {
             });
             k
         });
-        tracing::trace!(%j, "{:?}", ret);
+        //tracing::trace!(%i, %j, "{:?}", ret);
         Some(if let Some(x) = ret { x } else { Ty::Var(j) })
     }
 
