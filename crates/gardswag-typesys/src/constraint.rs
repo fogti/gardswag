@@ -386,16 +386,27 @@ impl Context {
     fn unify(&mut self, a: &Ty, b: &Ty, assumps: &mut Vec<(Ty, Ty)>) -> Result<(), UnifyError> {
         //tracing::trace!(%a, %b, ?self, "unify");
         // self clutters the output too much
-        tracing::trace!(%a, %b, ?assumps, "unify");
-        if assumps.iter().any(|(x, y)| a == x && b == y) {
-            return Ok(());
+        // TODO: only do this when absolutely necessary.
+        // call `mark_potential_fixpoint` only when a new tv -> tcg -> ty association is established
+        for (&tv, tcgid) in &self.m {
+            if let Some(tcg) = self.g.get_mut(tcgid) {
+                if let Some(ty) = &mut tcg.ty {
+                    ty.mark_potential_fixpoint(tv);
+                }
+            }
         }
-        let l = assumps.len();
-        assumps.push((a.clone(), b.clone()));
-        let ret = self.unify_inner(a, b, assumps);
-        assumps.pop().unwrap();
-        assert_eq!(l, assumps.len());
-        ret
+        if a == b || assumps.iter().any(|(x, y)| a == x && b == y) {
+            tracing::trace!(%a, %b, "unify, already witnessed, equal under assumptions");
+            Ok(())
+        } else {
+            tracing::trace!(%a, %b, ?assumps, "unify");
+            let l = assumps.len();
+            assumps.push((a.clone(), b.clone()));
+            let ret = self.unify_inner(a, b, assumps);
+            let _ = assumps.pop().unwrap();
+            assert_eq!(l, assumps.len());
+            ret
+        }
     }
 
     fn unify_inner(
@@ -405,6 +416,34 @@ impl Context {
         assumps: &mut Vec<(Ty, Ty)>,
     ) -> Result<(), UnifyError> {
         match (a, b) {
+            (Ty::Var(a), Ty::Var(b)) => {
+                let tcgid = match (self.m.get(a), self.m.get(b)) {
+                    (None, None) => {
+                        let tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
+                        let tmp = self.g.insert(tcgid, Default::default());
+                        assert_eq!(tmp, None);
+                        tcgid
+                    }
+                    (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,
+                    (Some(&vcg), Some(&ycg)) => return self.unify_constraint_groups(vcg, ycg),
+                };
+                self.m.insert(*a, tcgid);
+                self.m.insert(*b, tcgid);
+                if let Some(x) = &mut self.g.get_mut(&tcgid).unwrap().ty {
+                    x.mark_potential_fixpoint(*a);
+                    x.mark_potential_fixpoint(*b);
+                }
+                Ok(())
+            }
+            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
+                *a,
+                TyGroup {
+                    ty: Some(t.clone()),
+                    ..Default::default()
+                },
+            ),
+            (Ty::Fix(l), r) => self.unify(&l.unfold_fixpoint(), r, assumps),
+            (l, Ty::Fix(r)) => self.unify(l, &r.unfold_fixpoint(), assumps),
             (
                 Ty::Arrow {
                     arg_multi: am1,
@@ -446,31 +485,7 @@ impl Context {
             }
             (Ty::ChanSend(x), Ty::ChanSend(y)) => self.unify(x, y, assumps),
             (Ty::ChanRecv(x), Ty::ChanRecv(y)) => self.unify(x, y, assumps),
-            (Ty::Var(a), Ty::Var(b)) => {
-                let tcgid = match (self.m.get(a), self.m.get(b)) {
-                    (None, None) => {
-                        let tcgid = TyConstraintGroupId(self.tycg_cnt.next().unwrap());
-                        let tmp = self.g.insert(tcgid, Default::default());
-                        assert_eq!(tmp, None);
-                        tcgid
-                    }
-                    (Some(&tcgid), None) | (None, Some(&tcgid)) => tcgid,
-                    (Some(&vcg), Some(&ycg)) => return self.unify_constraint_groups(vcg, ycg),
-                };
-                self.m.insert(*a, tcgid);
-                self.m.insert(*b, tcgid);
-                Ok(())
-            }
-            (Ty::Var(a), t) | (t, Ty::Var(a)) => self.bind(
-                *a,
-                TyGroup {
-                    ty: Some(t.clone()),
-                    ..Default::default()
-                },
-            ),
             (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
-            (Ty::Fix(l), r) => self.unify(&l.unfold_fixpoint(), r, assumps),
-            (l, Ty::Fix(r)) => self.unify(l, &r.unfold_fixpoint(), assumps),
             (_, _) => Err(UnifyError::Mismatch {
                 t1: a.clone(),
                 t2: b.clone(),
@@ -499,9 +514,15 @@ impl Context {
     }
 
     fn unify_cgk_and_ty(&mut self, tcgk: &mut Tcgk, ty: &Ty) -> Result<(), UnifyError> {
-        if let Ty::Var(_) = ty {
-            return Ok(());
-        }
+        let tmp;
+        let ty = match ty {
+            Ty::Var(_) => return Ok(()),
+            Ty::Fix(inner) => {
+                tmp = inner.clone().unfold_fixpoint();
+                &tmp
+            }
+            _ => &*ty,
+        };
         match tcgk {
             Tcgk::Arrow {
                 multi,
@@ -773,6 +794,13 @@ impl Context {
         });
 
         if lhs == rhs {
+            if let Some(ty) = &mut lhs.ty {
+                for (k, v) in &self.m {
+                    if v == &a {
+                        ty.mark_potential_fixpoint(*k);
+                    }
+                }
+            }
             self.g.insert(a, lhs);
             return Ok(());
         }
@@ -1011,6 +1039,12 @@ impl Context {
                 } else {
                     g.ty = Some(t.clone());
                 }
+                let gty = g.ty.as_mut().unwrap();
+                for (k, v) in &self.m {
+                    if v == &a {
+                        gty.mark_potential_fixpoint(*k);
+                    }
+                }
                 g
             }
         };
@@ -1060,11 +1094,13 @@ impl Context {
         match self.m.entry(v) {
             Entry::Occupied(occ) => {
                 let lhs_tcgid = *occ.get();
-                if let Some(lhs_ty) = self.g.get(&lhs_tcgid).unwrap().resolved() {
-                    // avoid unnecessary allocation of tcgid
-                    if let Some(rhs_ty) = tcg.ty {
-                        let lhs_ty = lhs_ty.clone();
-                        return self.unify(&lhs_ty, &rhs_ty, &mut Vec::new());
+                if let Some(lhs_tcg) = self.g.get(&lhs_tcgid) {
+                    if let Some(lhs_ty) = lhs_tcg.resolved() {
+                        // avoid unnecessary allocation of tcgid
+                        if let Some(rhs_ty) = tcg.resolved() {
+                            let lhs_ty = lhs_ty.clone();
+                            return self.unify(&lhs_ty, rhs_ty, &mut Vec::new());
+                        }
                     }
                 }
                 let rhs_tcgid = rhs_tcgid(&mut self.tycg_cnt, &mut self.g, v, tcg);

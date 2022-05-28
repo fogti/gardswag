@@ -39,6 +39,7 @@ impl fmt::Display for DistanceTyVar {
 }
 
 #[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[must_use = "the type-checker should blindly drop types"]
 pub enum Ty {
     Literal(TyLit),
 
@@ -231,15 +232,26 @@ impl Substitutable<TyVar> for Ty {
 }
 
 impl Ty {
-    fn apply_fixpoint(&mut self, shiftval: usize, trg: &Ty) {
+    fn apply_fixpoint<F>(&mut self, shiftval: usize, trg: Option<&Ty>, on_tyv_f: &mut F)
+    where
+        F: FnMut(TyVar, usize) -> Option<Ty>,
+    {
         match self {
-            Ty::Literal(_) | Ty::Var(_) => {}
-            Ty::DistanceVar(DistanceTyVar(tv)) => {
+            Ty::Literal(_) => {}
+            Ty::Var(tv) => {
+                if let Some(x) = on_tyv_f(*tv, shiftval) {
+                    *self = x;
+                }
+            }
+            &mut Ty::DistanceVar(DistanceTyVar(tv)) => {
                 use core::cmp::Ordering as Ordr;
-                let tv: usize = *tv;
                 match tv.cmp(&shiftval) {
                     Ordr::Less => {}
-                    Ordr::Equal => *self = Ty::Fix(Box::new(trg.clone())),
+                    Ordr::Equal => {
+                        if let Some(trg) = trg {
+                            *self = Ty::Fix(Box::new(trg.clone()));
+                        }
+                    }
                     Ordr::Greater => panic!(
                         "unexpanded type-level fixpoint variable encountered: {}",
                         DistanceTyVar(tv)
@@ -247,21 +259,21 @@ impl Ty {
                 }
             }
             Ty::Arrow { arg, ret, .. } => {
-                arg.apply_fixpoint(shiftval, trg);
-                ret.apply_fixpoint(shiftval, trg);
+                arg.apply_fixpoint(shiftval, trg, on_tyv_f);
+                ret.apply_fixpoint(shiftval, trg, on_tyv_f);
             }
             Ty::Fix(x) => {
-                x.apply_fixpoint(shiftval + 1, trg);
+                x.apply_fixpoint(shiftval + 1, trg, on_tyv_f);
             }
-            Ty::ChanSend(x) | Ty::ChanRecv(x) => x.apply_fixpoint(shiftval, trg),
+            Ty::ChanSend(x) | Ty::ChanRecv(x) => x.apply_fixpoint(shiftval, trg, on_tyv_f),
             Ty::Record(rcm) => {
                 for i in rcm.values_mut() {
-                    i.apply_fixpoint(shiftval, trg);
+                    i.apply_fixpoint(shiftval, trg, on_tyv_f);
                 }
             }
             Ty::TaggedUnion(rcm) => {
                 for i in rcm.values_mut() {
-                    i.apply_fixpoint(shiftval, trg);
+                    i.apply_fixpoint(shiftval, trg, on_tyv_f);
                 }
             }
         }
@@ -270,8 +282,32 @@ impl Ty {
     /// this function expects the inner content of `Ty::Fix(inner)` as its `self` argument.
     pub fn unfold_fixpoint(&self) -> Ty {
         let mut s2 = self.clone();
-        s2.apply_fixpoint(0, self);
+        s2.apply_fixpoint(0, Some(self), &mut |_, _| None);
         s2
+    }
+
+    /// inserts a fixpoint into the type associated with a type variable
+    /// (should be passed as `self`) in case it references itself (the tyvar id should be passed as `tv`)
+    pub(crate) fn mark_potential_fixpoint(&mut self, tv: TyVar) {
+        let mut used = false;
+        (if let Ty::Fix(ref mut s2) = self {
+            // this makes sure that we don't create multiple layers of fixpoints
+            s2
+        } else {
+            &mut *self
+        })
+        .apply_fixpoint(0, None, &mut |i, offs| {
+            if i == tv {
+                used = true;
+                Some(Ty::DistanceVar(DistanceTyVar(offs)))
+            } else {
+                None
+            }
+        });
+        if used && !matches!(self, Ty::Fix(_)) {
+            tracing::debug!("promoted ${} to fixpoint with inner = {}", tv, self);
+            *self = Ty::Fix(Box::new(core::mem::replace(self, Ty::Literal(TyLit::Unit))));
+        }
     }
 }
 

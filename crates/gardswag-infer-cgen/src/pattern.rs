@@ -448,7 +448,7 @@ pub fn infer_match(
 
     {
         // build + inspect normalized pattern tree
-        infer_pat(
+        let _ = infer_pat(
             ctx,
             Some(inp.extra.ty.clone()),
             cases2nodetree(&mut cases[..])?,
