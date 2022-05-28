@@ -263,13 +263,6 @@ impl ArgMultiplicity {
         }
     }
 
-    pub fn resolved(&self, a: Ty, b: Ty) -> Result<Ty, (Ty, Ty)> {
-        match self.as_fam() {
-            Some(x) => Ok(x.resolved(a, b)),
-            None => Err((a, b)),
-        }
-    }
-
     pub fn normalize(&mut self) {
         let recur = |xs: &mut [Self]| xs.iter_mut().for_each(|i| i.normalize());
         match self {

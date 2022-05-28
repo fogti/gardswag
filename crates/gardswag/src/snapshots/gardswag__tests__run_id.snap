@@ -48,9 +48,12 @@ expression: x
                   ident_multi: 0
           extra:
             ty:
-              Arrow1:
-                - Var: 5
-                - Var: 5
+              Arrow:
+                arg_multi: Linear
+                arg:
+                  Var: 5
+                ret:
+                  Var: 5
             ident_multi: 1
         rest:
           stmts: []
@@ -64,9 +67,12 @@ expression: x
                     Identifier: 1
                   extra:
                     ty:
-                      Arrow1:
-                        - Literal: Int
-                        - Literal: Int
+                      Arrow:
+                        arg_multi: Linear
+                        arg:
+                          Literal: Int
+                        ret:
+                          Literal: Int
                     ident_multi: 0
                 arg:
                   offset: 51

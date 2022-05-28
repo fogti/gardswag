@@ -230,9 +230,13 @@ fn infer(
             Ok(Annot {
                 offset: expr.offset,
                 extra: InferExtra {
-                    ty: match ident_argm.resolved(tv, body.extra.ty.clone()) {
-                        Ok(x) => x,
-                        Err((tv, bety)) => {
+                    ty: match ident_argm.as_fam() {
+                        Some(arg_multi) => Ty::Arrow {
+                            arg_multi,
+                            arg: Box::new(tv),
+                            ret: Box::new(body.extra.ty.clone()),
+                        },
+                        None => {
                             let tv2 = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
                             let argm = maybe_new_argmulti(expr.offset, ident_argm, ctx);
                             ctx.bind(
@@ -241,7 +245,7 @@ fn infer(
                                 Tcg {
                                     kind: Some(Tcgk::Arrow {
                                         ty_arg: tv,
-                                        ty_ret: bety,
+                                        ty_ret: body.extra.ty.clone(),
                                         multi: argm,
                                     }),
                                     ..Default::default()
@@ -303,10 +307,15 @@ fn infer(
                     im.0.push(l);
                 }
                 let arg = infer(env, ctx, arg, None)?;
-                let (argmult, ty) = if let Some((fam, tp_arg, tp_ret)) = prim.extra.ty.as_arrow() {
+                let (argmult, ty) = if let Ty::Arrow {
+                    arg_multi,
+                    arg: tp_arg,
+                    ret: tp_ret,
+                } = &prim.extra.ty
+                {
                     // optimized by 1x unfolding
-                    ctx.unify(expr.offset, (*tp_arg).clone(), arg.extra.ty.clone());
-                    (fam.into(), (*tp_ret).clone())
+                    ctx.unify(expr.offset, (**tp_arg).clone(), arg.extra.ty.clone());
+                    ((*arg_multi).into(), (**tp_ret).clone())
                 } else {
                     let tvout = maybe_new_tyvar_opt(expr.offset, res_ty.take(), ctx);
                     let tva = maybe_new_tyvar(expr.offset, prim.extra.ty.clone(), ctx);
@@ -449,7 +458,11 @@ fn infer(
             Ok(Annot {
                 offset: expr.offset,
                 extra: InferExtra {
-                    ty: Ty::Arrow1(Box::new(Ty::Var(tvinp)), Box::new(Ty::Var(tvout))),
+                    ty: Ty::Arrow {
+                        arg_multi: tysy::FinalArgMultiplicity::Linear,
+                        arg: Box::new(Ty::Var(tvinp)),
+                        ret: Box::new(Ty::Var(tvout)),
+                    },
                     ident_multi: 0,
                 },
                 inner: Ek::Tagger(key),

@@ -57,9 +57,12 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                         ident_multi: 0
                 extra:
                   ty:
-                    Arrow1:
-                      - Var: 6
-                      - Var: 6
+                    Arrow:
+                      arg_multi: Linear
+                      arg:
+                        Var: 6
+                      ret:
+                        Var: 6
                   ident_multi: 1
               rest:
                 stmts: []
@@ -73,9 +76,12 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                           Identifier: 1
                         extra:
                           ty:
-                            Arrow1:
-                              - Var: 7
-                              - Var: 7
+                            Arrow:
+                              arg_multi: Linear
+                              arg:
+                                Var: 7
+                              ret:
+                                Var: 7
                           ident_multi: 0
                       2:
                         offset: 135
@@ -113,9 +119,12 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
                     ty:
                       Record:
                         1:
-                          Arrow1:
-                            - Var: 7
-                            - Var: 7
+                          Arrow:
+                            arg_multi: Linear
+                            arg:
+                              Var: 7
+                            ret:
+                              Var: 7
                         2:
                           Literal: String
                         3:
@@ -125,9 +134,12 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
             ty:
               Record:
                 1:
-                  Arrow1:
-                    - Var: 7
-                    - Var: 7
+                  Arrow:
+                    arg_multi: Linear
+                    arg:
+                      Var: 7
+                    ret:
+                      Var: 7
                 2:
                   Literal: String
                 3:
@@ -135,13 +147,19 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
             ident_multi: 1
     extra:
       ty:
-        ArrowU:
-          - Var: 5
-          - Record:
+        Arrow:
+          arg_multi: Unrestricted
+          arg:
+            Var: 5
+          ret:
+            Record:
               1:
-                Arrow1:
-                  - Var: 7
-                  - Var: 7
+                Arrow:
+                  arg_multi: Linear
+                  arg:
+                    Var: 7
+                  ret:
+                    Var: 7
               2:
                 Literal: String
               3:
@@ -162,13 +180,19 @@ expression: "main_check(r#\"\n                \\x\n                let id = \\y 
       kind: ~
   forall_args: []
   ty:
-    ArrowU:
-      - Var: 0
-      - Record:
+    Arrow:
+      arg_multi: Unrestricted
+      arg:
+        Var: 0
+      ret:
+        Record:
           1:
-            Arrow1:
-              - Var: 1
-              - Var: 1
+            Arrow:
+              arg_multi: Linear
+              arg:
+                Var: 1
+              ret:
+                Var: 1
           2:
             Literal: String
           3:

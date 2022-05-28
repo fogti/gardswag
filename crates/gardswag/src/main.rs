@@ -54,7 +54,11 @@ fn mk_env_std(itn: &mut Interner, ctx: &mut TyCollectCtx) -> gardswag_typesys::S
             let mut it = x.into_iter().rev();
             let mut y = it.next().unwrap().1;
             for (f, i) in it {
-                y = f.resolved(i, y);
+                y = Ty::Arrow {
+                    arg_multi: f,
+                    arg: Box::new(i),
+                    ret: Box::new(y),
+                };
             }
             y
         }}

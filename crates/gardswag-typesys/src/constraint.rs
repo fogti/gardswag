@@ -388,11 +388,20 @@ impl Context {
         // self clutters the output too much
         tracing::trace!(%a, %b, "unify");
         match (a, b) {
-            (Ty::Arrow0(l1, r1), Ty::Arrow0(l2, r2))
-            | (Ty::Arrow1(l1, r1), Ty::Arrow1(l2, r2))
-            | (Ty::ArrowU(l1, r1), Ty::ArrowU(l2, r2)) => {
-                self.unify(l1, l2)?;
-                let (mut rx1, mut rx2) = (r1.clone(), r2.clone());
+            (
+                Ty::Arrow {
+                    arg_multi: am1,
+                    arg: arg1,
+                    ret: ret1,
+                },
+                Ty::Arrow {
+                    arg_multi: am2,
+                    arg: arg2,
+                    ret: ret2,
+                },
+            ) if am1 == am2 => {
+                self.unify(arg1, arg2)?;
+                let (mut rx1, mut rx2) = (ret1.clone(), ret2.clone());
                 rx1.apply(&mut |&i| self.on_apply(i));
                 rx2.apply(&mut |&i| self.on_apply(i));
                 self.unify(&rx1, &rx2)?;
@@ -480,15 +489,18 @@ impl Context {
                 ty_arg,
                 ty_ret,
             } => {
-                let (oth_multi, arg, ret) = match ty {
-                    Ty::Arrow0(arg, ret) => (ArgMult::Sum(Default::default()), arg, ret),
-                    Ty::Arrow1(arg, ret) => (ArgMult::Linear, arg, ret),
-                    Ty::ArrowU(arg, ret) => (ArgMult::Unrestricted, arg, ret),
-                    _ => return Err(UnifyError::NotAnArrow(ty.clone())),
-                };
-                self.bind_argmulti(*multi, oth_multi)?;
-                self.unify(ty_arg, arg)?;
-                self.unify(ty_ret, ret)?;
+                if let Ty::Arrow {
+                    arg_multi,
+                    arg,
+                    ret,
+                } = ty
+                {
+                    self.bind_argmulti(*multi, (*arg_multi).into())?;
+                    self.unify(ty_arg, arg)?;
+                    self.unify(ty_ret, ret)?;
+                } else {
+                    return Err(UnifyError::NotAnArrow(ty.clone()));
+                }
             }
             Tcgk::Record { partial, .. } => {
                 if let Ty::Record(rcm) = ty {
@@ -592,9 +604,7 @@ impl Context {
                                 ty:
                                     Some(
                                         ty_orig @ (Ty::Literal(_)
-                                        | Ty::Arrow0(_, _)
-                                        | Ty::Arrow1(_, _)
-                                        | Ty::ArrowU(_, _)
+                                        | Ty::Arrow { .. }
                                         | Ty::TaggedUnion(_)
                                         | Ty::ChanSend(_)
                                         | Ty::ChanRecv(_)),
@@ -611,9 +621,7 @@ impl Context {
                                 ty:
                                     Some(
                                         ty_ovrd @ (Ty::Literal(_)
-                                        | Ty::Arrow0(_, _)
-                                        | Ty::Arrow1(_, _)
-                                        | Ty::ArrowU(_, _)
+                                        | Ty::Arrow { .. }
                                         | Ty::TaggedUnion(_)
                                         | Ty::ChanSend(_)
                                         | Ty::ChanRecv(_)),
@@ -1209,11 +1217,11 @@ impl Context {
                     ty_arg,
                     ty_ret,
                 }) => {
-                    if let Some(multi_res) = finm.get(&multi) {
-                        match multi_res {
-                            Fam::Erased => Ty::Arrow0(Box::new(ty_arg), Box::new(ty_ret)),
-                            Fam::Linear => Ty::Arrow1(Box::new(ty_arg), Box::new(ty_ret)),
-                            Fam::Unrestricted => Ty::ArrowU(Box::new(ty_arg), Box::new(ty_ret)),
+                    if let Some(&arg_multi) = finm.get(&multi) {
+                        Ty::Arrow {
+                            arg_multi,
+                            arg: Box::new(ty_arg),
+                            ret: Box::new(ty_ret),
                         }
                     } else {
                         i.kind = Some(Tcgk::Arrow {

@@ -41,53 +41,98 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                               2:
                                 Record:
                                   3:
-                                    Arrow1:
-                                      - Literal: String
-                                      - Literal: Unit
+                                    Arrow:
+                                      arg_multi: Linear
+                                      arg:
+                                        Literal: String
+                                      ret:
+                                        Literal: Unit
                               4:
-                                Arrow1:
-                                  - Literal: Int
-                                  - Arrow1:
-                                      - Literal: Int
-                                      - Literal: Int
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Literal: Int
+                                  ret:
+                                    Arrow:
+                                      arg_multi: Linear
+                                      arg:
+                                        Literal: Int
+                                      ret:
+                                        Literal: Int
                               5:
-                                Arrow1:
-                                  - Literal: Int
-                                  - Arrow1:
-                                      - Literal: Int
-                                      - Literal: Int
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Literal: Int
+                                  ret:
+                                    Arrow:
+                                      arg_multi: Linear
+                                      arg:
+                                        Literal: Int
+                                      ret:
+                                        Literal: Int
                               6:
-                                Arrow1:
-                                  - Literal: Int
-                                  - Arrow1:
-                                      - Literal: Int
-                                      - Literal: Int
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Literal: Int
+                                  ret:
+                                    Arrow:
+                                      arg_multi: Linear
+                                      arg:
+                                        Literal: Int
+                                      ret:
+                                        Literal: Int
                               7:
-                                Arrow1:
-                                  - Var: 5
-                                  - Arrow1:
-                                      - Var: 6
-                                      - Literal: Bool
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Var: 5
+                                  ret:
+                                    Arrow:
+                                      arg_multi: Linear
+                                      arg:
+                                        Var: 6
+                                      ret:
+                                        Literal: Bool
                               8:
-                                Arrow1:
-                                  - Literal: Int
-                                  - Arrow1:
-                                      - Literal: Int
-                                      - Literal: Bool
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Literal: Int
+                                  ret:
+                                    Arrow:
+                                      arg_multi: Linear
+                                      arg:
+                                        Literal: Int
+                                      ret:
+                                        Literal: Bool
                               9:
-                                Arrow1:
-                                  - Literal: Bool
-                                  - Literal: Bool
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Literal: Bool
+                                  ret:
+                                    Literal: Bool
                               10:
-                                Arrow1:
-                                  - ArrowU:
-                                      - Literal: Unit
-                                      - Literal: Unit
-                                  - Literal: Unit
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Arrow:
+                                      arg_multi: Unrestricted
+                                      arg:
+                                        Literal: Unit
+                                      ret:
+                                        Literal: Unit
+                                  ret:
+                                    Literal: Unit
                               11:
-                                Arrow0:
-                                  - Literal: Unit
-                                  - Record:
+                                Arrow:
+                                  arg_multi: Erased
+                                  arg:
+                                    Literal: Unit
+                                  ret:
+                                    Record:
                                       12:
                                         ChanSend:
                                           Var: 7
@@ -95,17 +140,26 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                                         ChanRecv:
                                           Var: 7
                               14:
-                                Arrow1:
-                                  - Var: 8
-                                  - Arrow1:
-                                      - ChanSend:
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    Var: 8
+                                  ret:
+                                    Arrow:
+                                      arg_multi: Linear
+                                      arg:
+                                        ChanSend:
                                           Var: 8
-                                      - Literal: Bool
+                                      ret:
+                                        Literal: Bool
                               15:
-                                Arrow1:
-                                  - ChanRecv:
+                                Arrow:
+                                  arg_multi: Linear
+                                  arg:
+                                    ChanRecv:
                                       Var: 9
-                                  - TaggedUnion:
+                                  ret:
+                                    TaggedUnion:
                                       16:
                                         Literal: Unit
                                       17:
@@ -119,9 +173,12 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                     ty:
                       Record:
                         3:
-                          Arrow1:
-                            - Literal: String
-                            - Literal: Unit
+                          Arrow:
+                            arg_multi: Linear
+                            arg:
+                              Literal: String
+                            ret:
+                              Literal: Unit
                     ident_multi: 0
                 key:
                   offset: 10
@@ -129,9 +186,12 @@ expression: "main_check(r#\"std.stdio.write(\"Hello world!\\n\");\"#).unwrap()"
                   extra: ~
             extra:
               ty:
-                Arrow1:
-                  - Literal: String
-                  - Literal: Unit
+                Arrow:
+                  arg_multi: Linear
+                  arg:
+                    Literal: String
+                  ret:
+                    Literal: Unit
               ident_multi: 0
           arg:
             offset: 16

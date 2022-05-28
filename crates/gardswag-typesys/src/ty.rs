@@ -31,14 +31,11 @@ pub enum Ty {
 
     Var(TyVar),
 
-    /// argument is discarded / erased
-    Arrow0(Box<Ty>, Box<Ty>),
-
-    /// argument is used exactly once
-    Arrow1(Box<Ty>, Box<Ty>),
-
-    /// unrestricted usage of argument
-    ArrowU(Box<Ty>, Box<Ty>),
+    Arrow {
+        arg_multi: FinalArgMultiplicity,
+        arg: Box<Ty>,
+        ret: Box<Ty>,
+    },
 
     /// sender end of channels
     ChanSend(Box<Ty>),
@@ -61,25 +58,17 @@ pub enum FinalArgMultiplicity {
     Unrestricted,
 }
 
-impl FinalArgMultiplicity {
-    pub fn resolved(&self, arg: Ty, ret: Ty) -> Ty {
-        match self {
-            Self::Erased => Ty::Arrow0(Box::new(arg), Box::new(ret)),
-            Self::Linear => Ty::Arrow1(Box::new(arg), Box::new(ret)),
-            Self::Unrestricted => Ty::ArrowU(Box::new(arg), Box::new(ret)),
-        }
-    }
-}
-
-impl Ty {
-    pub fn as_arrow(&self) -> Option<(FinalArgMultiplicity, &Ty, &Ty)> {
-        use FinalArgMultiplicity as Fam;
-        match self {
-            Ty::Arrow0(a, b) => Some((Fam::Erased, a, b)),
-            Ty::Arrow1(a, b) => Some((Fam::Linear, a, b)),
-            Ty::ArrowU(a, b) => Some((Fam::Unrestricted, a, b)),
-            _ => None,
-        }
+impl fmt::Display for FinalArgMultiplicity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Erased => "0",
+                Self::Linear => "1",
+                Self::Unrestricted => "*",
+            }
+        )
     }
 }
 
@@ -88,31 +77,18 @@ impl fmt::Display for Ty {
         match self {
             Ty::Literal(lit) => write!(f, "{}", lit),
             Ty::Var(v) => write!(f, "${}", v),
-            Ty::Arrow0(a, b) => {
-                write!(f, "0")?;
-                if a.as_arrow().is_some() {
-                    write!(f, "({})", a)
+            Ty::Arrow {
+                arg_multi,
+                arg,
+                ret,
+            } => {
+                write!(f, "{}", arg_multi)?;
+                if matches!(&**arg, Ty::Arrow { .. }) {
+                    write!(f, "({})", arg)
                 } else {
-                    write!(f, "{}", a)
+                    write!(f, "{}", arg)
                 }?;
-                write!(f, " -> {}", b)
-            }
-            Ty::Arrow1(a, b) => {
-                write!(f, "1")?;
-                if a.as_arrow().is_some() {
-                    write!(f, "({})", a)
-                } else {
-                    write!(f, "{}", a)
-                }?;
-                write!(f, " -> {}", b)
-            }
-            Ty::ArrowU(a, b) => {
-                if a.as_arrow().is_some() {
-                    write!(f, "({})", a)
-                } else {
-                    write!(f, "{}", a)
-                }?;
-                write!(f, " -> {}", b)
+                write!(f, " -> {}", ret)
             }
             Ty::ChanSend(x) => {
                 write!(f, "Chan:send(")?;
@@ -151,7 +127,7 @@ impl FreeVars<TyVar> for Ty {
                 Ty::Var(tv) => {
                     tv.fv(accu, do_add);
                 }
-                Ty::Arrow0(arg, ret) | Ty::Arrow1(arg, ret) | Ty::ArrowU(arg, ret) => {
+                Ty::Arrow { arg, ret, .. } => {
                     xs.push(&*arg);
                     xs.push(&*ret);
                 }
@@ -177,7 +153,7 @@ impl Substitutable<TyVar> for Ty {
                     *self = x;
                 }
             }
-            Ty::Arrow0(arg, ret) | Ty::Arrow1(arg, ret) | Ty::ArrowU(arg, ret) => {
+            Ty::Arrow { arg, ret, .. } => {
                 arg.apply(f);
                 ret.apply(f);
             }

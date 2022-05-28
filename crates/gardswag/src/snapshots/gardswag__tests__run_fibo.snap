@@ -98,49 +98,91 @@ expression: x
                                                                   ty:
                                                                     Record:
                                                                       4:
-                                                                        Arrow1:
-                                                                          - Literal: Int
-                                                                          - Arrow1:
-                                                                              - Literal: Int
-                                                                              - Literal: Int
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Arrow:
+                                                                              arg_multi: Linear
+                                                                              arg:
+                                                                                Literal: Int
+                                                                              ret:
+                                                                                Literal: Int
                                                                       7:
-                                                                        Arrow1:
-                                                                          - Literal: Int
-                                                                          - Arrow1:
-                                                                              - Literal: Int
-                                                                              - Literal: Bool
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Arrow:
+                                                                              arg_multi: Linear
+                                                                              arg:
+                                                                                Literal: Int
+                                                                              ret:
+                                                                                Literal: Bool
                                                                       9:
-                                                                        Arrow1:
-                                                                          - Literal: Int
-                                                                          - Arrow1:
-                                                                              - Literal: Int
-                                                                              - Literal: Int
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Arrow:
+                                                                              arg_multi: Linear
+                                                                              arg:
+                                                                                Literal: Int
+                                                                              ret:
+                                                                                Literal: Int
                                                                       10:
-                                                                        Arrow1:
-                                                                          - Literal: Int
-                                                                          - Arrow1:
-                                                                              - Literal: Int
-                                                                              - Literal: Int
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Arrow:
+                                                                              arg_multi: Linear
+                                                                              arg:
+                                                                                Literal: Int
+                                                                              ret:
+                                                                                Literal: Int
                                                                       11:
-                                                                        Arrow1:
-                                                                          - Var: 9
-                                                                          - Arrow1:
-                                                                              - Var: 10
-                                                                              - Literal: Bool
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Var: 9
+                                                                          ret:
+                                                                            Arrow:
+                                                                              arg_multi: Linear
+                                                                              arg:
+                                                                                Var: 10
+                                                                              ret:
+                                                                                Literal: Bool
                                                                       12:
-                                                                        Arrow1:
-                                                                          - Literal: Bool
-                                                                          - Literal: Bool
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Bool
+                                                                          ret:
+                                                                            Literal: Bool
                                                                       13:
-                                                                        Arrow1:
-                                                                          - ArrowU:
-                                                                              - Literal: Unit
-                                                                              - Literal: Unit
-                                                                          - Literal: Unit
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Arrow:
+                                                                              arg_multi: Unrestricted
+                                                                              arg:
+                                                                                Literal: Unit
+                                                                              ret:
+                                                                                Literal: Unit
+                                                                          ret:
+                                                                            Literal: Unit
                                                                       14:
-                                                                        Arrow0:
-                                                                          - Literal: Unit
-                                                                          - Record:
+                                                                        Arrow:
+                                                                          arg_multi: Erased
+                                                                          arg:
+                                                                            Literal: Unit
+                                                                          ret:
+                                                                            Record:
                                                                               15:
                                                                                 ChanSend:
                                                                                   Var: 11
@@ -148,17 +190,26 @@ expression: x
                                                                                 ChanRecv:
                                                                                   Var: 11
                                                                       17:
-                                                                        Arrow1:
-                                                                          - Var: 12
-                                                                          - Arrow1:
-                                                                              - ChanSend:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Var: 12
+                                                                          ret:
+                                                                            Arrow:
+                                                                              arg_multi: Linear
+                                                                              arg:
+                                                                                ChanSend:
                                                                                   Var: 12
-                                                                              - Literal: Bool
+                                                                              ret:
+                                                                                Literal: Bool
                                                                       18:
-                                                                        Arrow1:
-                                                                          - ChanRecv:
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            ChanRecv:
                                                                               Var: 13
-                                                                          - TaggedUnion:
+                                                                          ret:
+                                                                            TaggedUnion:
                                                                               19:
                                                                                 Literal: Unit
                                                                               20:
@@ -166,9 +217,12 @@ expression: x
                                                                       21:
                                                                         Record:
                                                                           22:
-                                                                            Arrow1:
-                                                                              - Literal: String
-                                                                              - Literal: Unit
+                                                                            Arrow:
+                                                                              arg_multi: Linear
+                                                                              arg:
+                                                                                Literal: String
+                                                                              ret:
+                                                                                Literal: Unit
                                                                   ident_multi: 0
                                                               key:
                                                                 offset: 120
@@ -176,11 +230,17 @@ expression: x
                                                                 extra: ~
                                                           extra:
                                                             ty:
-                                                              Arrow1:
-                                                                - Literal: Int
-                                                                - Arrow1:
-                                                                    - Literal: Int
-                                                                    - Literal: Int
+                                                              Arrow:
+                                                                arg_multi: Linear
+                                                                arg:
+                                                                  Literal: Int
+                                                                ret:
+                                                                  Arrow:
+                                                                    arg_multi: Linear
+                                                                    arg:
+                                                                      Literal: Int
+                                                                    ret:
+                                                                      Literal: Int
                                                             ident_multi: 0
                                                         arg:
                                                           offset: 125
@@ -192,9 +252,12 @@ expression: x
                                                             ident_multi: 0
                                                     extra:
                                                       ty:
-                                                        Arrow1:
-                                                          - Literal: Int
-                                                          - Literal: Int
+                                                        Arrow:
+                                                          arg_multi: Linear
+                                                          arg:
+                                                            Literal: Int
+                                                          ret:
+                                                            Literal: Int
                                                       ident_multi: 0
                                                   arg:
                                                     offset: 127
@@ -234,49 +297,91 @@ expression: x
                                                                           ty:
                                                                             Record:
                                                                               4:
-                                                                                Arrow1:
-                                                                                  - Literal: Int
-                                                                                  - Arrow1:
-                                                                                      - Literal: Int
-                                                                                      - Literal: Int
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Literal: Int
+                                                                                  ret:
+                                                                                    Arrow:
+                                                                                      arg_multi: Linear
+                                                                                      arg:
+                                                                                        Literal: Int
+                                                                                      ret:
+                                                                                        Literal: Int
                                                                               7:
-                                                                                Arrow1:
-                                                                                  - Literal: Int
-                                                                                  - Arrow1:
-                                                                                      - Literal: Int
-                                                                                      - Literal: Bool
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Literal: Int
+                                                                                  ret:
+                                                                                    Arrow:
+                                                                                      arg_multi: Linear
+                                                                                      arg:
+                                                                                        Literal: Int
+                                                                                      ret:
+                                                                                        Literal: Bool
                                                                               9:
-                                                                                Arrow1:
-                                                                                  - Literal: Int
-                                                                                  - Arrow1:
-                                                                                      - Literal: Int
-                                                                                      - Literal: Int
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Literal: Int
+                                                                                  ret:
+                                                                                    Arrow:
+                                                                                      arg_multi: Linear
+                                                                                      arg:
+                                                                                        Literal: Int
+                                                                                      ret:
+                                                                                        Literal: Int
                                                                               10:
-                                                                                Arrow1:
-                                                                                  - Literal: Int
-                                                                                  - Arrow1:
-                                                                                      - Literal: Int
-                                                                                      - Literal: Int
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Literal: Int
+                                                                                  ret:
+                                                                                    Arrow:
+                                                                                      arg_multi: Linear
+                                                                                      arg:
+                                                                                        Literal: Int
+                                                                                      ret:
+                                                                                        Literal: Int
                                                                               11:
-                                                                                Arrow1:
-                                                                                  - Var: 18
-                                                                                  - Arrow1:
-                                                                                      - Var: 19
-                                                                                      - Literal: Bool
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Var: 18
+                                                                                  ret:
+                                                                                    Arrow:
+                                                                                      arg_multi: Linear
+                                                                                      arg:
+                                                                                        Var: 19
+                                                                                      ret:
+                                                                                        Literal: Bool
                                                                               12:
-                                                                                Arrow1:
-                                                                                  - Literal: Bool
-                                                                                  - Literal: Bool
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Literal: Bool
+                                                                                  ret:
+                                                                                    Literal: Bool
                                                                               13:
-                                                                                Arrow1:
-                                                                                  - ArrowU:
-                                                                                      - Literal: Unit
-                                                                                      - Literal: Unit
-                                                                                  - Literal: Unit
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Arrow:
+                                                                                      arg_multi: Unrestricted
+                                                                                      arg:
+                                                                                        Literal: Unit
+                                                                                      ret:
+                                                                                        Literal: Unit
+                                                                                  ret:
+                                                                                    Literal: Unit
                                                                               14:
-                                                                                Arrow0:
-                                                                                  - Literal: Unit
-                                                                                  - Record:
+                                                                                Arrow:
+                                                                                  arg_multi: Erased
+                                                                                  arg:
+                                                                                    Literal: Unit
+                                                                                  ret:
+                                                                                    Record:
                                                                                       15:
                                                                                         ChanSend:
                                                                                           Var: 20
@@ -284,17 +389,26 @@ expression: x
                                                                                         ChanRecv:
                                                                                           Var: 20
                                                                               17:
-                                                                                Arrow1:
-                                                                                  - Var: 21
-                                                                                  - Arrow1:
-                                                                                      - ChanSend:
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    Var: 21
+                                                                                  ret:
+                                                                                    Arrow:
+                                                                                      arg_multi: Linear
+                                                                                      arg:
+                                                                                        ChanSend:
                                                                                           Var: 21
-                                                                                      - Literal: Bool
+                                                                                      ret:
+                                                                                        Literal: Bool
                                                                               18:
-                                                                                Arrow1:
-                                                                                  - ChanRecv:
+                                                                                Arrow:
+                                                                                  arg_multi: Linear
+                                                                                  arg:
+                                                                                    ChanRecv:
                                                                                       Var: 22
-                                                                                  - TaggedUnion:
+                                                                                  ret:
+                                                                                    TaggedUnion:
                                                                                       19:
                                                                                         Literal: Unit
                                                                                       20:
@@ -302,9 +416,12 @@ expression: x
                                                                               21:
                                                                                 Record:
                                                                                   22:
-                                                                                    Arrow1:
-                                                                                      - Literal: String
-                                                                                      - Literal: Unit
+                                                                                    Arrow:
+                                                                                      arg_multi: Linear
+                                                                                      arg:
+                                                                                        Literal: String
+                                                                                      ret:
+                                                                                        Literal: Unit
                                                                           ident_multi: 0
                                                                       key:
                                                                         offset: 156
@@ -312,11 +429,17 @@ expression: x
                                                                         extra: ~
                                                                   extra:
                                                                     ty:
-                                                                      Arrow1:
-                                                                        - Literal: Int
-                                                                        - Arrow1:
-                                                                            - Literal: Int
-                                                                            - Literal: Bool
+                                                                      Arrow:
+                                                                        arg_multi: Linear
+                                                                        arg:
+                                                                          Literal: Int
+                                                                        ret:
+                                                                          Arrow:
+                                                                            arg_multi: Linear
+                                                                            arg:
+                                                                              Literal: Int
+                                                                            ret:
+                                                                              Literal: Bool
                                                                     ident_multi: 0
                                                                 arg:
                                                                   offset: 160
@@ -328,9 +451,12 @@ expression: x
                                                                     ident_multi: 0
                                                             extra:
                                                               ty:
-                                                                Arrow1:
-                                                                  - Literal: Int
-                                                                  - Literal: Bool
+                                                                Arrow:
+                                                                  arg_multi: Linear
+                                                                  arg:
+                                                                    Literal: Int
+                                                                  ret:
+                                                                    Literal: Bool
                                                               ident_multi: 0
                                                           arg:
                                                             offset: 162
@@ -374,13 +500,22 @@ expression: x
                                                                             Identifier: 1
                                                                           extra:
                                                                             ty:
-                                                                              Arrow1:
-                                                                                - Literal: Int
-                                                                                - ArrowU:
-                                                                                    - Literal: Int
-                                                                                    - ArrowU:
-                                                                                        - Literal: Int
-                                                                                        - Literal: Int
+                                                                              Arrow:
+                                                                                arg_multi: Linear
+                                                                                arg:
+                                                                                  Literal: Int
+                                                                                ret:
+                                                                                  Arrow:
+                                                                                    arg_multi: Unrestricted
+                                                                                    arg:
+                                                                                      Literal: Int
+                                                                                    ret:
+                                                                                      Arrow:
+                                                                                        arg_multi: Unrestricted
+                                                                                        arg:
+                                                                                          Literal: Int
+                                                                                        ret:
+                                                                                          Literal: Int
                                                                             ident_multi: 0
                                                                         arg:
                                                                           offset: 217
@@ -392,11 +527,17 @@ expression: x
                                                                             ident_multi: 0
                                                                     extra:
                                                                       ty:
-                                                                        ArrowU:
-                                                                          - Literal: Int
-                                                                          - ArrowU:
-                                                                              - Literal: Int
-                                                                              - Literal: Int
+                                                                        Arrow:
+                                                                          arg_multi: Unrestricted
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Arrow:
+                                                                              arg_multi: Unrestricted
+                                                                              arg:
+                                                                                Literal: Int
+                                                                              ret:
+                                                                                Literal: Int
                                                                       ident_multi: 0
                                                                   arg:
                                                                     offset: 219
@@ -408,9 +549,12 @@ expression: x
                                                                       ident_multi: 0
                                                               extra:
                                                                 ty:
-                                                                  ArrowU:
-                                                                    - Literal: Int
-                                                                    - Literal: Int
+                                                                  Arrow:
+                                                                    arg_multi: Unrestricted
+                                                                    arg:
+                                                                      Literal: Int
+                                                                    ret:
+                                                                      Literal: Int
                                                                 ident_multi: 0
                                                             arg:
                                                               offset: 225
@@ -432,49 +576,91 @@ expression: x
                                                                                   ty:
                                                                                     Record:
                                                                                       4:
-                                                                                        Arrow1:
-                                                                                          - Literal: Int
-                                                                                          - Arrow1:
-                                                                                              - Literal: Int
-                                                                                              - Literal: Int
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Literal: Int
+                                                                                          ret:
+                                                                                            Arrow:
+                                                                                              arg_multi: Linear
+                                                                                              arg:
+                                                                                                Literal: Int
+                                                                                              ret:
+                                                                                                Literal: Int
                                                                                       7:
-                                                                                        Arrow1:
-                                                                                          - Literal: Int
-                                                                                          - Arrow1:
-                                                                                              - Literal: Int
-                                                                                              - Literal: Bool
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Literal: Int
+                                                                                          ret:
+                                                                                            Arrow:
+                                                                                              arg_multi: Linear
+                                                                                              arg:
+                                                                                                Literal: Int
+                                                                                              ret:
+                                                                                                Literal: Bool
                                                                                       9:
-                                                                                        Arrow1:
-                                                                                          - Literal: Int
-                                                                                          - Arrow1:
-                                                                                              - Literal: Int
-                                                                                              - Literal: Int
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Literal: Int
+                                                                                          ret:
+                                                                                            Arrow:
+                                                                                              arg_multi: Linear
+                                                                                              arg:
+                                                                                                Literal: Int
+                                                                                              ret:
+                                                                                                Literal: Int
                                                                                       10:
-                                                                                        Arrow1:
-                                                                                          - Literal: Int
-                                                                                          - Arrow1:
-                                                                                              - Literal: Int
-                                                                                              - Literal: Int
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Literal: Int
+                                                                                          ret:
+                                                                                            Arrow:
+                                                                                              arg_multi: Linear
+                                                                                              arg:
+                                                                                                Literal: Int
+                                                                                              ret:
+                                                                                                Literal: Int
                                                                                       11:
-                                                                                        Arrow1:
-                                                                                          - Var: 47
-                                                                                          - Arrow1:
-                                                                                              - Var: 48
-                                                                                              - Literal: Bool
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Var: 47
+                                                                                          ret:
+                                                                                            Arrow:
+                                                                                              arg_multi: Linear
+                                                                                              arg:
+                                                                                                Var: 48
+                                                                                              ret:
+                                                                                                Literal: Bool
                                                                                       12:
-                                                                                        Arrow1:
-                                                                                          - Literal: Bool
-                                                                                          - Literal: Bool
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Literal: Bool
+                                                                                          ret:
+                                                                                            Literal: Bool
                                                                                       13:
-                                                                                        Arrow1:
-                                                                                          - ArrowU:
-                                                                                              - Literal: Unit
-                                                                                              - Literal: Unit
-                                                                                          - Literal: Unit
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Arrow:
+                                                                                              arg_multi: Unrestricted
+                                                                                              arg:
+                                                                                                Literal: Unit
+                                                                                              ret:
+                                                                                                Literal: Unit
+                                                                                          ret:
+                                                                                            Literal: Unit
                                                                                       14:
-                                                                                        Arrow0:
-                                                                                          - Literal: Unit
-                                                                                          - Record:
+                                                                                        Arrow:
+                                                                                          arg_multi: Erased
+                                                                                          arg:
+                                                                                            Literal: Unit
+                                                                                          ret:
+                                                                                            Record:
                                                                                               15:
                                                                                                 ChanSend:
                                                                                                   Var: 49
@@ -482,17 +668,26 @@ expression: x
                                                                                                 ChanRecv:
                                                                                                   Var: 49
                                                                                       17:
-                                                                                        Arrow1:
-                                                                                          - Var: 50
-                                                                                          - Arrow1:
-                                                                                              - ChanSend:
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            Var: 50
+                                                                                          ret:
+                                                                                            Arrow:
+                                                                                              arg_multi: Linear
+                                                                                              arg:
+                                                                                                ChanSend:
                                                                                                   Var: 50
-                                                                                              - Literal: Bool
+                                                                                              ret:
+                                                                                                Literal: Bool
                                                                                       18:
-                                                                                        Arrow1:
-                                                                                          - ChanRecv:
+                                                                                        Arrow:
+                                                                                          arg_multi: Linear
+                                                                                          arg:
+                                                                                            ChanRecv:
                                                                                               Var: 51
-                                                                                          - TaggedUnion:
+                                                                                          ret:
+                                                                                            TaggedUnion:
                                                                                               19:
                                                                                                 Literal: Unit
                                                                                               20:
@@ -500,9 +695,12 @@ expression: x
                                                                                       21:
                                                                                         Record:
                                                                                           22:
-                                                                                            Arrow1:
-                                                                                              - Literal: String
-                                                                                              - Literal: Unit
+                                                                                            Arrow:
+                                                                                              arg_multi: Linear
+                                                                                              arg:
+                                                                                                Literal: String
+                                                                                              ret:
+                                                                                                Literal: Unit
                                                                                   ident_multi: 0
                                                                               key:
                                                                                 offset: 226
@@ -510,11 +708,17 @@ expression: x
                                                                                 extra: ~
                                                                           extra:
                                                                             ty:
-                                                                              Arrow1:
-                                                                                - Literal: Int
-                                                                                - Arrow1:
-                                                                                    - Literal: Int
-                                                                                    - Literal: Int
+                                                                              Arrow:
+                                                                                arg_multi: Linear
+                                                                                arg:
+                                                                                  Literal: Int
+                                                                                ret:
+                                                                                  Arrow:
+                                                                                    arg_multi: Linear
+                                                                                    arg:
+                                                                                      Literal: Int
+                                                                                    ret:
+                                                                                      Literal: Int
                                                                             ident_multi: 0
                                                                         arg:
                                                                           offset: 232
@@ -526,9 +730,12 @@ expression: x
                                                                             ident_multi: 0
                                                                     extra:
                                                                       ty:
-                                                                        Arrow1:
-                                                                          - Literal: Int
-                                                                          - Literal: Int
+                                                                        Arrow:
+                                                                          arg_multi: Linear
+                                                                          arg:
+                                                                            Literal: Int
+                                                                          ret:
+                                                                            Literal: Int
                                                                       ident_multi: 0
                                                                   arg:
                                                                     offset: 234
@@ -560,37 +767,64 @@ expression: x
                                     ident_multi: 0
                             extra:
                               ty:
-                                ArrowU:
-                                  - Literal: Int
-                                  - Literal: Int
+                                Arrow:
+                                  arg_multi: Unrestricted
+                                  arg:
+                                    Literal: Int
+                                  ret:
+                                    Literal: Int
                               ident_multi: 2
                       extra:
                         ty:
-                          ArrowU:
-                            - Literal: Int
-                            - ArrowU:
-                                - Literal: Int
-                                - Literal: Int
+                          Arrow:
+                            arg_multi: Unrestricted
+                            arg:
+                              Literal: Int
+                            ret:
+                              Arrow:
+                                arg_multi: Unrestricted
+                                arg:
+                                  Literal: Int
+                                ret:
+                                  Literal: Int
                         ident_multi: 2
                 extra:
                   ty:
-                    Arrow1:
-                      - Literal: Int
-                      - ArrowU:
-                          - Literal: Int
-                          - ArrowU:
-                              - Literal: Int
-                              - Literal: Int
+                    Arrow:
+                      arg_multi: Linear
+                      arg:
+                        Literal: Int
+                      ret:
+                        Arrow:
+                          arg_multi: Unrestricted
+                          arg:
+                            Literal: Int
+                          ret:
+                            Arrow:
+                              arg_multi: Unrestricted
+                              arg:
+                                Literal: Int
+                              ret:
+                                Literal: Int
                   ident_multi: 1
           extra:
             ty:
-              Arrow1:
-                - Literal: Int
-                - ArrowU:
-                    - Literal: Int
-                    - ArrowU:
-                        - Literal: Int
-                        - Literal: Int
+              Arrow:
+                arg_multi: Linear
+                arg:
+                  Literal: Int
+                ret:
+                  Arrow:
+                    arg_multi: Unrestricted
+                    arg:
+                      Literal: Int
+                    ret:
+                      Arrow:
+                        arg_multi: Unrestricted
+                        arg:
+                          Literal: Int
+                        ret:
+                          Literal: Int
             ident_multi: 1
         rest:
           stmts: []
@@ -612,13 +846,22 @@ expression: x
                                 Identifier: 1
                               extra:
                                 ty:
-                                  Arrow1:
-                                    - Literal: Int
-                                    - ArrowU:
-                                        - Literal: Int
-                                        - ArrowU:
-                                            - Literal: Int
-                                            - Literal: Int
+                                  Arrow:
+                                    arg_multi: Linear
+                                    arg:
+                                      Literal: Int
+                                    ret:
+                                      Arrow:
+                                        arg_multi: Unrestricted
+                                        arg:
+                                          Literal: Int
+                                        ret:
+                                          Arrow:
+                                            arg_multi: Unrestricted
+                                            arg:
+                                              Literal: Int
+                                            ret:
+                                              Literal: Int
                                 ident_multi: 0
                             arg:
                               offset: 278
@@ -630,11 +873,17 @@ expression: x
                                 ident_multi: 0
                         extra:
                           ty:
-                            ArrowU:
-                              - Literal: Int
-                              - ArrowU:
-                                  - Literal: Int
-                                  - Literal: Int
+                            Arrow:
+                              arg_multi: Unrestricted
+                              arg:
+                                Literal: Int
+                              ret:
+                                Arrow:
+                                  arg_multi: Unrestricted
+                                  arg:
+                                    Literal: Int
+                                  ret:
+                                    Literal: Int
                           ident_multi: 0
                       arg:
                         offset: 280
@@ -646,9 +895,12 @@ expression: x
                           ident_multi: 0
                   extra:
                     ty:
-                      ArrowU:
-                        - Literal: Int
-                        - Literal: Int
+                      Arrow:
+                        arg_multi: Unrestricted
+                        arg:
+                          Literal: Int
+                        ret:
+                          Literal: Int
                     ident_multi: 0
                 arg:
                   offset: 282
