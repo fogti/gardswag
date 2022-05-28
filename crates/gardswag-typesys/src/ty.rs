@@ -25,17 +25,34 @@ impl fmt::Display for TyLit {
 
 pub type TyVar = usize;
 
+// de Bruijn index as type variable
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
+pub struct DistanceTyVar(pub usize);
+
+impl gardswag_subst::AutoImpl for DistanceTyVar {}
+
+impl fmt::Display for DistanceTyVar {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "^{}", self.0)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Ty {
     Literal(TyLit),
 
     Var(TyVar),
+    DistanceVar(DistanceTyVar),
 
     Arrow {
         arg_multi: FinalArgMultiplicity,
         arg: Box<Ty>,
         ret: Box<Ty>,
     },
+
+    /// recursive type fixpoint operator
+    Fix(Box<Ty>),
 
     /// sender end of channels
     ChanSend(Box<Ty>),
@@ -59,14 +76,15 @@ pub enum FinalArgMultiplicity {
 }
 
 impl fmt::Display for FinalArgMultiplicity {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                Self::Erased => "0",
-                Self::Linear => "1",
-                Self::Unrestricted => "*",
+                Self::Erased => '0',
+                Self::Linear => '1',
+                Self::Unrestricted => '*',
             }
         )
     }
@@ -77,6 +95,7 @@ impl fmt::Display for Ty {
         match self {
             Ty::Literal(lit) => write!(f, "{}", lit),
             Ty::Var(v) => write!(f, "${}", v),
+            Ty::DistanceVar(v) => write!(f, "{}", v),
             Ty::Arrow {
                 arg_multi,
                 arg,
@@ -89,6 +108,11 @@ impl fmt::Display for Ty {
                     write!(f, "{}", arg)
                 }?;
                 write!(f, " -> {}", ret)
+            }
+            Ty::Fix(x) => {
+                write!(f, "μ(")?;
+                <Ty as fmt::Display>::fmt(x, f)?;
+                write!(f, ")")
             }
             Ty::ChanSend(x) => {
                 write!(f, "Chan:send(")?;
@@ -123,13 +147,44 @@ impl FreeVars<TyVar> for Ty {
         let mut xs = vec![self];
         while let Some(x) = xs.pop() {
             match x {
-                Ty::Literal(_) => {}
+                Ty::Literal(_) | Ty::DistanceVar(_) => {}
                 Ty::Var(tv) => {
                     tv.fv(accu, do_add);
                 }
                 Ty::Arrow { arg, ret, .. } => {
                     xs.push(&*arg);
                     xs.push(&*ret);
+                }
+                Ty::Fix(x) => {
+                    xs.push(&*x);
+                }
+                Ty::ChanSend(x) | Ty::ChanRecv(x) => xs.push(&*x),
+                Ty::Record(rcm) => {
+                    xs.extend(rcm.values());
+                }
+                Ty::TaggedUnion(rcm) => {
+                    xs.extend(rcm.values());
+                }
+            }
+        }
+    }
+}
+
+impl FreeVars<DistanceTyVar> for Ty {
+    fn fv(&self, accu: &mut BTreeSet<DistanceTyVar>, do_add: bool) {
+        let mut xs = vec![self];
+        while let Some(x) = xs.pop() {
+            match x {
+                Ty::Literal(_) | Ty::Var(_) => {}
+                Ty::DistanceVar(tv) => {
+                    tv.fv(accu, do_add);
+                }
+                Ty::Arrow { arg, ret, .. } => {
+                    xs.push(&*arg);
+                    xs.push(&*ret);
+                }
+                Ty::Fix(x) => {
+                    xs.push(&*x);
                 }
                 Ty::ChanSend(x) | Ty::ChanRecv(x) => xs.push(&*x),
                 Ty::Record(rcm) => {
@@ -147,8 +202,8 @@ impl Substitutable<TyVar> for Ty {
     type Out = Ty;
     fn apply<F: FnMut(&TyVar) -> Option<Ty>>(&mut self, f: &mut F) {
         match self {
-            Ty::Literal(_) => {}
-            Ty::Var(ref mut tv) => {
+            Ty::Literal(_) | Ty::DistanceVar(_) => {}
+            Ty::Var(ref tv) => {
                 if let Some(x) = f(tv) {
                     *self = x;
                 }
@@ -156,6 +211,9 @@ impl Substitutable<TyVar> for Ty {
             Ty::Arrow { arg, ret, .. } => {
                 arg.apply(f);
                 ret.apply(f);
+            }
+            Ty::Fix(x) => {
+                x.apply(f);
             }
             Ty::ChanSend(x) | Ty::ChanRecv(x) => x.apply(f),
             Ty::Record(rcm) => {
@@ -169,6 +227,51 @@ impl Substitutable<TyVar> for Ty {
                 }
             }
         }
+    }
+}
+
+impl Ty {
+    fn apply_fixpoint(&mut self, shiftval: usize, trg: &Ty) {
+        match self {
+            Ty::Literal(_) | Ty::Var(_) => {}
+            Ty::DistanceVar(DistanceTyVar(tv)) => {
+                use core::cmp::Ordering as Ordr;
+                let tv: usize = *tv;
+                match tv.cmp(&shiftval) {
+                    Ordr::Less => {}
+                    Ordr::Equal => *self = Ty::Fix(Box::new(trg.clone())),
+                    Ordr::Greater => panic!(
+                        "unexpanded type-level fixpoint variable encountered: {}",
+                        DistanceTyVar(tv)
+                    ),
+                }
+            }
+            Ty::Arrow { arg, ret, .. } => {
+                arg.apply_fixpoint(shiftval, trg);
+                ret.apply_fixpoint(shiftval, trg);
+            }
+            Ty::Fix(x) => {
+                x.apply_fixpoint(shiftval + 1, trg);
+            }
+            Ty::ChanSend(x) | Ty::ChanRecv(x) => x.apply_fixpoint(shiftval, trg),
+            Ty::Record(rcm) => {
+                for i in rcm.values_mut() {
+                    i.apply_fixpoint(shiftval, trg);
+                }
+            }
+            Ty::TaggedUnion(rcm) => {
+                for i in rcm.values_mut() {
+                    i.apply_fixpoint(shiftval, trg);
+                }
+            }
+        }
+    }
+
+    /// this function expects the inner content of `Ty::Fix(inner)` as its `self` argument.
+    pub fn unfold_fixpoint(&self) -> Ty {
+        let mut s2 = self.clone();
+        s2.apply_fixpoint(0, self);
+        s2
     }
 }
 

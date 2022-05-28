@@ -371,7 +371,7 @@ impl Context {
         for (offset, constr) in take(&mut constraints) {
             tracing::trace!("***solve*** @{} {:?}", offset, constr);
             let tmp = match constr {
-                Constraint::Unify(a, b) => self.unify(&a, &b),
+                Constraint::Unify(a, b) => self.unify(&a, &b, &mut Vec::new()),
                 Constraint::Bind(tv, cg) => self.bind(tv, cg),
                 Constraint::BindArgMulti(amid, amdat) => self.bind_argmulti(amid, amdat),
             };
@@ -383,10 +383,27 @@ impl Context {
         Ok(())
     }
 
-    fn unify(&mut self, a: &Ty, b: &Ty) -> Result<(), UnifyError> {
+    fn unify(&mut self, a: &Ty, b: &Ty, assumps: &mut Vec<(Ty, Ty)>) -> Result<(), UnifyError> {
         //tracing::trace!(%a, %b, ?self, "unify");
         // self clutters the output too much
-        tracing::trace!(%a, %b, "unify");
+        tracing::trace!(%a, %b, ?assumps, "unify");
+        if assumps.iter().any(|(x, y)| a == x && b == y) {
+            return Ok(());
+        }
+        let l = assumps.len();
+        assumps.push((a.clone(), b.clone()));
+        let ret = self.unify_inner(a, b, assumps);
+        assumps.pop().unwrap();
+        assert_eq!(l, assumps.len());
+        ret
+    }
+
+    fn unify_inner(
+        &mut self,
+        a: &Ty,
+        b: &Ty,
+        assumps: &mut Vec<(Ty, Ty)>,
+    ) -> Result<(), UnifyError> {
         match (a, b) {
             (
                 Ty::Arrow {
@@ -400,11 +417,11 @@ impl Context {
                     ret: ret2,
                 },
             ) if am1 == am2 => {
-                self.unify(arg1, arg2)?;
+                self.unify(arg1, arg2, assumps)?;
                 let (mut rx1, mut rx2) = (ret1.clone(), ret2.clone());
                 rx1.apply(&mut |&i| self.on_apply(i));
                 rx2.apply(&mut |&i| self.on_apply(i));
-                self.unify(&rx1, &rx2)?;
+                self.unify(&rx1, &rx2, assumps)?;
                 Ok(())
             }
             (Ty::Record(rc1), Ty::Record(rc2)) if rc1.len() == rc2.len() => {
@@ -413,7 +430,7 @@ impl Context {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
-                    self.unify(v1, v2)?;
+                    self.unify(v1, v2, assumps)?;
                 }
                 Ok(())
             }
@@ -423,12 +440,12 @@ impl Context {
                         t1: a.clone(),
                         t2: b.clone(),
                     })?;
-                    self.unify(v1, v2)?;
+                    self.unify(v1, v2, assumps)?;
                 }
                 Ok(())
             }
-            (Ty::ChanSend(x), Ty::ChanSend(y)) => self.unify(x, y),
-            (Ty::ChanRecv(x), Ty::ChanRecv(y)) => self.unify(x, y),
+            (Ty::ChanSend(x), Ty::ChanSend(y)) => self.unify(x, y, assumps),
+            (Ty::ChanRecv(x), Ty::ChanRecv(y)) => self.unify(x, y, assumps),
             (Ty::Var(a), Ty::Var(b)) => {
                 let tcgid = match (self.m.get(a), self.m.get(b)) {
                     (None, None) => {
@@ -452,6 +469,8 @@ impl Context {
                 },
             ),
             (Ty::Literal(l), Ty::Literal(r)) if l == r => Ok(()),
+            (Ty::Fix(l), r) => self.unify(&l.unfold_fixpoint(), r, assumps),
+            (l, Ty::Fix(r)) => self.unify(l, &r.unfold_fixpoint(), assumps),
             (_, _) => Err(UnifyError::Mismatch {
                 t1: a.clone(),
                 t2: b.clone(),
@@ -496,8 +515,8 @@ impl Context {
                 } = ty
                 {
                     self.bind_argmulti(*multi, (*arg_multi).into())?;
-                    self.unify(ty_arg, arg)?;
-                    self.unify(ty_ret, ret)?;
+                    self.unify(ty_arg, arg, &mut Vec::new())?;
+                    self.unify(ty_ret, ret, &mut Vec::new())?;
                 } else {
                     return Err(UnifyError::NotAnArrow(ty.clone()));
                 }
@@ -506,7 +525,7 @@ impl Context {
                 if let Ty::Record(rcm) = ty {
                     for (key, value) in core::mem::take(partial) {
                         if let Some(got_valty) = rcm.get(&key) {
-                            self.unify(got_valty, &value)?;
+                            self.unify(got_valty, &value, &mut Vec::new())?;
                         } else {
                             return Err(UnifyError::Partial {
                                 key,
@@ -523,7 +542,7 @@ impl Context {
                 if let Ty::TaggedUnion(tum) = ty {
                     for (key, value) in core::mem::take(partial) {
                         if let Some(got_valty) = tum.get(&key) {
-                            self.unify(got_valty, &value)?;
+                            self.unify(got_valty, &value, &mut Vec::new())?;
                         } else {
                             return Err(UnifyError::Partial {
                                 key,
@@ -593,7 +612,7 @@ impl Context {
                             }
                             let rcm_ty = Ty::Record(rcm);
                             if let Some(ty) = &g.ty {
-                                self.unify(&rcm_ty, ty)?;
+                                self.unify(&rcm_ty, ty, &mut Vec::new())?;
                             }
                             modified = true;
                             *update_info = None;
@@ -631,6 +650,27 @@ impl Context {
                         ) => {
                             return Err(UnifyError::NotARecord(ty_ovrd.clone()));
                         }
+
+                        // TODO: fix handling of type-level fixpoints here
+                        (
+                            Some(TyGroup {
+                                ty: Some(ty_orig @ (Ty::DistanceVar(_) | Ty::Fix(_))),
+                                ..
+                            }),
+                            _,
+                        ) => {
+                            return Err(UnifyError::NotARecord(ty_orig.clone()));
+                        }
+                        (
+                            _,
+                            Some(TyGroup {
+                                ty: Some(ty_ovrd @ (Ty::DistanceVar(_) | Ty::Fix(_))),
+                                ..
+                            }),
+                        ) => {
+                            return Err(UnifyError::NotARecord(ty_ovrd.clone()));
+                        }
+
                         (
                             _,
                             Some(TyGroup {
@@ -651,7 +691,7 @@ impl Context {
                                 }
                             }
                             for (v1, v2) in unifiers {
-                                self.unify(&v1, &v2)?;
+                                self.unify(&v1, &v2, &mut Vec::new())?;
                             }
                         }
                         (
@@ -677,7 +717,7 @@ impl Context {
             if let Some(ty) = &mut g.ty {
                 ty.apply(&mut |&i| self.on_apply(i));
                 let tfv = {
-                    let mut tfv = Default::default();
+                    let mut tfv = BTreeSet::<TyVar>::new();
                     ty.fv(&mut tfv, true);
                     tfv
                 };
@@ -685,7 +725,7 @@ impl Context {
                     let mut success = g.oneof.is_empty();
                     for j in &g.oneof {
                         let mut self_bak = self.clone();
-                        if self_bak.unify(ty, j).is_ok() {
+                        if self_bak.unify(ty, j, &mut Vec::new()).is_ok() {
                             *self = self_bak;
                             success = true;
                             ty.apply(&mut |&i| self.on_apply(i));
@@ -742,7 +782,7 @@ impl Context {
                 tracing::trace!(?t_a, ?t_b, "unify-cgs");
                 self.ucg_check4inf(a, b, t_a)?;
                 self.ucg_check4inf(a, b, t_b)?;
-                self.unify(t_a, t_b)?;
+                self.unify(t_a, t_b, &mut Vec::new())?;
                 lhs.ty.as_mut().unwrap().apply(&mut |&i| self.on_apply(i));
                 debug_assert!({
                     rhs.ty.as_mut().unwrap().apply(&mut |&i| self.on_apply(i));
@@ -757,7 +797,7 @@ impl Context {
                     (None, None) => None,
                     (Some(t), None) | (None, Some(t)) => Some(t),
                     (Some(mut t1), Some(t2)) => {
-                        self.unify(&t1, &t2)?;
+                        self.unify(&t1, &t2, &mut Vec::new())?;
                         t1.apply(&mut |&i| self.on_apply(i));
                         Some(t1)
                     }
@@ -790,7 +830,7 @@ impl Context {
                 if oneof.len() == 1 {
                     let ty2 = oneof.remove(0);
                     if let Some(ty) = &mut ty {
-                        self.unify(ty, &ty2)?;
+                        self.unify(ty, &ty2, &mut Vec::new())?;
                         ty.apply(&mut |&i| self.on_apply(i));
                     } else {
                         ty = Some(ty2.clone());
@@ -812,8 +852,8 @@ impl Context {
                             ty_ret: rhs_ty_ret,
                         },
                     ) => {
-                        self.unify(&lhs_ty_arg, &rhs_ty_arg)?;
-                        self.unify(&lhs_ty_ret, &rhs_ty_ret)?;
+                        self.unify(&lhs_ty_arg, &rhs_ty_arg, &mut Vec::new())?;
+                        self.unify(&lhs_ty_ret, &rhs_ty_ret, &mut Vec::new())?;
                         let (mut ty_arg, mut ty_ret) = (lhs_ty_arg, lhs_ty_ret);
                         ty_arg.apply(&mut |&i| self.on_apply(i));
                         ty_ret.apply(&mut |&i| self.on_apply(i));
@@ -861,7 +901,7 @@ impl Context {
                                 use std::collections::btree_map::Entry;
                                 match partial.entry(key) {
                                     Entry::Occupied(mut occ) => {
-                                        self.unify(occ.get(), &value)?;
+                                        self.unify(occ.get(), &value, &mut Vec::new())?;
                                         occ.get_mut().apply(&mut |&i| self.on_apply(i));
                                     }
                                     Entry::Vacant(vac) => {
@@ -874,8 +914,8 @@ impl Context {
                         let update_info =
                             opt_merge(lhs_update_info, rhs_update_info, |(w, x), (y, z)| {
                                 use Ty::Var;
-                                self.unify(&Var(w), &Var(y))?;
-                                self.unify(&Var(x), &Var(z))?;
+                                self.unify(&Var(w), &Var(y), &mut Vec::new())?;
+                                self.unify(&Var(x), &Var(z), &mut Vec::new())?;
                                 Ok((lowest_tvi_for_cg(&self.m, w), lowest_tvi_for_cg(&self.m, x)))
                             })?;
 
@@ -901,7 +941,7 @@ impl Context {
                                 use std::collections::btree_map::Entry;
                                 match partial.entry(key) {
                                     Entry::Occupied(mut occ) => {
-                                        self.unify(occ.get(), &value)?;
+                                        self.unify(occ.get(), &value, &mut Vec::new())?;
                                         occ.get_mut().apply(&mut |&i| self.on_apply(i));
                                     }
                                     Entry::Vacant(vac) => {
@@ -944,12 +984,12 @@ impl Context {
                     if g.oneof.len() == 1 {
                         let j = core::mem::take(&mut g.oneof).into_iter().next().unwrap();
                         self.ucg_check4inf(a, b, &j)?;
-                        self.unify(t, &j)?;
+                        self.unify(t, &j, &mut Vec::new())?;
                     } else {
                         let mut success = false;
                         for j in &g.oneof {
                             let mut self_bak = self.clone();
-                            if self_bak.unify(t, j).is_ok() {
+                            if self_bak.unify(t, j, &mut Vec::new()).is_ok() {
                                 *self = self_bak;
                                 success = true;
                                 break;
@@ -967,7 +1007,7 @@ impl Context {
                     self.unify_cgk_and_ty(tcgk, t)?;
                 }
                 if let Some(old) = &g.ty {
-                    self.unify(old, t)?;
+                    self.unify(old, t, &mut Vec::new())?;
                 } else {
                     g.ty = Some(t.clone());
                 }
@@ -992,10 +1032,10 @@ impl Context {
     fn bind(&mut self, v: TyVar, tcg: TyGroup) -> Result<(), UnifyError> {
         if let Some(t) = tcg.resolved() {
             if let Ty::Var(y) = t {
-                return self.unify(&Ty::Var(v), &Ty::Var(*y));
+                return self.unify(&Ty::Var(v), &Ty::Var(*y), &mut Vec::new());
             }
             let tfv = {
-                let mut tfv = Default::default();
+                let mut tfv = BTreeSet::<TyVar>::new();
                 t.fv(&mut tfv, true);
                 tfv
             };
@@ -1024,7 +1064,7 @@ impl Context {
                     // avoid unnecessary allocation of tcgid
                     if let Some(rhs_ty) = tcg.ty {
                         let lhs_ty = lhs_ty.clone();
-                        return self.unify(&lhs_ty, &rhs_ty);
+                        return self.unify(&lhs_ty, &rhs_ty, &mut Vec::new());
                     }
                 }
                 let rhs_tcgid = rhs_tcgid(&mut self.tycg_cnt, &mut self.g, v, tcg);
@@ -1252,7 +1292,7 @@ impl Context {
             .copied()
             .collect();
         for (i, j) in to_unify {
-            self.unify(&i, &j)?;
+            self.unify(&i, &j, &mut Vec::new())?;
         }
         self.notify_cgs(notify_cgs)?;
         //if g_modified {
