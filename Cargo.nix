@@ -459,6 +459,86 @@ rec {
         };
         resolvedDefaultFeatures = [ "crossbeam-utils" "default" "std" ];
       };
+      "crossbeam-deque" = rec {
+        crateName = "crossbeam-deque";
+        version = "0.8.1";
+        edition = "2018";
+        sha256 = "07nypn86id2lf912ahiww1jvqp0zbk2xa25ra7vzplph375c0mb4";
+        authors = [
+          "The Crossbeam Project Developers"
+        ];
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "crossbeam-epoch";
+            packageId = "crossbeam-epoch";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "crossbeam-utils";
+            packageId = "crossbeam-utils";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "crossbeam-epoch" = [ "dep:crossbeam-epoch" ];
+          "crossbeam-utils" = [ "dep:crossbeam-utils" ];
+          "default" = [ "std" ];
+          "std" = [ "crossbeam-epoch/std" "crossbeam-utils/std" ];
+        };
+        resolvedDefaultFeatures = [ "crossbeam-epoch" "crossbeam-utils" "default" "std" ];
+      };
+      "crossbeam-epoch" = rec {
+        crateName = "crossbeam-epoch";
+        version = "0.9.8";
+        edition = "2018";
+        sha256 = "137ydqj18qddmazgqd16kjn766byixinmavra1hs0src389wyi8i";
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "crossbeam-utils";
+            packageId = "crossbeam-utils";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "lazy_static";
+            packageId = "lazy_static";
+            optional = true;
+          }
+          {
+            name = "memoffset";
+            packageId = "memoffset";
+          }
+          {
+            name = "scopeguard";
+            packageId = "scopeguard";
+            usesDefaultFeatures = false;
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "autocfg";
+            packageId = "autocfg";
+          }
+        ];
+        features = {
+          "default" = [ "std" ];
+          "lazy_static" = [ "dep:lazy_static" ];
+          "loom" = [ "loom-crate" "crossbeam-utils/loom" ];
+          "loom-crate" = [ "dep:loom-crate" ];
+          "nightly" = [ "crossbeam-utils/nightly" ];
+          "std" = [ "alloc" "crossbeam-utils/std" "lazy_static" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "lazy_static" "std" ];
+      };
       "crossbeam-utils" = rec {
         crateName = "crossbeam-utils";
         version = "0.8.8";
@@ -483,6 +563,19 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "lazy_static" "std" ];
       };
+      "either" = rec {
+        crateName = "either";
+        version = "1.6.1";
+        edition = "2015";
+        sha256 = "0mwl9vngqf5jvrhmhn9x60kr5hivxyjxbmby2pybncxfqhf4z3g7";
+        authors = [
+          "bluss"
+        ];
+        features = {
+          "default" = [ "use_std" ];
+          "serde" = [ "dep:serde" ];
+        };
+      };
       "encode_unicode" = rec {
         crateName = "encode_unicode";
         version = "0.3.6";
@@ -497,6 +590,16 @@ rec {
           "default" = [ "std" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
+      };
+      "event-listener" = rec {
+        crateName = "event-listener";
+        version = "2.5.2";
+        edition = "2018";
+        sha256 = "0wgbyhw4piqrrln6s61y3sc06wd3liwzzz18hazji3wk2ya31wvp";
+        authors = [
+          "Stjepan Glavina <stjepang@gmail.com>"
+        ];
+
       };
       "gardswag" = rec {
         crateName = "gardswag";
@@ -525,6 +628,10 @@ rec {
             packageId = "crossbeam-utils";
           }
           {
+            name = "event-listener";
+            packageId = "event-listener";
+          }
+          {
             name = "gardswag-infer-cgen";
             packageId = "gardswag-infer-cgen";
           }
@@ -539,6 +646,14 @@ rec {
           {
             name = "gardswag-varstack";
             packageId = "gardswag-varstack";
+          }
+          {
+            name = "once_cell";
+            packageId = "once_cell";
+          }
+          {
+            name = "rayon";
+            packageId = "rayon";
           }
           {
             name = "serde";
@@ -1022,6 +1137,24 @@ rec {
         ];
 
       };
+      "memoffset" = rec {
+        crateName = "memoffset";
+        version = "0.6.5";
+        edition = "2015";
+        sha256 = "1kkrzll58a3ayn5zdyy9i1f1v3mx0xgl29x0chq614zazba638ss";
+        authors = [
+          "Gilad Naaman <gilad.naaman@gmail.com>"
+        ];
+        buildDependencies = [
+          {
+            name = "autocfg";
+            packageId = "autocfg";
+          }
+        ];
+        features = {
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "num-traits" = rec {
         crateName = "num-traits";
         version = "0.2.15";
@@ -1042,11 +1175,33 @@ rec {
         };
         resolvedDefaultFeatures = [ "std" ];
       };
+      "num_cpus" = rec {
+        crateName = "num_cpus";
+        version = "1.13.1";
+        edition = "2015";
+        sha256 = "18apx62z4j4lajj2fi6r1i8slr9rs2d0xrbj2ls85qfyxck4brhr";
+        authors = [
+          "Sean McArthur <sean@seanmonstar.com>"
+        ];
+        dependencies = [
+          {
+            name = "hermit-abi";
+            packageId = "hermit-abi";
+            target = { target, features }: (((target."arch" == "x86_64") || (target."arch" == "aarch64")) && (target."os" == "hermit"));
+          }
+          {
+            name = "libc";
+            packageId = "libc";
+            target = { target, features }: (!(target."windows" or false));
+          }
+        ];
+
+      };
       "once_cell" = rec {
         crateName = "once_cell";
-        version = "1.11.0";
+        version = "1.12.0";
         edition = "2018";
-        sha256 = "1jl3sww9gdbg1spc804x28wa4n0gbckwchpm6ggynfn570xrh43v";
+        sha256 = "09a2gb4sls2d3762jsps81s5y270465s0ip7cvv5h7qc7zwcw2bp";
         authors = [
           "Aleksey Kladov <aleksey.kladov@gmail.com>"
         ];
@@ -1405,6 +1560,67 @@ rec {
           "serde1" = [ "serde" ];
         };
       };
+      "rayon" = rec {
+        crateName = "rayon";
+        version = "1.5.3";
+        edition = "2018";
+        sha256 = "0z9sjcy1hnnvgkwx3cn1x44pf24jpwarp3172m9am2xd5rvyb6dx";
+        authors = [
+          "Niko Matsakis <niko@alum.mit.edu>"
+          "Josh Stone <cuviper@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "crossbeam-deque";
+            packageId = "crossbeam-deque";
+          }
+          {
+            name = "either";
+            packageId = "either";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "rayon-core";
+            packageId = "rayon-core";
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "autocfg";
+            packageId = "autocfg";
+          }
+        ];
+
+      };
+      "rayon-core" = rec {
+        crateName = "rayon-core";
+        version = "1.9.3";
+        edition = "2018";
+        sha256 = "0gv8k6612gc24kqqm4440f5qfx6gnyv2v6dj3d4libbdmjswv2r5";
+        authors = [
+          "Niko Matsakis <niko@alum.mit.edu>"
+          "Josh Stone <cuviper@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "crossbeam-channel";
+            packageId = "crossbeam-channel";
+          }
+          {
+            name = "crossbeam-deque";
+            packageId = "crossbeam-deque";
+          }
+          {
+            name = "crossbeam-utils";
+            packageId = "crossbeam-utils";
+          }
+          {
+            name = "num_cpus";
+            packageId = "num_cpus";
+          }
+        ];
+
+      };
       "regex" = rec {
         crateName = "regex";
         version = "1.5.6";
@@ -1487,6 +1703,18 @@ rec {
         ];
         features = {
           "no-panic" = [ "dep:no-panic" ];
+        };
+      };
+      "scopeguard" = rec {
+        crateName = "scopeguard";
+        version = "1.1.0";
+        edition = "2015";
+        sha256 = "1kbqm85v43rq92vx7hfiay6pmcga03vrjbbfwqpyj3pwsg3b16nj";
+        authors = [
+          "bluss"
+        ];
+        features = {
+          "default" = [ "use_std" ];
         };
       };
       "serde" = rec {
