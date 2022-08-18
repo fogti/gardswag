@@ -237,6 +237,7 @@ fn main() {
     let (itn, parsed, _) = main_check(&dat).expect("unable to parse + type-check file");
 
     if args.mode == Mode::Check {
+        println!("result: {:#?}", parsed);
         return;
     }
 

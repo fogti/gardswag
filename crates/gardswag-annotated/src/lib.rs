@@ -55,7 +55,9 @@ impl<T: fmt::Display, X: fmt::Debug> fmt::Display for Annot<T, X> {
 
 impl<T: fmt::Debug, X: fmt::Debug> fmt::Debug for Annot<T, X> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "@{}: {:?},{:?}", self.offset, self.inner, self.extra)
+        write!(f, "@{}: ", self.offset)?;
+        <T as fmt::Debug>::fmt(&self.inner, f)?;
+        write!(f, ",{:?}", self.extra)
     }
 }
 

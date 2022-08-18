@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 pub struct Interner(Vec<Box<str>>);
 
 #[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize,
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize,
 )]
 pub struct Symbol(u32);
 
@@ -28,6 +28,12 @@ impl Symbol {
 
     pub const fn is_empty(self) -> bool {
         self.0 == 0
+    }
+}
+
+impl fmt::Debug for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "#{}", self.0)
     }
 }
 

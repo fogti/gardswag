@@ -4,16 +4,22 @@ expression: "Lexer::new(\"let a = 1;\").collect::<Vec<_>>()"
 ---
 [
     Ok(
-        @0: Keyword(Let),(),
+        @0: Keyword(
+            Let,
+        ),(),
     ),
     Ok(
-        @4: Identifier("a"),(),
+        @4: Identifier(
+            "a",
+        ),(),
     ),
     Ok(
         @6: EqSym,(),
     ),
     Ok(
-        @8: Integer(1),(),
+        @8: Integer(
+            1,
+        ),(),
     ),
     Ok(
         @9: SemiColon,(),

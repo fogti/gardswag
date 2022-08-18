@@ -18,7 +18,10 @@ version = "1.0"
 features = ["derive"]
 
 [dev-dependencies]
-insta = "1.14"
+
+[dev-dependencies.insta]
+version = "1.14"
+features = ["yaml"]
 
 [dev-dependencies.proptest]
 version = "1.0"
