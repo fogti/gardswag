@@ -1,0 +1,16 @@
+[package]
+name = "gardswag-llvm"
+version = "0.1.0"
+edition = "2021"
+links = "LLVM-14"
+
+[dependencies]
+cxx = "1.0"
+gardswag-infer-cgen.path = "../gardswag-infer-cgen"
+gardswag-syntax.path = "../gardswag-syntax"
+gardswag-typesys.path = "../gardswag-typesys"
+gardswag-varstack.path = "../gardswag-varstack"
+libc = "0.2"
+
+[build-dependencies]
+cxx-build = "1.0"
