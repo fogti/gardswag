@@ -16,6 +16,9 @@ jobs:
           - 1.60.0
     steps:
       - uses: actions/checkout@v2
+      - run: wget https://apt.llvm.org/llvm.sh
+      - run: chmod +x llvm.sh
+      - run: sudo ./llvm.sh 14
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -47,6 +50,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - run: wget https://apt.llvm.org/llvm.sh
+      - run: chmod +x llvm.sh
+      - run: sudo ./llvm.sh 14
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
