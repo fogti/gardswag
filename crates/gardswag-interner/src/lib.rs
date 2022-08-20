@@ -16,9 +16,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Interner(Vec<Box<str>>);
 
-#[derive(
-    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize,
-)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub struct Symbol(u32);
 
 impl Symbol {
