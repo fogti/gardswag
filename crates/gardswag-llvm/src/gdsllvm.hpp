@@ -25,7 +25,7 @@ struct GdsLLVMCtx {
 
     llvm::Value * getString(size_t, const char *);
 
-    std::unique_ptr<GdsIfCtx> createIfContext(llvm::Value * condV);
+    GdsIfCtx createIfContext(llvm::Value * condV);
 
     std::unique_ptr<GdsFixpCtx> emitFixpoint(size_t, const char *);
 };

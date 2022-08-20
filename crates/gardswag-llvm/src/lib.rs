@@ -1,13 +1,17 @@
+use core::marker::Pin;
 use gardswag_infer_cgen::InferExtra;
 use gardswag_syntax::{Expr, Interner, Symbol};
 use gardswag_varstack::VarStack;
 
 #[cxx::bridge]
 mod ffi {
+
     extern "C++" {
         include!("gdsllvm.hpp");
         type Type;
         type Value;
+
+        type GdsFixpCtx;
 
         type GdsIfCtx;
         unsafe fn selectThen(self: &mut GdsIfCtx);
@@ -21,20 +25,31 @@ mod ffi {
         type GdsLLVMCtx;
         unsafe fn gdsllvm_new_ctx() -> UniquePtr<GdsLLVMCtx>;
 
-        unsafe fn getUnit(self: &GdsLLVMCtx) -> *const Value;
-        unsafe fn getFalse(self: &GdsLLVMCtx) -> *const Value;
-        unsafe fn getTrue(self: &GdsLLVMCtx) -> *const Value;
-        unsafe fn getInt(self: &GdsLLVMCtx, i: i32) -> *const Value;
-        unsafe fn getString(self: &GdsLLVMCtx, len: usize, dat: *const u8) -> *const Value;
+        unsafe fn getUnit(self: Pin<&mut GdsLLVMCtx>) -> *const Value;
+        unsafe fn getFalse(self: Pin<&mut GdsLLVMCtx>) -> *const Value;
+        unsafe fn getTrue(self: Pin<&mut GdsLLVMCtx>) -> *const Value;
+        unsafe fn getInt(self: Pin<&mut GdsLLVMCtx>, i: i32) -> *const Value;
+        unsafe fn getString(self: Pin<&mut GdsLLVMCtx>, len: usize, dat: *const u8)
+            -> *const Value;
 
-        unsafe fn createIfContext(self: &GdsLLVMCtx, condV: *const Value) -> UniquePtr<GdsIfCtx>;
+        unsafe fn createIfContext(self: Pin<&mut GdsLLVMCtx>, condV: *const Value) -> GdsIfCtx;
 
         unsafe fn emitFixpoint(
-            self: &GdsLLVMCtx,
+            self: Pin<&mut GdsLLVMCtx>,
             innerV: *const Value,
             namelen: usize,
             namedat: *const u8,
-        ) -> *const Value;
+        ) -> UniquePtr<GdsFixpCtx>;
+    }
+
+    unsafe impl cxx::ExternType for GdsIfCtx {
+        type Id = cxx::type_id!("GdsIfCtx");
+        type Kind = cxx::kind::Trivial;
+    }
+
+    unsafe impl cxx::ExternType for GdsLLVMCtx {
+        type Id = cxx::type_id!("GdsLLVMCtx");
+        type Kind = cxx::kind::Opaque;
     }
 }
 
@@ -44,25 +59,28 @@ pub struct Context {
 
 pub fn codegen(itn: &Interner, tlexpr: &Expr<InferExtra>) -> Context {
     let mut ctx = unsafe { ffi::gdsllvm_new_ctx() };
+    {
+        let mut ctx = unsafe { Pin::new_unchecked(&mut *ctx) };
 
-    // TODO: generate code for exprs... etc...
-    unsafe {
-        codegen_expr(
-            &mut ctx,
-            itn,
-            VarStack {
-                parent: None,
-                name: "std",
-                value: core::ptr::null(),
-            },
-        )
-    };
+        // TODO: generate code for exprs... etc...
+        unsafe {
+            codegen_expr(
+                &mut ctx,
+                itn,
+                VarStack {
+                    parent: None,
+                    name: "std",
+                    value: core::ptr::null(),
+                },
+            )
+        };
+    }
 
     Context { inner: ctx }
 }
 
 unsafe fn codegen_expr(
-    ctx: &mut Context,
+    ctx: Pin<&mut ffi::GdsLLVMCtx>,
     itn: &Interner,
     vs: &VarStack<'_, Symbol, *const ffi::Value>,
     expr: &Expr<InferExtra>,
@@ -122,7 +140,7 @@ unsafe fn codegen_expr(
 }
 
 unsafe fn codegen_block(
-    ctx: &mut Context,
+    ctx: Pin<&mut GdsLLVMCtx>,
     itn: &Interner,
     vs: &VarStack<'_, Symbol, *const ffi::Value>,
     blk: &Block<InferExtra>,

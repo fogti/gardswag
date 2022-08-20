@@ -50,7 +50,7 @@ llvm::Value * GdsLLVMCtx::getString(size_t len, const char * dat) {
     return llvm::ConstantDataArray::getString(TheContext, std::string_view(dat, len), true);
 }
 
-std::unique_ptr<GdsIfCtx> GdsLLVMCtx::createIfContext(llvm::Value * condV) {
+GdsIfCtx GdsLLVMCtx::createIfContext(llvm::Value * condV) {
     llvm::Function *TheFunction = Builder.GetInsertBlock()->getParent();
 
     GdsIfCtx ret;
@@ -62,7 +62,7 @@ std::unique_ptr<GdsIfCtx> GdsLLVMCtx::createIfContext(llvm::Value * condV) {
 
     Builder.CreateCondBr(condV, ret.ThenBB, ret.ElseBB);
 
-    return std::make_unique<GdsIfCtx>(ret);
+    return ret;
 }
 
 void GdsIfCtx::selectThen() {
