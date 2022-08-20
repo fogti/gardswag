@@ -5,7 +5,6 @@ use gardswag_varstack::VarStack;
 
 #[cxx::bridge]
 mod ffi {
-
     extern "C++" {
         include!("gdsllvm.hpp");
         type Type;
@@ -41,16 +40,16 @@ mod ffi {
             namedat: *const u8,
         ) -> UniquePtr<GdsFixpCtx>;
     }
+}
 
-    unsafe impl cxx::ExternType for GdsIfCtx {
-        type Id = cxx::type_id!("GdsIfCtx");
-        type Kind = cxx::kind::Trivial;
-    }
+unsafe impl cxx::ExternType for ffi::GdsIfCtx {
+    type Id = cxx::type_id!("GdsIfCtx");
+    type Kind = cxx::kind::Trivial;
+}
 
-    unsafe impl cxx::ExternType for GdsLLVMCtx {
-        type Id = cxx::type_id!("GdsLLVMCtx");
-        type Kind = cxx::kind::Opaque;
-    }
+unsafe impl cxx::ExternType for ffi::GdsLLVMCtx {
+    type Id = cxx::type_id!("GdsLLVMCtx");
+    type Kind = cxx::kind::Opaque;
 }
 
 pub struct Context {
