@@ -4,29 +4,33 @@ use gardswag_varstack::VarStack;
 
 #[cxx::bridge]
 mod ffi {
-    unsafe extern "C++" {
+    extern "C++" {
         include!("gdsllvm.hpp");
         type Type;
         type Value;
 
         type GdsIfCtx;
-        fn selectThen(&mut self);
-        fn selectElse(&mut self);
-        fn finish(&mut self, thenV: *const Value, elseV: *const Value) -> *const Value;
+        unsafe fn selectThen(self: &mut GdsIfCtx);
+        unsafe fn selectElse(self: &mut GdsIfCtx);
+        unsafe fn finish(
+            self: &mut GdsIfCtx,
+            thenV: *const Value,
+            elseV: *const Value,
+        ) -> *const Value;
 
         type GdsLLVMCtx;
-        fn gdsllvm_new_ctx() -> UniquePtr<GdsLLVMCtx>;
+        unsafe fn gdsllvm_new_ctx() -> UniquePtr<GdsLLVMCtx>;
 
-        fn getUnit(&mut self) -> *const Value;
-        fn getFalse(&mut self) -> *const Value;
-        fn getTrue(&mut self) -> *const Value;
-        fn getInt(&mut self, i: i32) -> *const Value;
-        fn getString(&mut self, len: usize, dat: *const u8) -> *const Value;
+        unsafe fn getUnit(self: &GdsLLVMCtx) -> *const Value;
+        unsafe fn getFalse(self: &GdsLLVMCtx) -> *const Value;
+        unsafe fn getTrue(self: &GdsLLVMCtx) -> *const Value;
+        unsafe fn getInt(self: &GdsLLVMCtx, i: i32) -> *const Value;
+        unsafe fn getString(self: &GdsLLVMCtx, len: usize, dat: *const u8) -> *const Value;
 
-        fn createIfContext(&mut self, condV: *const Value) -> UniquePtr<GdsIfCtx>;
+        unsafe fn createIfContext(self: &GdsLLVMCtx, condV: *const Value) -> UniquePtr<GdsIfCtx>;
 
-        fn emitFixpoint(
-            &mut self,
+        unsafe fn emitFixpoint(
+            self: &GdsLLVMCtx,
             innerV: *const Value,
             namelen: usize,
             namedat: *const u8,
@@ -39,14 +43,25 @@ pub struct Context {
 }
 
 pub fn codegen(itn: &Interner, tlexpr: &Expr<InferExtra>) -> Context {
-    let mut ctx = ffi::gdsllvm_new_ctx();
+    let mut ctx = unsafe { ffi::gdsllvm_new_ctx() };
 
     // TODO: generate code for exprs... etc...
+    unsafe {
+        codegen_expr(
+            &mut ctx,
+            itn,
+            VarStack {
+                parent: None,
+                name: "std",
+                value: core::ptr::null(),
+            },
+        )
+    };
 
     Context { inner: ctx }
 }
 
-fn codegen_expr(
+unsafe fn codegen_expr(
     ctx: &mut Context,
     itn: &Interner,
     vs: &VarStack<'_, Symbol, *const ffi::Value>,
@@ -106,7 +121,7 @@ fn codegen_expr(
     }
 }
 
-fn codegen_block(
+unsafe fn codegen_block(
     ctx: &mut Context,
     itn: &Interner,
     vs: &VarStack<'_, Symbol, *const ffi::Value>,
