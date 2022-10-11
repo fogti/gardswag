@@ -9,7 +9,7 @@ mod interp_ast;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, PartialEq, Eq, clap::ArgEnum)]
+#[derive(Clone, PartialEq, Eq, clap::ValueEnum)]
 enum Mode {
     /// check if the file passes parsing + type-check
     Check,
@@ -26,7 +26,7 @@ struct Args {
     file: PathBuf,
 
     /// specify the mode
-    #[clap(arg_enum, short = 'm', long)]
+    #[clap(value_enum, short = 'm', long)]
     mode: Mode,
 }
 

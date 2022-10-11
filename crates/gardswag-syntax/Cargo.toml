@@ -20,7 +20,7 @@ features = ["derive"]
 [dev-dependencies]
 
 [dev-dependencies.insta]
-version = "1.14"
+version = "1.21"
 features = ["yaml"]
 
 [dev-dependencies.proptest]
