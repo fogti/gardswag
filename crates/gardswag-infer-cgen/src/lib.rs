@@ -468,7 +468,7 @@ fn infer(
                 inner: Ek::Tagger(key),
             })
         }
-        Ek::Match { inp, cases } => infer_match(env, ctx, expr.offset, &*inp, &cases[..]),
+        Ek::Match { inp, cases } => infer_match(env, ctx, expr.offset, inp, &cases[..]),
 
         Ek::FormatString(fsexs) => {
             let mut fsexs2 = Vec::with_capacity(fsexs.len());

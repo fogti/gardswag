@@ -554,7 +554,7 @@ impl Context {
                 tmp = inner.clone().unfold_fixpoint();
                 &tmp
             }
-            _ => &*ty,
+            _ => ty,
         };
         match tcgk {
             Tcgk::Arrow {

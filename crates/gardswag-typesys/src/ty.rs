@@ -153,13 +153,13 @@ impl FreeVars<TyVar> for Ty {
                     tv.fv(accu, do_add);
                 }
                 Ty::Arrow { arg, ret, .. } => {
-                    xs.push(&*arg);
-                    xs.push(&*ret);
+                    xs.push(arg);
+                    xs.push(ret);
                 }
                 Ty::Fix(x) => {
-                    xs.push(&*x);
+                    xs.push(x);
                 }
-                Ty::ChanSend(x) | Ty::ChanRecv(x) => xs.push(&*x),
+                Ty::ChanSend(x) | Ty::ChanRecv(x) => xs.push(x),
                 Ty::Record(rcm) => {
                     xs.extend(rcm.values());
                 }
@@ -181,13 +181,13 @@ impl FreeVars<DistanceTyVar> for Ty {
                     tv.fv(accu, do_add);
                 }
                 Ty::Arrow { arg, ret, .. } => {
-                    xs.push(&*arg);
-                    xs.push(&*ret);
+                    xs.push(arg);
+                    xs.push(ret);
                 }
                 Ty::Fix(x) => {
-                    xs.push(&*x);
+                    xs.push(x);
                 }
-                Ty::ChanSend(x) | Ty::ChanRecv(x) => xs.push(&*x),
+                Ty::ChanSend(x) | Ty::ChanRecv(x) => xs.push(x),
                 Ty::Record(rcm) => {
                     xs.extend(rcm.values());
                 }

@@ -16,9 +16,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Interner(Vec<Box<str>>);
 
-#[derive(
-    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize,
-)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub struct Symbol(u32);
 
 impl Symbol {
@@ -71,7 +69,7 @@ impl Interner {
     #[inline]
     pub fn get(&self, s: Symbol) -> &str {
         if let Some(x) = s.0.checked_sub(1) {
-            &*self.0[usize::try_from(x).unwrap()]
+            &self.0[usize::try_from(x).unwrap()]
         } else {
             ""
         }

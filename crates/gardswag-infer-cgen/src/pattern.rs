@@ -144,12 +144,12 @@ fn pattern2node(vars: &mut ICaseVars, offset: usize, pat: &Pat<()>) -> Result<Pa
             };
         }
         Pat::Tagged { key, value } => PatNodeKind::TaggedUnion(
-            once((key.inner, pattern2node(vars, offset, &**value)?)).collect(),
+            once((key.inner, pattern2node(vars, offset, value)?)).collect(),
         ),
         Pat::Record(rcd) => PatNodeKind::Record({
             let mut rcpat = BTreeMap::default();
             for (key, value) in &rcd.inner {
-                rcpat.insert(*key, pattern2node(vars, offset, &*value)?);
+                rcpat.insert(*key, pattern2node(vars, offset, value)?);
             }
             rcpat
         }),
@@ -218,7 +218,7 @@ fn cases2nodetree(cases: &mut [ICase<'_>]) -> Result<PatNode, Error> {
                 }
             },
             (Pat::Tagged { key, value }, Pnk::TaggedUnion(tupat)) => {
-                let subpnt = pattern2node(vars, offset, &*value)?;
+                let subpnt = pattern2node(vars, offset, value)?;
                 match tupat.entry(key.inner) {
                     Entry::Vacant(vac) => {
                         vac.insert(subpnt);

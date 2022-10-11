@@ -1031,7 +1031,7 @@ fn parse_expr(itn: &mut Interner, lxr: &mut PeekLexer<'_>) -> ParseResult<Expr<(
             offset,
             itn,
             lxr,
-            &parse_expr_greedy,
+            parse_expr_greedy,
             |itn,
              Annot {
                  offset,
