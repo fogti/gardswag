@@ -106,6 +106,7 @@ fn maybe_new_argmulti(
     }
 }
 
+#[allow(clippy::or_fun_call)]
 fn infer(
     env: Env<'_>,
     ctx: &mut tysy::CollectContext,

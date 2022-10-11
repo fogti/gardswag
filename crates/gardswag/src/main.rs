@@ -114,6 +114,7 @@ fn mk_env_std(itn: &mut Interner, ctx: &mut TyCollectCtx) -> gardswag_typesys::S
     }
 }
 
+#[allow(clippy::or_fun_call)]
 fn main_check(
     dat: &str,
 ) -> anyhow::Result<(
