@@ -431,6 +431,8 @@ impl Context {
         }
     }
 
+    // clippy doesn't detect that `assumps` needs to be `Vec` in `unify`
+    #[allow(clippy::ptr_arg)]
     fn unify_inner(
         &mut self,
         constrs: &mut Vec<Constraint>,
