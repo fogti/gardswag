@@ -1,6 +1,6 @@
 use crossbeam_utils::thread;
 use gardswag_syntax::{self as synt, Block, Expr, Interner, Symbol};
-use gardswag_varstack::VarStack;
+use varstack::VarStack;
 use serde::Serialize;
 use std::collections::BTreeMap;
 

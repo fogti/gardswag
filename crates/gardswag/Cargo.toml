@@ -11,10 +11,10 @@ crossbeam-channel = "0.5"
 gardswag-infer-cgen.path = "../gardswag-infer-cgen"
 gardswag-syntax.path = "../gardswag-syntax"
 gardswag-typesys.path = "../gardswag-typesys"
-gardswag-varstack.path = "../gardswag-varstack"
 serde = "1.0"
 serde_yaml = "0.9"
 tracing = "0.1"
+varstack = "0.1"
 
 [dependencies.clap]
 version = "4.0"

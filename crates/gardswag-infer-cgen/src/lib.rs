@@ -14,7 +14,7 @@ use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
 use gardswag_typesys::{
     self as tysy, ArgMultiplicity as ArgMult, FreeVars, Substitutable, Ty, TyLit, TyVar,
 };
-use gardswag_varstack::VarStack;
+use varstack::VarStack;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 

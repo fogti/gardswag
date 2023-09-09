@@ -126,7 +126,7 @@ fn main_check(
     let parsed = gardswag_syntax::parse(&mut itn, dat)?;
     let mut ctx = TyCollectCtx::default();
 
-    let env = gardswag_varstack::VarStack {
+    let env = varstack::VarStack {
         parent: None,
         name: itn.get_or_intern("std"),
         value: (
@@ -189,7 +189,7 @@ fn main_interp_ast<'a>(
 ) -> interp_ast::Value<'a, crate::infer::InferExtra> {
     use interp_ast::{Builtin as Bi, Value as Val};
 
-    let stack: gardswag_varstack::VarStack<'a, Symbol, Val<'a, _>> = gardswag_varstack::VarStack {
+    let stack: varstack::VarStack<'a, Symbol, Val<'a, _>> = varstack::VarStack {
         parent: None,
         name: itn.get_already_interned("std"),
         value: Val::Record(

@@ -2,7 +2,7 @@ use core::iter::once;
 use gardswag_syntax::{self as synt, Annot, AnnotFmap, Case, Expr, Pattern as Pat, Symbol};
 use gardswag_typesys::constraint::{TyGroup as Tcg, TyGroupKind as Tcgk};
 use gardswag_typesys::{self as tysy, ArgMultiplicity, CollectContext, Ty, TyLit, TyVar};
-use gardswag_varstack::VarStack;
+use varstack::VarStack;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use super::{infer, maybe_new_tyvar_opt, Env, Error, IdentMeta, InferExtra};

@@ -6,6 +6,6 @@ license = "Apache-2.0"
 
 [dependencies]
 
-[dependencies.gardswag-varstack]
-path = "../gardswag-varstack"
+[dependencies.varstack]
+version = "0.1"
 optional = true
